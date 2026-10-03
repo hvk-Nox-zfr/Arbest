@@ -3,14 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Titre et SEO valides pour l'indexation Google -->
   <title>Arbest</title>
+  <meta name="description" content="Arbest — You are the best. Environnement de projets Canvas et d'interfaces interactives en JavaScript. Explorez nos simulations graphiques à forte réactivité.">
+  
   <link rel="stylesheet" href="style.css">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;700;900&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body class="crt">
   <div id="glitch-cubes-loader"></div>
-
   <div class="scanline-overlay"></div>
 
   <!-- EN-TÊTE -->
@@ -22,7 +25,10 @@
       </svg>
       Arbest<span class="highlight">Arcade</span>
     </div>
+
     <div class="header-right">
+      <!-- Bouton Panique discret camouflé en document -->
+      <button onclick="window.location.href='https://docs.google.com'" class="btn-neon sm" title="Redirection d'urgence">📄 DOCS</button>
       <button id="sound-toggle" class="btn-neon sm">🔊 SON: ON</button>
       <div class="stat-badge">
         <span class="badge-label">RECORD TOTAL</span>

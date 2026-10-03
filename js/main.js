@@ -323,3 +323,30 @@ window.onload = () => {
     document.addEventListener('DOMContentLoaded', initGlitchLoader);
   }
 })();
+
+// ============================================================
+// SYSTÈME DE SÉCURITÉ ET CAMOUFLAGE (ARBEST STEALTH)
+// ============================================================
+(function initStealthSystem() {
+  const ORIGINAL_TITLE = 'Arbest';
+
+  // 1. Raccourcis Panique : Shift + Échap OU Alt + Q
+  document.addEventListener('keydown', (e) => {
+    const isShiftEscape = e.shiftKey && e.key === 'Escape';
+    const isAltQ = e.altKey && (e.key === 'q' || e.key === 'Q');
+
+    if (isShiftEscape || isAltQ) {
+      window.location.href = 'https://docs.google.com';
+    }
+  });
+
+  // 2. Camouflage de l'onglet si l'élève change d'application ou d'onglet
+  window.addEventListener('blur', () => {
+    document.title = 'Google Docs — Document sans titre';
+  });
+
+  // Remet le vrai nom quand il revient sur l'onglet
+  window.addEventListener('focus', () => {
+    document.title = ORIGINAL_TITLE;
+  });
+})();
