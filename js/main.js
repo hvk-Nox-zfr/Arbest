@@ -88,6 +88,14 @@ const GAMES_REGISTRY = {
     initFn: 'startMotoGame',
     controls: '💡 Z / ↑ : Gaz | S / ↓ : Frein | Q-D / ← → : Pencher | R : Recommencer'
   },
+  flappy: {
+    title: 'FLAPPY POULET',
+    badge: 'ARCADE',
+    desc: 'Guidez le poulet cosmique à travers les tuyaux sans heurter les obstacles !',
+    script: 'js/games/flappy.js',
+    initFn: 'startFlappyGame',
+    controls: '💡 Espace / Clic : Faire voler le poulet'
+  },
 };
 
 // Synthétiseur audio
