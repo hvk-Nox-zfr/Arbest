@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arbest</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;700;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body class="crt">
+  <div id="glitch-cubes-loader"></div>
+
+  <div class="scanline-overlay"></div>
+
+  <!-- EN-TÊTE -->
+  <header>
+    <div class="logo">
+      <svg class="logo-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="6 11 10 11 10 7 14 7 14 11 18 11 18 15 14 15 14 19 10 19 10 15 6 15 6 11" />
+        <circle cx="12" cy="13" r="1.5" />
+      </svg>
+      Arbest<span class="highlight">Arcade</span>
+    </div>
+    <div class="header-right">
+      <button id="sound-toggle" class="btn-neon sm">🔊 SON: ON</button>
+      <div class="stat-badge">
+        <span class="badge-label">RECORD TOTAL</span>
+        <span id="total-score" class="badge-value">0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENU PRINCIPAL -->
+  <main>
+    <!-- HUB DE SÉLECTION -->
+    <section id="hub-view" class="view active">
+      <div class="hero">
+        <h1 class="glitch-title" data-text="ARCADE SYSTEM">ARCADE SYSTEM</h1>
+        <p class="subtitle">Sélectionnez un module de jeu et défiez les meilleurs scores</p>
+      </div>
+
+      <!-- La grille sera remplie automatiquement par main.js -->
+      <div class="game-grid" id="game-grid"></div>
+    </section>
+
+    <!-- ZONE DE JEU -->
+    <section id="game-view" class="view">
+      <div class="game-header">
+        <button onclick="closeGame()" class="btn-neon sm">⬅ RETOUR HUB</button>
+        <h2 id="game-title">TITRE DU JEU</h2>
+        <div class="stat-badge">
+          <span class="badge-label">SCORE</span>
+          <span id="current-score" class="badge-value">0</span>
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <canvas id="game-canvas" width="600" height="400"></canvas>
+        <div id="memory-board" class="memory-board hidden"></div>
+
+        <div id="game-overlay" class="overlay hidden">
+          <h2 id="overlay-title">SYSTEM FAILURE</h2>
+          <p id="overlay-msg">SCORE FINAL : <span id="final-score">0</span></p>
+          <button id="btn-restart" class="btn-neon">RECOMMENCER</button>
+        </div>
+      </div>
+
+      <div class="controls-hint" id="controls-hint">
+        💡 CONTRÔLES : Flèches du clavier / Espace / Souris
+      </div>
+    </section>
+  </main>
+
+  <!-- SEUL SCRIPT À CHARGER AU DÉPART -->
+  <script src="js/main.js"></script>
+</body>
+</html>

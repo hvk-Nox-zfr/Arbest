@@ -1,0 +1,443 @@
+:root {
+  --bg-dark: #05050d;
+  --panel-bg: rgba(15, 15, 30, 0.85);
+  --neon-cyan: #00f3ff;
+  --neon-pink: #ff0055;
+  --neon-purple: #9d00ff;
+  --neon-yellow: #ffe600;
+  --text-main: #ffffff;
+  --text-muted: #8a8ab0;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Rajdhani', sans-serif;
+}
+
+body {
+  background-color: var(--bg-dark);
+  background-image: 
+    radial-gradient(circle at 50% 30%, rgba(157, 0, 255, 0.15), transparent 70%),
+    linear-gradient(to bottom, #05050d 0%, #0a0a1a 100%);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* Effet Scanline CRT */
+.scanline-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 4px;
+  z-index: 999;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* Header */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 2.5rem;
+  background: rgba(10, 10, 25, 0.9);
+  border-bottom: 2px solid var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+/* Logo SVG dans le Header */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 1.3rem;
+  color: #fff;
+  text-shadow: 0 0 10px var(--neon-cyan);
+}
+
+.logo-svg {
+  width: 28px;
+  height: 28px;
+  color: var(--neon-cyan);
+  filter: drop-shadow(0 0 8px var(--neon-cyan));
+}
+
+/* Style des icônes SVG dans les cartes de jeu */
+.game-icon {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-icon svg {
+  width: 100%;
+  height: 100%;
+  color: var(--neon-cyan);
+  filter: drop-shadow(0 0 10px var(--neon-cyan));
+  transition: all 0.3s ease;
+}
+
+/* Effet néon rose au survol de la carte */
+.game-card:hover .game-icon svg {
+  color: var(--neon-pink);
+  filter: drop-shadow(0 0 15px var(--neon-pink));
+  transform: scale(1.1);
+}
+
+.highlight {
+  color: var(--neon-pink);
+  text-shadow: 0 0 10px var(--neon-pink);
+}
+
+.header-right {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+/* Boutons Néon */
+.btn-neon {
+  background: transparent;
+  color: var(--neon-cyan);
+  border: 2px solid var(--neon-cyan);
+  padding: 0.8rem 1.6rem;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2), inset 0 0 10px rgba(0, 243, 255, 0.1);
+  text-transform: uppercase;
+}
+
+.btn-neon.sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.65rem;
+}
+
+.btn-neon:hover {
+  background: var(--neon-cyan);
+  color: #000;
+  box-shadow: 0 0 25px var(--neon-cyan);
+  transform: translateY(-2px);
+}
+
+/* Badges de Score */
+.stat-badge {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--neon-pink);
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 0 10px rgba(255, 0, 85, 0.2);
+}
+
+.badge-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.badge-value {
+  font-family: 'Press Start 2P', cursive;
+  color: var(--neon-yellow);
+  font-size: 0.9rem;
+  text-shadow: 0 0 5px var(--neon-yellow);
+}
+
+/* Main Container */
+main {
+  flex: 1;
+  padding: 2.5rem;
+  max-width: 1300px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.view { display: none; }
+.view.active { display: block; }
+
+/* Hero section */
+.hero {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.glitch-title {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 2.2rem;
+  color: #fff;
+  text-shadow: 3px 3px var(--neon-pink), -3px -3px var(--neon-cyan);
+  letter-spacing: 2px;
+  margin-bottom: 0.8rem;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+/* Game Grid */
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
+}
+
+.game-card {
+  background: var(--panel-bg);
+  border: 1px solid rgba(0, 243, 255, 0.3);
+  border-radius: 12px;
+  padding: 1.8rem;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+  display: flex;
+  flex-direction: column;
+}
+
+.game-card:hover {
+  transform: translateY(-8px);
+  border-color: var(--neon-pink);
+  box-shadow: 0 10px 30px rgba(255, 0, 85, 0.3);
+}
+
+.card-badge {
+  position: absolute;
+  top: 1rem; right: 1rem;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.55rem;
+  background: var(--neon-purple);
+  color: #fff;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  box-shadow: 0 0 8px var(--neon-purple);
+}
+
+.game-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+}
+
+.game-card h3 {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 1rem;
+  color: var(--neon-cyan);
+  margin-bottom: 0.8rem;
+}
+
+.game-card p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  margin-bottom: 1.8rem;
+  flex: 1;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hs-tag {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.65rem;
+  color: var(--neon-yellow);
+}
+
+/* Zone du jeu */
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.game-header h2 {
+  font-family: 'Press Start 2P', cursive;
+  color: var(--neon-cyan);
+  font-size: 1.2rem;
+  text-shadow: 0 0 10px var(--neon-cyan);
+}
+
+.canvas-container {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  background: #000;
+  border: 3px solid var(--neon-cyan);
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(0, 243, 255, 0.3);
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #000;
+}
+
+/* Memory Board Néon */
+.memory-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 20px;
+  min-height: 400px;
+  background: #050510;
+}
+
+.memory-card {
+  background: rgba(20, 20, 45, 0.9);
+  border: 2px solid var(--neon-purple);
+  border-radius: 8px;
+  font-size: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
+  box-shadow: inset 0 0 10px rgba(157, 0, 255, 0.2);
+}
+
+.memory-card.flipped {
+  background: #0d1128;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 15px var(--neon-cyan);
+}
+
+/* Overlay Game Over */
+.overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(5, 5, 15, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  backdrop-filter: blur(5px);
+}
+
+.overlay h2 {
+  font-family: 'Press Start 2P', cursive;
+  color: var(--neon-pink);
+  font-size: 1.5rem;
+  text-shadow: 0 0 15px var(--neon-pink);
+}
+
+.overlay p {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.8rem;
+  color: #fff;
+}
+
+.hidden { display: none !important; }
+
+.controls-hint {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+#glitch-cubes-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: transparent; /* Transparence pour voir le site derrière */
+  overflow: hidden;
+  pointer-events: none; /* Laisse passer les clics si besoin */
+}
+
+/* Texture CRT / Scanlines légère sur l'ensemble */
+#glitch-cubes-loader::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.25) 0px,
+    rgba(0, 0, 0, 0.25) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  z-index: 99999;
+  pointer-events: none;
+}
+
+/* Cube 3D Glitch (Taille 1:1 carrée) */
+.glitch-cube-3d {
+  position: absolute;
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(
+    0deg,
+    #ffffff 0px,
+    #ffffff 3px,
+    #d0d5dd 3px,
+    #d0d5dd 6px
+  );
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  /* Ombre 3D extrudée avec Cyan, Magenta et Ombre portée */
+  box-shadow: 
+    -10px -10px 0 #00f3ff,
+     10px  10px 0 #ff0055,
+     18px  18px 0 rgba(0, 0, 0, 0.9);
+  transition: transform 0.25s cubic-bezier(0.8, 0, 0.2, 1), opacity 0.2s ease;
+  will-change: transform, opacity;
+}
+
+/* Variantes visuelles */
+.glitch-cube-3d.dark {
+  background-color: #1a162b;
+  background-image: repeating-linear-gradient(
+    0deg,
+    #1a162b 0px,
+    #1a162b 3px,
+    #0f0c1b 3px,
+    #0f0c1b 6px
+  );
+  border-color: #2a2440;
+}
+
+.glitch-cube-3d.cyan-heavy {
+  box-shadow: -14px -14px 0 #00f3ff, 6px 6px 0 #ff0055, 18px 18px 0 rgba(0, 0, 0, 0.95);
+}
+
+.glitch-cube-3d.pink-heavy {
+  box-shadow: -6px -6px 0 #00f3ff, 14px 14px 0 #ff0055, 20px 20px 0 rgba(0, 0, 0, 0.95);
+}
+
+/* Disparition : chute, rotation et décalage */
+.glitch-cube-3d.disappear {
+  transform: translateY(160px) translateX(var(--shift-x, 20px)) rotate(var(--rot, 0deg)) scale(0.02);
+  opacity: 0;
+}
+
+.game-card.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
