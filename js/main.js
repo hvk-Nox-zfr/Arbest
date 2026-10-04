@@ -160,13 +160,41 @@ function loadGameScript(scriptUrl) {
   });
 }
 
-// 3. OUVERTURE D'UN JEU
+// 3. ARRÊT PROPRE DU JEU EN COURS (évite qu'un ancien jeu continue en arrière-plan)
+function stopAllGames() {
+  if (currentGameLoop) cancelAnimationFrame(currentGameLoop);
+  currentGameLoop = null;
+  if (window.cybercraftLoopId) cancelAnimationFrame(window.cybercraftLoopId);
+  if (typeof window.__motoStop === 'function') window.__motoStop();
+  if (typeof window.__wormStop === 'function') window.__wormStop();
+
+  // Écouteurs laissés par certains jeux
+  window.onkeydown = null;
+  window.onmousemove = null;
+  window.onmousedown = null;
+  window.onmouseup = null;
+  const cv = document.getElementById('game-canvas');
+  if (window._flappyInputHandler) {
+    window.removeEventListener('keydown', window._flappyInputHandler);
+    if (cv) cv.removeEventListener('pointerdown', window._flappyInputHandler);
+    window._flappyInputHandler = null;
+  }
+  if (window._runnerDownHandler) {
+    window.removeEventListener('keydown', window._runnerDownHandler);
+    window.removeEventListener('keyup', window._runnerUpHandler);
+    window.removeEventListener('pointerdown', window._runnerDownHandler);
+    window.removeEventListener('pointerup', window._runnerUpHandler);
+    window._runnerDownHandler = null;
+  }
+  if (window.MobileKit) MobileKit.teardown();
+}
+
+// 4. OUVERTURE D'UN JEU
 async function openGame(gameId) {
   const gameConfig = GAMES_REGISTRY[gameId];
   if (!gameConfig || gameConfig.disabled) return;
 
-  if (currentGameLoop) cancelAnimationFrame(currentGameLoop);
-  if (window.cybercraftLoopId) cancelAnimationFrame(window.cybercraftLoopId);
+  stopAllGames();
 
   document.getElementById('hub-view').classList.remove('active');
   document.getElementById('game-view').classList.add('active');
@@ -179,6 +207,10 @@ async function openGame(gameId) {
 
   const canvas = document.getElementById('game-canvas');
   const memoryBoard = document.getElementById('memory-board');
+
+  // Worm redimensionne le canvas : on remet la taille d'origine pour les autres jeux
+  canvas.width = 600;
+  canvas.height = 400;
 
   if (gameId === 'memory') {
     canvas.classList.add('hidden');
@@ -199,9 +231,7 @@ async function openGame(gameId) {
 }
 
 function closeGame() {
-  if (currentGameLoop) cancelAnimationFrame(currentGameLoop);
-  if (window.cybercraftLoopId) cancelAnimationFrame(window.cybercraftLoopId);
-  currentGameLoop = null;
+  stopAllGames();
 
   document.getElementById('game-view').classList.remove('active');
   document.getElementById('hub-view').classList.add('active');
@@ -358,4 +388,3 @@ window.onload = () => {
     document.title = ORIGINAL_TITLE;
   });
 })();
-

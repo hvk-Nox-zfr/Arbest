@@ -1,6 +1,7 @@
 function startTetrisGame() {
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
+  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'tetris' });
 
   const COLS = 10;
   const ROWS = 20;

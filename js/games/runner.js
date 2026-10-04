@@ -2,6 +2,7 @@ function startRunnerGame() {
   const canvas = document.getElementById('game-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'tap' });
 
   const W = canvas.width;
   const H = canvas.height;

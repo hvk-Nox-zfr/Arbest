@@ -1,6 +1,7 @@
 function startPongGame() {
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
+  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'pointer' });
 
   // Dimensions & Raquettes
   let paddleHeight = 85;
@@ -33,7 +34,7 @@ function startPongGame() {
   // Contrôle à la souris / pavé tactile
   window.onmousemove = (e) => {
     const rect = canvas.getBoundingClientRect();
-    const targetY = e.clientY - rect.top - paddleHeight / 2;
+    const targetY = (e.clientY - rect.top) * (canvas.height / rect.height) - paddleHeight / 2;
     playerVy = targetY - playerY;
     playerY = Math.max(10, Math.min(canvas.height - paddleHeight - 10, targetY));
   };

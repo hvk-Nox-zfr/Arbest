@@ -1,6 +1,7 @@
 function startSpaceGame() {
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
+  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'pointer', shoot: true });
 
   let playerX = canvas.width / 2;
   let playerBullets = [];
@@ -60,7 +61,7 @@ function startSpaceGame() {
   // Contrôle de position à la souris
   window.onmousemove = (e) => {
     const rect = canvas.getBoundingClientRect();
-    playerX = Math.max(25, Math.min(canvas.width - 25, e.clientX - rect.left));
+    playerX = Math.max(25, Math.min(canvas.width - 25, (e.clientX - rect.left) * (canvas.width / rect.width)));
   };
 
   // Gestion du tir continu (Clic enfoncé / relâché)

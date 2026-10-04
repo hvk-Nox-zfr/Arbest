@@ -208,6 +208,17 @@ function startCybercraftGame() {
   createPlayerHand();
   setupCybercraftUI(container, canvas);
 
+  function resizeCybercraft() {
+    const s = window.MobileKit ? MobileKit.size(container) : { w: container.clientWidth, h: container.clientHeight };
+    if (!s.w || !s.h || !mcRenderer) return;
+    const inFs = window.MobileKit && MobileKit.isFullscreen();
+    mcRenderer.setSize(s.w, s.h, !inFs);
+    if (inFs) { canvas.style.width = '100%'; canvas.style.height = '100%'; }
+    mcCamera.aspect = s.w / s.h;
+    mcCamera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resizeCybercraft);
+
   // Préparation des matériaux avec textures
   const blockGeo = new THREE.BoxGeometry(1, 1, 1);
   const materials = {};
@@ -300,6 +311,39 @@ function startCybercraftGame() {
   let isMouseDown = false;
   mcRaycaster = new THREE.Raycaster();
 
+  // Pose d'un bloc (bouton tactile) : même logique que le clic droit
+  function placeBlockTouch() {
+    if (mcIsPaused) return;
+    mcRaycaster.setFromCamera(new THREE.Vector2(0, 0), mcCamera);
+    const intersects = mcRaycaster.intersectObjects(mcBlocks);
+    if (intersects.length > 0 && intersects[0].distance <= 5 && (mcInventory[mcSelectedSlot] || 0) > 0) {
+      const hit = intersects[0];
+      const normal = hit.face.normal;
+      const tx = Math.round(hit.object.userData.x + normal.x);
+      const ty = Math.round(hit.object.userData.y + normal.y);
+      const tz = Math.round(hit.object.userData.z + normal.z);
+      const p = mcPlayer.pos;
+      if (Math.abs(p.x - tx) > 0.6 || Math.abs(p.z - tz) > 0.6 || Math.abs(p.y - ty) > 1.2) {
+        addBlock(tx, ty, tz, mcSelectedSlot);
+        mcInventory[mcSelectedSlot]--;
+        updateInventoryUI();
+        animateHandSwing();
+      }
+    }
+  }
+
+  if (window.MobileKit) {
+    MobileKit.setup({ mode: 'fluid', controls: 'cyber', isPaused: () => mcIsPaused, onResize: resizeCybercraft });
+    MobileKit.actions.place = placeBlockTouch;
+    MobileKit.actions.menu = () => {
+      mcIsPaused = true;
+      const m = document.getElementById('mc-pause-menu');
+      if (m) m.style.display = 'flex';
+    };
+    if (MobileKit.isTouch) mcIsPaused = true; // le menu s'affiche, on appuie sur REPRENDRE
+  }
+  let wasMining = false;
+
   document.addEventListener('mousemove', (e) => {
     if (document.pointerLockElement === canvas && !mcIsPaused) {
       mcPlayer.yaw -= e.movementX * mcSettings.sensitivity;
@@ -374,6 +418,21 @@ function startCybercraftGame() {
   // BOUCLE D'ANIMATION & PHYSIQUE
   function animate() {
     if (!mcIsPaused) {
+      const mt = window.MobileKit;
+      if (mt) {
+        if (mt.look.dx || mt.look.dy) {
+          const sens = mcSettings.sensitivity * 2.2;
+          mcPlayer.yaw -= mt.look.dx * sens;
+          mcPlayer.pitch -= mt.look.dy * sens;
+          mcPlayer.pitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, mcPlayer.pitch));
+          mt.look.dx = 0; mt.look.dy = 0;
+        }
+        if (mt.hold.mine !== wasMining) {
+          wasMining = mt.hold.mine;
+          if (wasMining) animateHandSwing();
+          else { mcMiningProgress = 0; mcCrackMesh.visible = false; }
+        }
+      }
       const speed = keys['shift'] ? 0.14 : 0.08;
       const move = new THREE.Vector3();
 
@@ -381,6 +440,8 @@ function startCybercraftGame() {
       if (keys['s'] || keys['arrowdown']) move.z += 1;
       if (keys['q'] || keys['a'] || keys['arrowleft']) move.x -= 1;
       if (keys['d'] || keys['arrowright']) move.x += 1;
+
+      if (mt) { move.x += mt.joy.x; move.z += mt.joy.y; }
 
       if (move.lengthSq() > 0) {
         move.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), mcPlayer.yaw);
@@ -392,7 +453,7 @@ function startCybercraftGame() {
         if (!checkCollision(nz)) mcPlayer.pos.z = nz.z;
       }
 
-      if (keys[' '] && mcPlayer.onGround) {
+      if ((keys[' '] || (mt && mt.hold.jump)) && mcPlayer.onGround) {
         mcPlayer.velocity.y = 0.15;
         mcPlayer.onGround = false;
       }
@@ -424,7 +485,7 @@ function startCybercraftGame() {
         mcOutlineMesh.position.copy(hit.position);
         mcOutlineMesh.visible = true;
 
-        if (isMouseDown) {
+        if (isMouseDown || (mt && mt.hold.mine)) {
           const bData = BLOCK_TYPES[hit.userData.type];
           if (mcTargetKey !== hit.userData.key) {
             mcTargetKey = hit.userData.key;
@@ -491,11 +552,11 @@ function setupCybercraftUI(container, canvas) {
       `).join('')}
     </div>
 
-    <div id="mc-pause-menu" style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(10,10,20,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;pointer-events:auto;">
+    <div id="mc-pause-menu" style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(10,10,20,0.85);display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:15px;pointer-events:auto;overflow-y:auto;box-sizing:border-box;padding:10px;">
       <h2 style="color:#00f3ff;margin:0;">PAUSE & CRAFTS</h2>
       <button id="mc-btn-resume" style="padding:10px 20px;background:#00f3ff;border:none;font-weight:bold;cursor:pointer;">REPRENDRE</button>
 
-      <div style="display:flex;gap:15px;background:rgba(255,255,255,0.05);padding:15px;border-radius:8px;max-width:90%;">
+      <div style="display:flex;gap:15px;background:rgba(255,255,255,0.05);padding:15px;border-radius:8px;max-width:90%;flex-wrap:wrap;justify-content:center;">
         <div style="color:#fff;font-size:11px;min-width:140px;">
           <h4 style="color:#ffcc00;margin:0 0 5px 0;">INVENTAIRE</h4>
           <div id="mc-inv-list"></div>
@@ -525,8 +586,20 @@ function setupCybercraftUI(container, canvas) {
   container.appendChild(hudContainer);
 
   document.getElementById('mc-btn-resume').addEventListener('click', () => {
-    canvas.requestPointerLock();
+    if (window.MobileKit && MobileKit.isTouch) {
+      mcIsPaused = false;
+      const menu = document.getElementById('mc-pause-menu');
+      if (menu) menu.style.display = 'none';
+    } else {
+      canvas.requestPointerLock();
+    }
   });
+
+  // Sélection des slots au toucher
+  for (let i = 1; i <= 5; i++) {
+    const slot = document.getElementById('mc-slot-' + i);
+    if (slot) slot.addEventListener('click', () => { mcSelectedSlot = i; updateHotbarUI(); });
+  }
 
   updateInventoryUI();
 }

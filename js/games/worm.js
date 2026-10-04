@@ -71,6 +71,7 @@ function startWormGame() {
 
   wormCanvas.classList.remove('hidden');
   wormCtx = wormCanvas.getContext('2d');
+  if (window.MobileKit) MobileKit.setup({ mode: 'fluid', controls: 'boost', onResize: resizeWormCanvas });
 
   resizeWormCanvas();
   window.removeEventListener('resize', resizeWormCanvas);
@@ -79,13 +80,37 @@ function startWormGame() {
   // Événements contrôles
   window.addEventListener('mousemove', handleWormMouseMove);
   window.addEventListener('mousedown', handleWormMouseDown);
-  window.addEventListener('mouseup', (e) => { if (e.button === 0) wormMouse.isBoosting = false; });
+  window.addEventListener('mouseup', handleWormMouseUp);
   window.addEventListener('touchstart', handleWormTouch, { passive: false });
   window.addEventListener('touchmove', handleWormTouch, { passive: false });
-  window.addEventListener('touchend', () => { wormMouse.isBoosting = false; });
+  window.addEventListener('touchend', handleWormTouchEnd);
+  window.__wormStop = stopWormGame;
 
   // Ouvre immédiatement le menu au lieu d'entrer directement en jeu
   openCustomizationMenu(false);
+}
+
+function handleWormMouseUp(e) { if (e.button === 0) wormMouse.isBoosting = false; }
+function handleWormTouchEnd() { wormMouse.isBoosting = false; }
+
+// Arrête complètement Worm (appelé par main.js quand on quitte le jeu)
+let wormGameOverTimer = null;
+function stopWormGame() {
+  isWormRunning = false;
+  if (wormAnimationId) cancelAnimationFrame(wormAnimationId);
+  wormAnimationId = null;
+  clearTimeout(wormGameOverTimer);
+  gameState = 'MENU';
+  window.removeEventListener('resize', resizeWormCanvas);
+  window.removeEventListener('mousemove', handleWormMouseMove);
+  window.removeEventListener('mousedown', handleWormMouseDown);
+  window.removeEventListener('mouseup', handleWormMouseUp);
+  window.removeEventListener('touchstart', handleWormTouch);
+  window.removeEventListener('touchmove', handleWormTouch);
+  window.removeEventListener('touchend', handleWormTouchEnd);
+  const modal = document.getElementById('custom-menu-modal');
+  if (modal) modal.style.display = 'none';
+  window.__wormStop = null;
 }
 
 function launchMatch() {
@@ -104,8 +129,9 @@ function launchMatch() {
 function resizeWormCanvas() {
   if (!wormCanvas) return;
   const parent = wormCanvas.parentElement || document.body;
-  wormCanvas.width = parent.clientWidth || window.innerWidth;
-  wormCanvas.height = parent.clientHeight || window.innerHeight;
+  const size = window.MobileKit ? MobileKit.size(parent) : { w: parent.clientWidth, h: parent.clientHeight };
+  wormCanvas.width = size.w || window.innerWidth;
+  wormCanvas.height = size.h || window.innerHeight;
 }
 
 function initWormWorld() {
@@ -505,8 +531,9 @@ function killWorm(worm, killer) {
     gameState = 'GAMEOVER';
 
     // Ouvre le menu automatique après un court délai visuel (1.2 sec)
-    setTimeout(() => {
-      openCustomizationMenu(true);
+    clearTimeout(wormGameOverTimer);
+    wormGameOverTimer = setTimeout(() => {
+      if (isWormRunning) openCustomizationMenu(true);
     }, 1200);
   }
 }
@@ -733,6 +760,8 @@ function renderCustomizationMenuHTML(modal, isGameOver = false) {
       display: flex;
       flex-direction: column;
       gap: 16px;
+      max-height: 88vh;
+      overflow-y: auto;
     ">
       <div style="text-align: center;">
         <h2 style="margin:0; color:${isGameOver ? '#ff0055' : '#00f3ff'}; font-size: 26px; letter-spacing: 2px; text-transform: uppercase;">

@@ -1,6 +1,7 @@
 function startMemoryGame() {
   const board = document.getElementById('memory-board');
   board.innerHTML = '';
+  if (window.MobileKit) MobileKit.setup({ mode: 'board', controls: 'none' });
   
   const emojis = ['🚀', '👾', '🤖', '🎮', '💥', '⭐', '🔮', '🕹️'];
   const cards = [...emojis, ...emojis].sort(() => Math.random() - 0.5);

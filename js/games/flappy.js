@@ -2,6 +2,7 @@ function startFlappyGame() {
   const canvas = document.getElementById('game-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'tap' });
 
   const W = canvas.width;
   const H = canvas.height;
@@ -323,7 +324,7 @@ function startFlappyGame() {
       ctx.fillStyle = '#ffffff';
       ctx.font = '700 15px "Rajdhani", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('CLIQUEZ OU APPUYEZ SUR ESPACE', W / 2, H / 2 - 5);
+      ctx.fillText(window.MobileKit && MobileKit.isTouch ? 'TOUCHEZ L\'ÉCRAN' : 'CLIQUEZ OU APPUYEZ SUR ESPACE', W / 2, H / 2 - 5);
       ctx.fillStyle = '#ffe600';
       ctx.fillText('POUR FAIRE VOLER LE POULET', W / 2, H / 2 + 15);
     }

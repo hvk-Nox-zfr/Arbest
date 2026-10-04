@@ -62,6 +62,7 @@ function startChessGame() {
     memoryBoard.style.background = '#090d16';
   }
 
+  if (window.MobileKit) MobileKit.setup({ mode: 'board', controls: 'none', ratio: 1 });
   renderDifficultyMenu();
 }
 
