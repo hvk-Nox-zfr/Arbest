@@ -487,3 +487,120 @@ canvas {
 .separator {
   color: #4b5563;
 }
+
+/* ============================================================
+   OPTIMISATION MOBILE & TABLETTE
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Conteneur principal : réduction des marges extérieures */
+  main {
+    padding: 1rem 0.8rem;
+  }
+
+  /* En-tête : passage en colonne compacte */
+  header {
+    padding: 0.8rem 1rem;
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: center;
+  }
+
+  .logo {
+    font-size: 1.1rem;
+  }
+
+  .logo-svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-neon.sm {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.6rem;
+  }
+
+  .stat-badge {
+    padding: 0.3rem 0.6rem;
+  }
+
+  .badge-label {
+    font-size: 0.55rem;
+  }
+
+  .badge-value {
+    font-size: 0.8rem;
+  }
+
+  /* Titre Hero */
+  .hero {
+    margin-bottom: 1.5rem;
+  }
+
+  .glitch-title {
+    font-size: 1.3rem;
+    letter-spacing: 1px;
+  }
+
+  .subtitle {
+    font-size: 0.9rem;
+  }
+
+  /* Grille de jeux : 1 seule colonne sur mobile */
+  .game-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .game-card {
+    padding: 1.2rem;
+  }
+
+  .game-card h3 {
+    font-size: 0.85rem;
+  }
+
+  .game-card p {
+    font-size: 0.85rem;
+    margin-bottom: 1.2rem;
+  }
+
+  /* Vue Jeu : Header réorganisé */
+  .game-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .game-header h2 {
+    font-size: 0.9rem;
+    order: 3;
+    width: 100%;
+    text-align: center;
+    margin-top: 0.3rem;
+  }
+
+  /* Ajustement des zones tactiles */
+  .btn-neon {
+    padding: 0.7rem 1.2rem;
+  }
+}
+
+/* Cache les touches mobiles dès qu'une souris/pointeur précis est détecté (PC) */
+@media (pointer: fine) {
+  .touches-mobile {
+    display: none !important;
+  }
+}
+
+/* Ou à l'inverse : affiche uniquement sur les appareils tactiles */
+@media (pointer: coarse) {
+  .touches-mobile {
+    display: flex; /* ou block */
+  }
+}

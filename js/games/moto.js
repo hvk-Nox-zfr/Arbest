@@ -3,10 +3,11 @@ window.startMotoGame = function () {
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
 
-  // ================= CONSTANTES =================
+  // ================= CONSTANTES & UTILITAIRES =================
   const G = 0.44, SUB = 4, WR = 14, HALF = 28, L = HALF * 2, MAXV = 34, TAU = Math.PI * 2;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
+
   function rng(s) {
     return function () {
       s |= 0; s = (s + 0x6D2B79F5) | 0;
@@ -32,24 +33,29 @@ window.startMotoGame = function () {
     }
     return pts;
   }
+
   function buildWhoops(sx, sy, count, width, height) {
     const pts = [];
     for (let i = 0; i <= count; i++) pts.push({ x: sx + i * width, y: sy - (i % 2 === 1 ? height : 0), layer: 0 });
     return pts;
   }
+
   const mk = (lv, theme) => (lv.theme = theme, lv);
 
   function createLevel1() {
     let pts = [{ x: 0, y: 350, layer: 0 }, { x: 200, y: 350, layer: 0 }];
-    pts = pts.concat(buildWhoops(200, 350, 4, 25, 12));
+    pts = pts.concat(buildWhoops(200, 350, 4, 25, 12).slice(1));
     pts.push({ x: 300, y: 350, layer: 0 }, { x: 950, y: 350, layer: 0 });
     const loop = buildLoop(1140, 160, 190);
     pts = pts.concat(loop);
     const e = loop[loop.length - 1].x;
-    pts.push({ x: e + 120, y: 350, layer: 1 }, { x: e + 350, y: 350, layer: 0 }, { x: e + 500, y: 220, layer: 0 },
-      { x: e + 580, y: 430, layer: 0 }, { x: e + 800, y: 430, layer: 0 }, { x: e + 1500, y: 350, layer: 0 });
+    pts.push(
+      { x: e + 120, y: 350, layer: 1 }, { x: e + 350, y: 350, layer: 0 }, { x: e + 500, y: 220, layer: 0 },
+      { x: e + 580, y: 430, layer: 0 }, { x: e + 800, y: 430, layer: 0 }, { x: e + 1500, y: 350, layer: 0 }
+    );
     return mk({ name: '1. INITIATION & GRAND LOOPING', start: { x: 80, y: 310 }, finishX: e + 1300, points: pts }, 0);
   }
+
   function createLevel2() {
     let pts = [{ x: 0, y: 350, layer: 0 }, { x: 700, y: 350, layer: 0 }];
     const l1 = buildLoop(890, 160, 190);
@@ -60,21 +66,23 @@ window.startMotoGame = function () {
     pts = pts.concat(l2);
     lx = l2[l2.length - 1].x;
     pts.push({ x: lx + 100, y: 350, layer: 0 });
-    pts = pts.concat(buildWhoops(lx + 100, 350, 8, 30, 22));
+    pts = pts.concat(buildWhoops(lx + 100, 350, 8, 30, 22).slice(1));
     pts.push({ x: lx + 1100, y: 350, layer: 0 });
     return mk({ name: '2. DOUBLE LOOPING GÉANT', start: { x: 80, y: 310 }, finishX: lx + 900, points: pts }, 1);
   }
+
   function createLevel3() {
     let pts = [{ x: 0, y: 350, layer: 0 }, { x: 250, y: 350, layer: 0 }, { x: 450, y: 140, layer: 0 }, { x: 750, y: 420, layer: 0 }, { x: 850, y: 350, layer: 0 }, { x: 1550, y: 350, layer: 0 }];
     const loop = buildLoop(1740, 150, 200);
     pts = pts.concat(loop);
     const e = loop[loop.length - 1].x;
-    pts.push({ x: e + 100, y: 350, layer: 0 }, { x: e + 250, y: 250, layer: 0 }, { x: e + 300, y: 350, layer: 0 },
-      { x: e + 450, y: 220, layer: 0 }, { x: e + 500, y: 350, layer: 0 }, { x: e + 1200, y: 350, layer: 0 });
+    pts.push(
+      { x: e + 100, y: 350, layer: 0 }, { x: e + 250, y: 250, layer: 0 }, { x: e + 300, y: 350, layer: 0 },
+      { x: e + 450, y: 220, layer: 0 }, { x: e + 500, y: 350, layer: 0 }, { x: e + 1200, y: 350, layer: 0 }
+    );
     return mk({ name: '3. DÉFI SPATIAL', start: { x: 80, y: 310 }, finishX: e + 1000, points: pts }, 2);
   }
 
-  // Carte aléatoire : hills, whoops, sauts avec fosse, loopings
   function createRandom(seed) {
     const R = rng(seed), pts = [{ x: 0, y: 350, layer: 0 }];
     const lx = () => pts[pts.length - 1].x;
@@ -107,7 +115,6 @@ window.startMotoGame = function () {
     return mk({ name: '4. MAP ALÉATOIRE #' + (seed % 10000), start: { x: 80, y: 310 }, finishX: lx() - 450, points: pts }, Math.floor(R() * 4));
   }
 
-  // Pré-calculs : surface, boucles (route épaisse), décor
   function prepare(lv) {
     const p = lv.points;
     p.unshift({ x: -1500, y: p[0].y, layer: 0 });
@@ -161,21 +168,25 @@ window.startMotoGame = function () {
 
   const levels = [createLevel1(), createLevel2(), createLevel3()];
 
-  // ================= ÉTAT =================
+  // ================= ÉTAT DU JEU =================
   let level, levelIdx = 0, bike, rider = null, particles = [], popups = [];
   let score = 0, baseScore = 0, frames = 0, dead = false, win = false, deadT = 0, winT = 0, hintT = 0, shakeAmp = 0, shakeX = 0, shakeY = 0;
-  const keys = {}, cam = { x: 0, y: 0, z: 1 }, ctl = { gas: false, brake: false, left: false, right: false };
+  const keys = {}, touchCtl = { gas: false, brake: false, left: false, right: false };
+  const ctl = { gas: false, brake: false, left: false, right: false };
+  const cam = { x: 0, y: 0, z: 1 };
   const clouds = Array.from({ length: 8 }, (_, i) => ({ x: i * 330 + Math.random() * 200, y: 30 + Math.random() * 170, s: 0.6 + Math.random() * 0.9 }));
   const stars = Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random() * 0.6, r: Math.random() * 1.5 + 0.3, p: Math.random() * 6 }));
 
   function resetBike() {
     const s = level.start;
     bike = {
-      r: { x: s.x - HALF, y: s.y, vx: 0, vy: 0, c: null }, f: { x: s.x + HALF, y: s.y, vx: 0, vy: 0, c: null },
+      r: { x: s.x - HALF, y: s.y, vx: 0, vy: 0, c: null },
+      f: { x: s.x + HALF, y: s.y, vx: 0, vy: 0, c: null },
       layer: 0, ang: 0, airRot: 0, airT: 0, wheelie: 0, spin: 0, lean: 0, impact: 0
     };
     rider = null;
   }
+
   const center = () => ({ x: (bike.r.x + bike.f.x) / 2, y: (bike.r.y + bike.f.y) / 2 });
   const speedOf = () => Math.hypot((bike.r.vx + bike.f.vx) / 2, (bike.r.vy + bike.f.vy) / 2);
 
@@ -186,14 +197,16 @@ window.startMotoGame = function () {
     particles = []; popups = []; resetBike();
     const c = center(); cam.x = c.x; cam.y = c.y; cam.z = 1;
   }
+
   function nextLevel() {
     baseScore = score;
     if (levelIdx < 2) loadLevel(levels[levelIdx + 1], levelIdx + 1);
     else loadLevel(createRandom(Math.floor(Math.random() * 1e9)), 3);
   }
+
   function newRandom() { loadLevel(createRandom(Math.floor(Math.random() * 1e9)), 3); }
 
-  // ================= COLLISIONS =================
+  // ================= COLLISIONS & PHYSIQUE =================
   function closest(px, py, layer) {
     const pts = level.points;
     let best = null, minD = Infinity;
@@ -247,7 +260,6 @@ window.startMotoGame = function () {
     r.vx += dx * rv; r.vy += dy * rv; f.vx -= dx * rv; f.vy -= dy * rv;
   }
 
-  // ================= PHYSIQUE (2 roues + châssis rigide) =================
   function physicsSub(dt) {
     const r = bike.r, f = bike.f;
     r.vy += G * dt; f.vy += G * dt;
@@ -266,7 +278,7 @@ window.startMotoGame = function () {
       const [tx, ty] = tang(r.c), along = r.vx * tx + r.vy * ty;
       const a = 0.65 * clamp(1 - along / MAXV, 0, 1) * dt;
       r.vx += tx * a; r.vy += ty * a;
-      const pu = a * 0.22; // cabrage à l'accélération
+      const pu = a * 0.22;
       f.vx -= px * pu; f.vy -= py * pu; r.vx += px * pu; r.vy += py * pu;
     }
     if (ctl.brake) {
@@ -279,7 +291,6 @@ window.startMotoGame = function () {
     }
     if (win) { r.vx *= 1 - 0.04 * dt; r.vy *= 1 - 0.02 * dt; f.vx *= 1 - 0.04 * dt; f.vy *= 1 - 0.02 * dt; }
 
-    // amortissement de rotation + traînée
     const vrel = (f.vx - r.vx) * px + (f.vy - r.vy) * py, kd = (air ? 0.09 : 0.015) * dt;
     f.vx -= px * vrel * kd * 0.5; f.vy -= py * vrel * kd * 0.5; r.vx += px * vrel * kd * 0.5; r.vy += py * vrel * kd * 0.5;
     const drag = 1 - (air ? 0.0008 : 0.0015) * dt;
@@ -356,15 +367,15 @@ window.startMotoGame = function () {
     }
   }
 
-  // ================= MISE À JOUR =================
   function update() {
     hintT++;
     if (!dead && !win) frames++;
     const live = !dead && !win;
-    ctl.gas = live && !!(keys.ArrowUp || keys.KeyW || keys.KeyZ);
-    ctl.brake = live && !!(keys.ArrowDown || keys.KeyS);
-    ctl.left = live && !!(keys.ArrowLeft || keys.KeyA || keys.KeyQ);
-    ctl.right = live && !!(keys.ArrowRight || keys.KeyD);
+    ctl.gas = live && (!!(keys.ArrowUp || keys.KeyW || keys.KeyZ) || touchCtl.gas);
+    ctl.brake = live && (!!(keys.ArrowDown || keys.KeyS) || touchCtl.brake);
+    ctl.left = live && (!!(keys.ArrowLeft || keys.KeyA || keys.KeyQ) || touchCtl.left);
+    ctl.right = live && (!!(keys.ArrowRight || keys.KeyD) || touchCtl.right);
+
     for (let i = 0; i < SUB; i++) physicsSub(1 / SUB);
     afterStep();
     bike.lean += ((ctl.right ? 0.55 : 0) - (ctl.left ? 0.55 : 0) + (ctl.gas ? 0.12 : 0) - (ctl.brake ? 0.15 : 0) - bike.lean) * 0.12;
@@ -396,7 +407,7 @@ window.startMotoGame = function () {
     updateAudio();
   }
 
-  // ================= SON (moteur synthétisé) =================
+  // ================= MOTEUR AUDIO =================
   let audio = null, muted = false;
   function initAudio() {
     if (audio) return;
@@ -409,6 +420,12 @@ window.startMotoGame = function () {
       audio = { ac, o, g, flt };
     } catch (e) { audio = null; }
   }
+
+  function resumeAudio() {
+    initAudio();
+    if (audio && audio.ac.state === 'suspended') audio.ac.resume();
+  }
+
   function updateAudio() {
     if (!audio) return;
     const t = audio.ac.currentTime, sp = speedOf(), th = ctl.gas ? 1 : 0;
@@ -417,11 +434,12 @@ window.startMotoGame = function () {
     audio.g.gain.setTargetAtTime(muted || dead ? 0 : 0.025 + th * 0.03, t, 0.05);
   }
 
-  // ================= RENDU =================
+  // ================= RENDU DU JEU =================
   function rr(x, y, w, h, r) {
     ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
+
   function outlined(text, x, y, color, size, align) {
     ctx.font = 'bold ' + size + 'px sans-serif'; ctx.textAlign = align || 'left';
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.strokeText(text, x, y);
@@ -532,13 +550,11 @@ window.startMotoGame = function () {
       ctx.restore();
     };
     wheel(-HALF); wheel(HALF);
-    // échappement, bras oscillant, fourche
     ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-2, 3); ctx.lineTo(-24, 4); ctx.lineTo(-36, -3); ctx.stroke();
     ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-HALF, 0); ctx.lineTo(-4, 1); ctx.stroke();
     ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(HALF, 0); ctx.lineTo(HALF - 11, -25); ctx.stroke();
     ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(HALF - 11, -25); ctx.lineTo(HALF - 17, -28); ctx.stroke();
     ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(HALF, 0, WR + 3, Math.PI * 1.05, Math.PI * 1.55); ctx.stroke();
-    // moteur, réservoir, selle, phare
     ctx.fillStyle = '#374151'; rr(-14, -8, 24, 15, 4); ctx.fill();
     ctx.fillStyle = '#4b5563'; ctx.fillRect(-9, -3, 14, 4);
     ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(-4, -13); ctx.lineTo(14, -18); ctx.lineTo(21, -11); ctx.lineTo(6, -6); ctx.closePath(); ctx.fill();
@@ -570,6 +586,39 @@ window.startMotoGame = function () {
     ctx.restore();
   }
 
+  // ================= BOUTONS & INTERFACE =================
+  function getTouchButtons(W, H) {
+    const btnSize = Math.min(80, W * 0.13);
+    const margin = 15;
+    const bY = H - btnSize - margin;
+    return {
+      left: { x: margin, y: bY, w: btnSize, h: btnSize, label: '←', pressed: ctl.left },
+      right: { x: margin + btnSize + 12, y: bY, w: btnSize, h: btnSize, label: '→', pressed: ctl.right },
+      brake: { x: W - margin - btnSize * 2 - 12, y: bY, w: btnSize, h: btnSize, label: 'FREIN', pressed: ctl.brake, fontSize: 15 },
+      gas: { x: W - margin - btnSize, y: bY, w: btnSize, h: btnSize, label: 'GAZ', pressed: ctl.gas, fontSize: 18 }
+    };
+  }
+
+  function getTopButtons() {
+    return {
+      r: { x: 315, y: 12, w: 45, h: 40, label: '🔄', fontSize: 18 },
+      n: { x: 368, y: 12, w: 45, h: 40, label: '🔀', fontSize: 18 },
+      m: { x: 421, y: 12, w: 45, h: 40, label: muted ? '🔇' : '🔊', fontSize: 18 }
+    };
+  }
+
+  function drawTouchBtn(btn, defaultColor) {
+    ctx.save();
+    ctx.fillStyle = btn.pressed ? 'rgba(250, 204, 21, 0.75)' : 'rgba(15, 23, 42, 0.6)';
+    ctx.strokeStyle = btn.pressed ? '#facc15' : 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 2;
+    rr(btn.x, btn.y, btn.w, btn.h, 12);
+    ctx.fill();
+    ctx.stroke();
+    outlined(btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2 + (btn.fontSize > 16 ? 6 : 5), btn.pressed ? '#000' : (defaultColor || '#fff'), btn.fontSize || 24, 'center');
+    ctx.restore();
+  }
+
   function drawHUD(W, H) {
     const sp = speedOf(), kmh = Math.round(sp * 7);
     ctx.fillStyle = 'rgba(15,23,42,0.6)'; rr(12, 12, 290, 92, 12); ctx.fill();
@@ -586,17 +635,29 @@ window.startMotoGame = function () {
     ctx.strokeStyle = sp > 24 ? '#ef4444' : sp > 14 ? '#facc15' : '#4ade80';
     ctx.beginPath(); ctx.arc(gx, gy, 54, Math.PI * 0.8, Math.PI * 0.8 + Math.PI * 1.4 * clamp(sp / MAXV, 0, 1)); ctx.stroke();
     outlined(String(kmh), gx, gy + 10, '#fff', 30, 'center'); outlined('km/h', gx, gy + 32, '#cbd5e1', 12, 'center');
+
+    const btns = getTouchButtons(W, H);
+    drawTouchBtn(btns.left);
+    drawTouchBtn(btns.right);
+    drawTouchBtn(btns.brake, '#f87171');
+    drawTouchBtn(btns.gas, '#4ade80');
+
+    const topBtns = getTopButtons();
+    drawTouchBtn(topBtns.r);
+    drawTouchBtn(topBtns.n);
+    drawTouchBtn(topBtns.m);
+
     if (hintT < 480 && !dead && !win) {
-      ctx.fillStyle = 'rgba(15,23,42,0.7)'; rr(W / 2 - 330, H - 60, 660, 40, 10); ctx.fill();
-      outlined('↑/Z accélérer  •  ↓/S frein  •  ←/→ ou Q/D pencher (en l\'air : flips !)  •  R relancer  •  N map aléatoire  •  M son', W / 2, H - 34, '#fff', 13, 'center');
+      ctx.fillStyle = 'rgba(15,23,42,0.7)'; rr(W / 2 - 270, H - 60, 540, 40, 10); ctx.fill();
+      outlined('Tactile : Boutons écran • Clavier : Flèches/ZQSD • R/N/M', W / 2, H - 34, '#fff', 13, 'center');
     }
     const over = (a, title, color, sub) => {
       ctx.fillStyle = 'rgba(0,0,0,' + (0.72 * a) + ')'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = a;
       outlined(title, W / 2, H / 2 - 20, color, 46, 'center'); outlined(sub, W / 2, H / 2 + 28, '#fff', 20, 'center');
       outlined('Score : ' + score, W / 2, H / 2 + 62, '#facc15', 20, 'center'); ctx.globalAlpha = 1;
     };
-    if (dead && deadT > 30) over(clamp((deadT - 30) / 30, 0, 1), 'CRASH !', '#ef4444', 'R : recommencer   •   N : map aléatoire');
-    if (win && winT > 40) over(clamp((winT - 40) / 30, 0, 1), 'NIVEAU TERMINÉ !', '#4ade80', levelIdx < 2 ? 'R : niveau suivant' : 'R : nouvelle map aléatoire');
+    if (dead && deadT > 30) over(clamp((deadT - 30) / 30, 0, 1), 'CRASH !', '#ef4444', 'Touche l\'écran ou R pour recommencer');
+    if (win && winT > 40) over(clamp((winT - 40) / 30, 0, 1), 'NIVEAU TERMINÉ !', '#4ade80', levelIdx < 2 ? 'Touche l\'écran pour le niveau suivant' : 'Touche l\'écran pour une nouvelle piste');
   }
 
   function render() {
@@ -620,25 +681,108 @@ window.startMotoGame = function () {
     drawHUD(W, H);
   }
 
-  // ================= ENTRÉES & BOUCLE =================
+  // ================= ENTRÉES SOURIS, TACTILES & CLAVIER =================
+  function handleCanvasClick(x, y) {
+    resumeAudio();
+    if (dead && deadT > 30) { loadLevel(level, levelIdx); return true; }
+    if (win && winT > 40) { nextLevel(); return true; }
+
+    const topBtns = getTopButtons();
+    if (x >= topBtns.r.x && x <= topBtns.r.x + topBtns.r.w && y >= topBtns.r.y && y <= topBtns.r.y + topBtns.r.h) {
+      if (win) nextLevel(); else loadLevel(level, levelIdx);
+      return true;
+    }
+    if (x >= topBtns.n.x && x <= topBtns.n.x + topBtns.n.w && y >= topBtns.n.y && y <= topBtns.n.y + topBtns.n.h) {
+      newRandom();
+      return true;
+    }
+    if (x >= topBtns.m.x && x <= topBtns.m.x + topBtns.m.w && y >= topBtns.m.y && y <= topBtns.m.y + topBtns.m.h) {
+      muted = !muted;
+      return true;
+    }
+    return false;
+  }
+
+  function onMouseDown(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clickX = (e.clientX - rect.left) * scaleX;
+    const clickY = (e.clientY - rect.top) * scaleY;
+    handleCanvasClick(clickX, clickY);
+  }
+
+  function updateTouchControls(e) {
+    touchCtl.gas = touchCtl.brake = touchCtl.left = touchCtl.right = false;
+    if (!e || !e.touches) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const W = canvas.width, H = canvas.height;
+    const btns = getTouchButtons(W, H);
+
+    for (let i = 0; i < e.touches.length; i++) {
+      const t = e.touches[i];
+      const tx = (t.clientX - rect.left) * scaleX;
+      const ty = (t.clientY - rect.top) * scaleY;
+
+      if (tx >= btns.left.x && tx <= btns.left.x + btns.left.w && ty >= btns.left.y && ty <= btns.left.y + btns.left.h) touchCtl.left = true;
+      if (tx >= btns.right.x && tx <= btns.right.x + btns.right.w && ty >= btns.right.y && ty <= btns.right.y + btns.right.h) touchCtl.right = true;
+      if (tx >= btns.brake.x && tx <= btns.brake.x + btns.brake.w && ty >= btns.brake.y && ty <= btns.brake.y + btns.brake.h) touchCtl.brake = true;
+      if (tx >= btns.gas.x && tx <= btns.gas.x + btns.gas.w && ty >= btns.gas.y && ty <= btns.gas.y + btns.gas.h) touchCtl.gas = true;
+    }
+  }
+
+  function onTouchStart(e) {
+    if (e.cancelable) e.preventDefault();
+    resumeAudio();
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      const tx = (t.clientX - rect.left) * scaleX;
+      const ty = (t.clientY - rect.top) * scaleY;
+      if (handleCanvasClick(tx, ty)) return;
+    }
+    updateTouchControls(e);
+  }
+
+  function onTouchMove(e) { if (e.cancelable) e.preventDefault(); updateTouchControls(e); }
+  function onTouchEnd(e) { if (e.cancelable) e.preventDefault(); updateTouchControls(e); }
+
   const prevent = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'];
   function onKeyDown(e) {
     if (prevent.indexOf(e.code) >= 0 && e.preventDefault) e.preventDefault();
-    keys[e.code] = true; initAudio();
-    if (audio && audio.ac.state === 'suspended') audio.ac.resume();
+    keys[e.code] = true;
+    resumeAudio();
     if (e.code === 'KeyR') { if (win) nextLevel(); else loadLevel(level, levelIdx); }
     if (e.code === 'KeyN') newRandom();
     if (e.code === 'KeyM') muted = !muted;
   }
+
   function onKeyUp(e) { keys[e.code] = false; }
+  function onBlur() { for (let k in keys) keys[k] = false; }
+
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', onBlur);
+  canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+  canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+  canvas.addEventListener('touchcancel', onTouchEnd, { passive: false });
 
+  // ================= BOUCLE PRINCIPALE =================
   let raf = 0, last = null, acc = 0;
   function loop(now) {
     raf = requestAnimationFrame(loop);
     if (last === null) last = now;
-    acc += Math.min(100, now - last); last = now;
+    acc += Math.min(100, now - last);
+    last = now;
     let n = 0;
     while (acc >= 1000 / 60 && n < 5) { update(); acc -= 1000 / 60; n++; }
     if (n === 5) acc = 0;
@@ -649,9 +793,16 @@ window.startMotoGame = function () {
     cancelAnimationFrame(raf);
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('keyup', onKeyUp);
+    window.removeEventListener('blur', onBlur);
+    canvas.removeEventListener('mousedown', onMouseDown);
+    canvas.removeEventListener('touchstart', onTouchStart);
+    canvas.removeEventListener('touchmove', onTouchMove);
+    canvas.removeEventListener('touchend', onTouchEnd);
+    canvas.removeEventListener('touchcancel', onTouchEnd);
     if (audio) { try { audio.ac.close(); } catch (e) { } audio = null; }
     window.__motoStop = null;
   };
+
   window.__motoDebug = () => ({ bike, dead, win, level, score, frames, load: i => { i < 3 ? loadLevel(levels[i], i) : newRandom(); } });
 
   loadLevel(levels[0], 0);
