@@ -1,7 +1,7 @@
 function startTetrisGame() {
+  if (window.GameMobile) GameMobile.reset();
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
-  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'tetris' });
 
   const COLS = 10;
   const ROWS = 20;
@@ -132,6 +132,7 @@ function startTetrisGame() {
 
   // Contrôles Clavier
   window.onkeydown = (e) => {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' '].includes(e.key)) e.preventDefault();
     if (e.key === 'ArrowLeft') {
       if (!collide(currentPiece, -1, 0)) currentPiece.x--;
     } else if (e.key === 'ArrowRight') {
@@ -309,5 +310,18 @@ function startTetrisGame() {
     currentGameLoop = requestAnimationFrame(gameLoop);
   }
 
+  if (window.GameMobile) {
+    GameMobile.start('tetris', {
+      left: { row: [
+        { label: '◀', key: 'ArrowLeft', repeat: 110, aria: 'Gauche' },
+        { label: '▼', key: 'ArrowDown', repeat: 60, aria: 'Descendre' },
+        { label: '▶', key: 'ArrowRight', repeat: 110, aria: 'Droite' }
+      ] },
+      right: { row: [
+        { label: '⟳', key: 'ArrowUp', aria: 'Rotation' },
+        { label: '⤓', key: ' ', code: 'Space', aria: 'Chute rapide' }
+      ] }
+    });
+  }
   currentGameLoop = requestAnimationFrame(gameLoop);
 }

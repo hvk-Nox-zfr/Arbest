@@ -1,7 +1,7 @@
 function startSpaceGame() {
+  if (window.GameMobile) GameMobile.reset();
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
-  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'pointer', shoot: true });
 
   let playerX = canvas.width / 2;
   let playerBullets = [];
@@ -58,11 +58,37 @@ function startSpaceGame() {
   // Initialisation de la première vague
   spawnWave(currentWave);
 
-  // Contrôle de position à la souris
-  window.onmousemove = (e) => {
+  // Contrôle de position à la souris (coordonnées corrigées si le canvas est mis à l'échelle)
+  function moveShipTo(clientX) {
     const rect = canvas.getBoundingClientRect();
-    playerX = Math.max(25, Math.min(canvas.width - 25, (e.clientX - rect.left) * (canvas.width / rect.width)));
-  };
+    const x = (clientX - rect.left) * (canvas.width / rect.width);
+    playerX = Math.max(25, Math.min(canvas.width - 25, x));
+  }
+
+  window.onmousemove = (e) => moveShipTo(e.clientX);
+
+  // Tactile : le vaisseau suit le doigt et tire tant qu'on touche l'écran
+  function onSpaceTouch(e) {
+    if (e.type === 'touchend' || e.type === 'touchcancel') {
+      if (!e.touches.length) isMouseDown = false;
+      return;
+    }
+    if (!e.touches || !e.touches.length) return;
+    const t = e.target;
+    const inGame = t === canvas || (t.closest && t.closest('#gm-stage'));
+    if (!inGame) return;
+    if (e.cancelable) e.preventDefault();
+    moveShipTo(e.touches[0].clientX);
+    isMouseDown = true;
+  }
+  if (window._spaceTouch) {
+    ['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(ev => window.removeEventListener(ev, window._spaceTouch));
+  }
+  window._spaceTouch = onSpaceTouch;
+  window.addEventListener('touchstart', onSpaceTouch, { passive: false });
+  window.addEventListener('touchmove', onSpaceTouch, { passive: false });
+  window.addEventListener('touchend', onSpaceTouch);
+  window.addEventListener('touchcancel', onSpaceTouch);
 
   // Gestion du tir continu (Clic enfoncé / relâché)
   window.onmousedown = () => {
@@ -304,5 +330,6 @@ function startSpaceGame() {
     currentGameLoop = requestAnimationFrame(update);
   }
 
+  if (window.GameMobile) GameMobile.start('space');
   currentGameLoop = requestAnimationFrame(update);
 }

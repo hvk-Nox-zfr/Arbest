@@ -1,8 +1,8 @@
 function startRunnerGame() {
+  if (window.GameMobile) GameMobile.reset();
   const canvas = document.getElementById('game-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'tap' });
 
   const W = canvas.width;
   const H = canvas.height;
@@ -128,6 +128,13 @@ const LEVELS = [
 
   function handleInputDown(e) {
     if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'ArrowUp' && e.code !== 'KeyW') return;
+    if (e.type === 'keydown') e.preventDefault(); // évite que la page défile avec Espace / flèches
+    if (e.type === 'pointerdown') {
+      // Seulement un toucher sur le jeu (canvas ou bandes noires du plein écran)
+      const t = e.target;
+      const inGame = t === canvas || (t.closest && t.closest('#gm-stage'));
+      if (!inGame) return;
+    }
     if (e.repeat) return;
     
     if (levelCompleted) {
@@ -498,5 +505,6 @@ const LEVELS = [
   }
 
   resetLevel(currentLevelIdx);
+  if (window.GameMobile) GameMobile.start('runner', { hint: true });
   currentGameLoop = requestAnimationFrame(update);
 }

@@ -1,8 +1,8 @@
 window.startMotoGame = function () {
+  if (window.GameMobile) GameMobile.reset();
   if (window.__motoStop) window.__motoStop();
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
-  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'none' });
 
   // ================= CONSTANTES & UTILITAIRES =================
   const G = 0.44, SUB = 4, WR = 14, HALF = 28, L = HALF * 2, MAXV = 34, TAU = Math.PI * 2;
@@ -808,4 +808,5 @@ window.startMotoGame = function () {
 
   loadLevel(levels[0], 0);
   raf = requestAnimationFrame(loop);
+  if (window.GameMobile) GameMobile.start('moto', { noScore: true, hint: true });
 };

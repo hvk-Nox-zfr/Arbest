@@ -1,8 +1,8 @@
 function startFlappyGame() {
+  if (window.GameMobile) GameMobile.reset();
   const canvas = document.getElementById('game-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'tap' });
 
   const W = canvas.width;
   const H = canvas.height;
@@ -65,6 +65,10 @@ function startFlappyGame() {
       e.preventDefault();
       jump();
     } else if (e.type === 'pointerdown') {
+      // Toucher sur le canvas OU sur les bandes noires du plein écran
+      const t = e.target;
+      const inGame = t === canvas || (t.closest && t.closest('#gm-stage'));
+      if (!inGame) return;
       e.preventDefault();
       jump();
     }
@@ -72,12 +76,13 @@ function startFlappyGame() {
 
   if (window._flappyInputHandler) {
     window.removeEventListener('keydown', window._flappyInputHandler);
+    window.removeEventListener('pointerdown', window._flappyInputHandler);
     canvas.removeEventListener('pointerdown', window._flappyInputHandler);
   }
 
   window._flappyInputHandler = handleInput;
   window.addEventListener('keydown', handleInput);
-  canvas.addEventListener('pointerdown', handleInput);
+  window.addEventListener('pointerdown', handleInput);
 
   // Décor rétro exact de Flappy Bird
   function drawBackground() {
@@ -324,7 +329,7 @@ function startFlappyGame() {
       ctx.fillStyle = '#ffffff';
       ctx.font = '700 15px "Rajdhani", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(window.MobileKit && MobileKit.isTouch ? 'TOUCHEZ L\'ÉCRAN' : 'CLIQUEZ OU APPUYEZ SUR ESPACE', W / 2, H / 2 - 5);
+      ctx.fillText('TOUCHEZ OU APPUYEZ SUR ESPACE', W / 2, H / 2 - 5);
       ctx.fillStyle = '#ffe600';
       ctx.fillText('POUR FAIRE VOLER LE POULET', W / 2, H / 2 + 15);
     }
@@ -341,5 +346,6 @@ function startFlappyGame() {
     }
   }
 
+  if (window.GameMobile) GameMobile.start('flappy');
   update();
 }

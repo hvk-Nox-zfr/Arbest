@@ -1,7 +1,7 @@
 function startPongGame() {
+  if (window.GameMobile) GameMobile.reset();
   const canvas = document.getElementById('game-canvas');
   const ctx = canvas.getContext('2d');
-  if (window.MobileKit) MobileKit.setup({ mode: 'canvas', controls: 'pointer' });
 
   // Dimensions & Raquettes
   let paddleHeight = 85;
@@ -31,13 +31,32 @@ function startPongGame() {
   let particles = [];
   let shakeFrames = 0;
 
-  // Contrôle à la souris / pavé tactile
-  window.onmousemove = (e) => {
+  // Contrôle souris + doigt (coordonnées corrigées si le canvas est mis à l'échelle)
+  function movePaddleTo(clientY) {
     const rect = canvas.getBoundingClientRect();
-    const targetY = (e.clientY - rect.top) * (canvas.height / rect.height) - paddleHeight / 2;
+    const y = (clientY - rect.top) * (canvas.height / rect.height);
+    const targetY = y - paddleHeight / 2;
     playerVy = targetY - playerY;
     playerY = Math.max(10, Math.min(canvas.height - paddleHeight - 10, targetY));
-  };
+  }
+
+  window.onmousemove = (e) => movePaddleTo(e.clientY);
+
+  function onPongTouch(e) {
+    if (!e.touches || !e.touches.length) return;
+    const t = e.target;
+    const inGame = t === canvas || (t.closest && t.closest('#gm-stage'));
+    if (!inGame) return;
+    if (e.cancelable) e.preventDefault();
+    movePaddleTo(e.touches[0].clientY);
+  }
+  if (window._pongTouch) {
+    window.removeEventListener('touchstart', window._pongTouch);
+    window.removeEventListener('touchmove', window._pongTouch);
+  }
+  window._pongTouch = onPongTouch;
+  window.addEventListener('touchstart', onPongTouch, { passive: false });
+  window.addEventListener('touchmove', onPongTouch, { passive: false });
 
   // Effet de particule
   function addSparks(x, y, color) {
@@ -265,5 +284,6 @@ function startPongGame() {
     currentGameLoop = requestAnimationFrame(update);
   }
 
+  if (window.GameMobile) GameMobile.start('pong', { hint: true });
   currentGameLoop = requestAnimationFrame(update);
 }

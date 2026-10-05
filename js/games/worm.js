@@ -63,6 +63,7 @@ function addCoins(amount) {
 // INITIALISATION ET GESTION DU LOBBY
 // ------------------------------------------------------------
 function startWormGame() {
+  if (window.GameMobile) GameMobile.reset();
   const memoryBoard = document.getElementById('memory-board');
   if (memoryBoard) memoryBoard.classList.add('hidden');
 
@@ -71,46 +72,39 @@ function startWormGame() {
 
   wormCanvas.classList.remove('hidden');
   wormCtx = wormCanvas.getContext('2d');
-  if (window.MobileKit) MobileKit.setup({ mode: 'fluid', controls: 'boost', onResize: resizeWormCanvas });
 
   resizeWormCanvas();
   window.removeEventListener('resize', resizeWormCanvas);
   window.addEventListener('resize', resizeWormCanvas);
 
-  // Événements contrôles
-  window.addEventListener('mousemove', handleWormMouseMove);
-  window.addEventListener('mousedown', handleWormMouseDown);
-  window.addEventListener('mouseup', handleWormMouseUp);
-  window.addEventListener('touchstart', handleWormTouch, { passive: false });
-  window.addEventListener('touchmove', handleWormTouch, { passive: false });
-  window.addEventListener('touchend', handleWormTouchEnd);
-  window.__wormStop = stopWormGame;
-
-  // Ouvre immédiatement le menu au lieu d'entrer directement en jeu
-  openCustomizationMenu(false);
-}
-
-function handleWormMouseUp(e) { if (e.button === 0) wormMouse.isBoosting = false; }
-function handleWormTouchEnd() { wormMouse.isBoosting = false; }
-
-// Arrête complètement Worm (appelé par main.js quand on quitte le jeu)
-let wormGameOverTimer = null;
-function stopWormGame() {
-  isWormRunning = false;
-  if (wormAnimationId) cancelAnimationFrame(wormAnimationId);
-  wormAnimationId = null;
-  clearTimeout(wormGameOverTimer);
-  gameState = 'MENU';
-  window.removeEventListener('resize', resizeWormCanvas);
+  // Événements contrôles (retirés avant d'être ajoutés : pas de doublons à chaque partie)
   window.removeEventListener('mousemove', handleWormMouseMove);
   window.removeEventListener('mousedown', handleWormMouseDown);
   window.removeEventListener('mouseup', handleWormMouseUp);
   window.removeEventListener('touchstart', handleWormTouch);
   window.removeEventListener('touchmove', handleWormTouch);
-  window.removeEventListener('touchend', handleWormTouchEnd);
-  const modal = document.getElementById('custom-menu-modal');
-  if (modal) modal.style.display = 'none';
-  window.__wormStop = null;
+  window.addEventListener('mousemove', handleWormMouseMove);
+  window.addEventListener('mousedown', handleWormMouseDown);
+  window.addEventListener('mouseup', handleWormMouseUp);
+  window.addEventListener('touchstart', handleWormTouch, { passive: false });
+  window.addEventListener('touchmove', handleWormTouch, { passive: false });
+  wormMouse.isBoosting = false;
+
+  // Ouvre immédiatement le menu au lieu d'entrer directement en jeu
+  openCustomizationMenu(false);
+
+  // Mobile : plein écran en paysage + bouton turbo
+  if (window.GameMobile) {
+    GameMobile.start('worm', {
+      fluid: true,
+      hint: true,
+      right: { row: [{
+        label: '⚡', cls: 'big', aria: 'Turbo',
+        down() { wormMouse.isBoosting = true; },
+        up() { wormMouse.isBoosting = false; }
+      }] }
+    });
+  }
 }
 
 function launchMatch() {
@@ -129,9 +123,8 @@ function launchMatch() {
 function resizeWormCanvas() {
   if (!wormCanvas) return;
   const parent = wormCanvas.parentElement || document.body;
-  const size = window.MobileKit ? MobileKit.size(parent) : { w: parent.clientWidth, h: parent.clientHeight };
-  wormCanvas.width = size.w || window.innerWidth;
-  wormCanvas.height = size.h || window.innerHeight;
+  wormCanvas.width = parent.clientWidth || window.innerWidth;
+  wormCanvas.height = parent.clientHeight || window.innerHeight;
 }
 
 function initWormWorld() {
@@ -238,17 +231,32 @@ function handleWormMouseDown(e) {
   wormMouse.isBoosting = true;
 }
 
-function handleWormTouch(e) {
-  if (e.touches.length > 0 && wormCanvas && gameState === 'PLAYING') {
-    const rect = wormCanvas.getBoundingClientRect();
-    const touchX = e.touches[0].clientX - rect.left;
-    const touchY = e.touches[0].clientY - rect.top;
+function handleWormMouseUp(e) {
+  if (e.button === 0) wormMouse.isBoosting = false;
+}
 
-    const dx = touchX - (wormCanvas.width / 2);
-    const dy = touchY - (wormCanvas.height / 2);
-    wormMouse.angle = Math.atan2(dy, dx);
-    wormMouse.isBoosting = e.touches.length > 1;
+function handleWormTouch(e) {
+  if (!wormCanvas || !playerWorm || gameState !== 'PLAYING') return;
+
+  // Premier doigt qui n'est PAS sur un bouton tactile (turbo)
+  let touch = null;
+  for (let i = 0; i < e.touches.length; i++) {
+    const t = e.touches[i];
+    if (t.target && t.target.closest && t.target.closest('.gm-btn')) continue;
+    touch = t;
+    break;
   }
+  if (!touch) return;
+
+  const tgt = touch.target;
+  const inGame = tgt === wormCanvas || (tgt.closest && tgt.closest('#gm-stage'));
+  if (!inGame) return;
+  if (e.cancelable) e.preventDefault(); // évite aussi les faux clics souris après un toucher
+
+  const rect = wormCanvas.getBoundingClientRect();
+  const dx = touch.clientX - rect.left - rect.width / 2;
+  const dy = touch.clientY - rect.top - rect.height / 2;
+  wormMouse.angle = Math.atan2(dy, dx);
 }
 
 // ------------------------------------------------------------
@@ -531,9 +539,8 @@ function killWorm(worm, killer) {
     gameState = 'GAMEOVER';
 
     // Ouvre le menu automatique après un court délai visuel (1.2 sec)
-    clearTimeout(wormGameOverTimer);
-    wormGameOverTimer = setTimeout(() => {
-      if (isWormRunning) openCustomizationMenu(true);
+    setTimeout(() => {
+      openCustomizationMenu(true);
     }, 1200);
   }
 }
@@ -684,32 +691,40 @@ function renderHUD() {
 
   wormCtx.save();
 
-  // Leaderboard en haut à droite
+  // HUD réduit sur petit écran, minimap à gauche sur mobile (le bouton turbo est à droite)
+  const k = Math.max(0.6, Math.min(1, wormCanvas.width / 720));
+  const cw = wormCanvas.width / k;
+  const ch = wormCanvas.height / k;
+  const touchUI = !!(window.GameMobile && GameMobile.isTouch);
+  wormCtx.scale(k, k);
+
+  // Leaderboard en haut à droite (décalé sous le bouton ✕ du plein écran)
   const leaderboard = [playerWorm, ...botWorms]
     .filter(w => w && !w.isDead)
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
+  const lbY = touchUI ? 48 : 15;
 
   wormCtx.fillStyle = 'rgba(9, 13, 22, 0.85)';
   wormCtx.strokeStyle = '#00f3ff';
-  wormCtx.fillRect(wormCanvas.width - 200, 15, 185, 135);
-  wormCtx.strokeRect(wormCanvas.width - 200, 15, 185, 135);
+  wormCtx.fillRect(cw - 200, lbY, 185, 135);
+  wormCtx.strokeRect(cw - 200, lbY, 185, 135);
 
   wormCtx.font = 'bold 13px "Rajdhani", sans-serif';
   wormCtx.fillStyle = '#00f3ff';
   wormCtx.textAlign = 'left';
-  wormCtx.fillText('CLASSEMENT ARENA', wormCanvas.width - 185, 33);
+  wormCtx.fillText('CLASSEMENT ARENA', cw - 185, lbY + 18);
 
   wormCtx.font = '12px "Rajdhani", sans-serif';
   leaderboard.forEach((w, idx) => {
     wormCtx.fillStyle = w.id === playerWorm?.id ? '#00f3ff' : '#ffffff';
-    wormCtx.fillText(`${idx + 1}. ${w.name.substring(0, 9)} : ${w.score}`, wormCanvas.width - 185, 55 + idx * 18);
+    wormCtx.fillText(`${idx + 1}. ${w.name.substring(0, 9)} : ${w.score}`, cw - 185, lbY + 40 + idx * 18);
   });
 
   // Minimap
   const mapSize = 90;
-  const mapX = wormCanvas.width - mapSize - 15;
-  const mapY = wormCanvas.height - mapSize - 15;
+  const mapX = touchUI ? 15 : cw - mapSize - 15;
+  const mapY = ch - mapSize - 15;
 
   wormCtx.fillStyle = 'rgba(9, 13, 22, 0.85)';
   wormCtx.strokeStyle = 'rgba(0, 243, 255, 0.4)';
@@ -735,7 +750,7 @@ function openCustomizationMenu(isGameOver = false) {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'custom-menu-modal';
-    modal.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); display:flex; justify-content:center; align-items:center; z-index:9999; backdrop-filter: blur(4px);';
+    modal.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); display:flex; justify-content:center; align-items:center; z-index:9999; backdrop-filter: blur(4px); padding:8px; box-sizing:border-box;';
     document.body.appendChild(modal);
   }
 
@@ -745,23 +760,25 @@ function openCustomizationMenu(isGameOver = false) {
 
 function renderCustomizationMenuHTML(modal, isGameOver = false) {
   const earnedCoins = isGameOver ? Math.floor(lastGameScore / 10) : 0;
+  const compact = window.innerHeight < 480; // téléphone en paysage : menu plus serré
 
   modal.innerHTML = `
     <div style="
       background: rgba(9, 13, 22, 0.95);
       border: 2px solid ${isGameOver ? '#ff0055' : '#00f3ff'};
       box-shadow: 0 0 30px ${isGameOver ? 'rgba(255, 0, 85, 0.4)' : 'rgba(0, 243, 255, 0.4)'};
-      padding: 24px;
+      padding: ${compact ? 12 : 24}px;
       border-radius: 12px;
       color: white;
       font-family: 'Rajdhani', sans-serif;
       width: 400px;
-      max-width: 90vw;
+      max-width: 94vw;
+      max-height: 100%;
+      overflow-y: auto;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      max-height: 88vh;
-      overflow-y: auto;
+      gap: ${compact ? 8 : 16}px;
     ">
       <div style="text-align: center;">
         <h2 style="margin:0; color:${isGameOver ? '#ff0055' : '#00f3ff'}; font-size: 26px; letter-spacing: 2px; text-transform: uppercase;">
@@ -796,7 +813,7 @@ function renderCustomizationMenuHTML(modal, isGameOver = false) {
 
       <div>
         <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 8px; font-weight: bold;">CHOISIR / ACHETER UN SKIN</label>
-        <div style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px;">
+        <div style="display: flex; flex-direction: column; gap: 8px; max-height: ${compact ? 96 : 200}px; overflow-y: auto; padding-right: 4px;">
           ${NEON_COLORS.map(skin => {
             const isUnlocked = unlockedSkins.includes(skin.id);
             const isSelected = selectedSkinIndex === skin.id;

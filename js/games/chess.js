@@ -44,11 +44,14 @@ const KNIGHT_TABLE = [
 ];
 
 function startChessGame() {
+  if (window.GameMobile) GameMobile.reset();
   const canvas = document.getElementById('game-canvas');
   const memoryBoard = document.getElementById('memory-board');
   
   if (canvas) canvas.classList.add('hidden');
   if (memoryBoard) {
+    memoryBoard.dataset.game = 'chess';
+    memoryBoard.style.touchAction = 'manipulation';
     memoryBoard.classList.remove('hidden');
     memoryBoard.style.width = '100%';
     memoryBoard.style.maxWidth = '520px';
@@ -62,8 +65,17 @@ function startChessGame() {
     memoryBoard.style.background = '#090d16';
   }
 
-  if (window.MobileKit) MobileKit.setup({ mode: 'board', controls: 'none', ratio: 1 });
   renderDifficultyMenu();
+
+  // Re-dessine l'échiquier quand sa taille change (rotation, plein écran)
+  if (!window.__chessResizeBound) {
+    window.__chessResizeBound = true;
+    window.addEventListener('resize', () => {
+      const b = document.getElementById('memory-board');
+      if (b && b.dataset.game === 'chess' && b.style.display === 'grid' && chessBoardState.length) renderChessBoard();
+    });
+  }
+  if (window.GameMobile) GameMobile.start('chess', { board: true });
 }
 
 function renderDifficultyMenu() {
@@ -79,7 +91,7 @@ function renderDifficultyMenu() {
 
   boardElem.innerHTML = `
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; text-align: center; color: #fff; font-family: 'Rajdhani', sans-serif; padding: 20px; box-sizing: border-box;">
-      <h2 style="color: #00f3ff; text-shadow: 0 0 10px #00f3ff; margin: 0 0 8px 0; font-size: 30px; letter-spacing: 2px;">CYBER CHESS</h2>
+      <h2 style="color: #00f3ff; text-shadow: 0 0 10px #00f3ff; margin: 0 0 8px 0; font-size: clamp(22px, 7vmin, 30px); letter-spacing: 2px;">CYBER CHESS</h2>
       <p style="color: #aaa; margin: 0 0 25px 0; font-size: 15px; letter-spacing: 1px;">SÉLECTIONNEZ LE NIVEAU DE L'IA</p>
       
       <div style="display: flex; flex-direction: column; gap: 14px; width: 220px;">
@@ -134,6 +146,10 @@ function renderChessBoard() {
   if (!boardElem) return;
   boardElem.innerHTML = '';
 
+  // Taille des pièces proportionnelle à la taille réelle de l'échiquier
+  const cellPx = boardElem.clientWidth / 8;
+  const pieceFont = cellPx > 8 ? Math.max(16, Math.floor(cellPx * 0.7)) : 36;
+
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
       const square = document.createElement('div');
@@ -146,7 +162,7 @@ function renderChessBoard() {
       square.style.display = 'flex';
       square.style.alignItems = 'center';
       square.style.justifyContent = 'center';
-      square.style.fontSize = 'min(6vw, 36px)';
+      square.style.fontSize = pieceFont + 'px';
       square.style.cursor = 'pointer';
       square.style.userSelect = 'none';
       square.style.overflow = 'hidden';
