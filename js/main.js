@@ -96,6 +96,32 @@ const GAMES_REGISTRY = {
     initFn: 'startFlappyGame',
     controls: '💡 Espace / Clic : Faire voler le poulet'
   },
+  clicker: {
+    title: 'SNICKERS',
+    badge: 'SIMULATION',
+    desc: 'Cliquez aussi vite que possible pour accumuler des points !',
+    script: 'js/games/clicker.js',
+    initFn: 'startClickerGame',
+    controls: 'Clics : pour gagner des points'
+  },
+  game2048: {
+    title: '2048',
+    badge: 'RÉFLEXION',
+    desc: 'Aller le plus oin possible pour augmenter vos nombres',
+    script: 'js/games/game2048.js',
+    initFn: 'startGame2048',
+    controls: 'Arrive bientôt !',
+    disabled: true
+  },
+  survivors: {
+    title: 'SURVIVORS',
+    badge: 'SURVIE',
+    desc: 'Aller le plus oin possible pour augmenter vos nombres',
+    script: 'js/games/survivors.js',
+    initFn: 'startSurvivorsGame',
+    controls: 'Arrive bientôt !',
+    disabled: true
+  },
 };
 
 // Synthétiseur audio
