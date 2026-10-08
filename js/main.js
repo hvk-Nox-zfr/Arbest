@@ -122,6 +122,14 @@ const GAMES_REGISTRY = {
     controls: 'Arrive bientôt !',
     disabled: true
   },
+  quiz: {
+  title: 'QUIZ BLOCUS',
+  badge: 'CULTURE',
+  desc: 'Testez vos connaissances sur la vie lycéenne et les mouvements de contestation.',
+  script: 'js/games/quiz.js',
+  initFn: 'startQuizGame',
+  controls: '💡 Clic : Sélectionner la bonne réponse'
+},
 };
 
 // Synthétiseur audio
