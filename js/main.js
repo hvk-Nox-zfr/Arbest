@@ -130,6 +130,14 @@ const GAMES_REGISTRY = {
   initFn: 'startQuizGame',
   controls: '💡 Clic : Sélectionner la bonne réponse'
 },
+dada: {
+  title: 'JEU DES DADAS',
+  badge: 'SOCIÉTÉ',
+  desc: 'Sortez vos petits chevaux, évitez l\'IA et grimpez l\'escalier en premier !',
+  script: 'js/games/dada.js',
+  initFn: 'startDadaGame',
+  controls: '💡 Clic sur le Dé pour lancer | Clic sur ton cheval lumineux pour avancer'
+},
 };
 
 // Synthétiseur audio
