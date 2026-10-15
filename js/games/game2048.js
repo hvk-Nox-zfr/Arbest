@@ -1,9 +1,7 @@
 // ============================================================
-// CYBER 2048 — glisse (ou flèches) pour fusionner les tuiles.
-// Meilleur score sauvegardé sur l'appareil. On peut continuer après 2048.
+// CYBER 2048 — Version corrigée sans écran noir
 // ============================================================
-function start2048Game() {
-  if (window.GameMobile) GameMobile.reset();
+window.startGame2048 = function () {
   if (window._g2048Cleanup) window._g2048Cleanup();
 
   const canvas = document.getElementById('game-canvas');
@@ -18,7 +16,7 @@ function start2048Game() {
   let tiles = [];
   let score = 0;
   let best = 0;
-  try { best = parseInt(localStorage.getItem('best_2048'), 10) || 0; } catch (e) { /* ignore */ }
+  try { best = parseInt(localStorage.getItem('best_2048'), 10) || 0; } catch (e) {}
   let animStart = -1000, animating = false;
   let over = false, won = false, bannerUntil = 0, stopped = false, overAt = 0;
 
@@ -32,7 +30,6 @@ function start2048Game() {
   const cx = c => bx + gap + c * (cell + gap);
   const cy = r => by + gap + r * (cell + gap);
 
-  // ---------- logique ----------
   const colorOf = v => PALETTE[Math.min(PALETTE.length - 1, Math.max(0, Math.log2(v) - 1))];
 
   function emptyCells() {
@@ -55,7 +52,7 @@ function start2048Game() {
     score = s;
     if (score > best) {
       best = score;
-      try { localStorage.setItem('best_2048', String(best)); } catch (e) { /* ignore */ }
+      try { localStorage.setItem('best_2048', String(best)); } catch (e) {}
     }
     const el = document.getElementById('current-score');
     if (el) el.innerText = score;
@@ -81,7 +78,6 @@ function start2048Game() {
     if (!won && tiles.some(t => t.v >= 2048)) {
       won = true;
       bannerUntil = performance.now() + 2600;
-      if (typeof playSound === 'function') playSound(988, 0.25, 'triangle');
     }
     if (!over && !canMove()) {
       over = true;
@@ -91,13 +87,12 @@ function start2048Game() {
 
   function move(dr, dc) {
     if (over || stopped) return;
-    if (animating) finishAnim();   // enchaîne vite si on spamme les glissements
+    if (animating) finishAnim();
 
     tiles.forEach(t => { t.fr = t.r; t.fc = t.c; t.born = false; t.pop = false; });
     let moved = false, gained = 0;
 
     for (let i = 0; i < N; i++) {
-      // tuiles de la ligne / colonne i, classées depuis le bord vers lequel on pousse
       const line = tiles.filter(t => !t.die && (dr === 0 ? t.r === i : t.c === i));
       line.sort((a, b) => {
         const pa = dr === 0 ? a.c : a.r, pb = dr === 0 ? b.c : b.r;
@@ -126,10 +121,8 @@ function start2048Game() {
     if (gained) setScore(score + gained);
     animating = true;
     animStart = performance.now();
-    if (typeof playSound === 'function') playSound(gained ? 520 : 300, 0.04, gained ? 'triangle' : 'sine');
   }
 
-  // ---------- entrées ----------
   function onKeyDown(e) {
     const map = {
       ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0],
@@ -141,43 +134,39 @@ function start2048Game() {
     move(m[0], m[1]);
   }
 
-  const inGame = t => !!t && (t === canvas || (t.closest && !!t.closest('#gm-stage')));
   let sw = null;
   function onPointerDown(e) {
-    if (!inGame(e.target)) return;
     sw = { id: e.pointerId, x: e.clientX, y: e.clientY, done: false };
   }
   function onPointerMove(e) {
     if (!sw || sw.id !== e.pointerId || sw.done) return;
     const dx = e.clientX - sw.x, dy = e.clientY - sw.y;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 28) return;
-    sw.done = true;   // un seul mouvement par glissement
+    sw.done = true;
     if (Math.abs(dx) > Math.abs(dy)) move(0, dx > 0 ? 1 : -1);
     else move(dy > 0 ? 1 : -1, 0);
   }
   function onPointerUp(e) { if (sw && sw.id === e.pointerId) sw = null; }
 
   window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
-  window.addEventListener('pointercancel', onPointerUp);
 
   window._g2048Cleanup = () => {
     stopped = true;
     window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('pointerdown', onPointerDown);
+    canvas.removeEventListener('pointerdown', onPointerDown);
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
-    window.removeEventListener('pointercancel', onPointerUp);
     window._g2048Cleanup = null;
   };
 
-  // ---------- rendu ----------
   function rrect(x, y, w, h, r) {
     ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, w, h, r);
     else ctx.rect(x, y, w, h);
+    ctx.fill();
   }
 
   function drawTile(t, p, scale) {
@@ -189,51 +178,60 @@ function start2048Game() {
     ctx.shadowBlur = t.v >= 128 ? 16 : 8;
     ctx.shadowColor = col;
     ctx.fillStyle = 'rgba(9,13,22,0.96)';
-    rrect(ox, oy, s, s, s * 0.12); ctx.fill();
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(ox, oy, s, s, s * 0.12);
+    else ctx.rect(ox, oy, s, s);
+    ctx.fill();
     ctx.lineWidth = 2.5; ctx.strokeStyle = col; ctx.stroke();
     ctx.shadowBlur = 0;
 
     const digits = String(t.v).length;
     const fs = s * (digits <= 2 ? 0.42 : digits === 3 ? 0.34 : 0.27);
     ctx.fillStyle = col;
-    ctx.font = `900 ${Math.floor(fs)}px "Rajdhani", sans-serif`;
+    ctx.font = `900 ${Math.floor(fs)}px sans-serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(String(t.v), ox + s / 2, oy + s / 2 + 1);
     ctx.textBaseline = 'alphabetic';
   }
 
   function draw(now) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.shadowBlur = 0;
+    ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = '#050510';
     ctx.fillRect(0, 0, W, H);
 
-    // en-tête centré (le score en surimpression du plein écran est en haut à gauche)
     ctx.textAlign = 'center';
     ctx.fillStyle = '#00f3ff';
-    ctx.font = '900 22px "Rajdhani", sans-serif';
+    ctx.font = '900 22px sans-serif';
     ctx.fillText('2048', W / 2, 24);
     ctx.fillStyle = '#d6dbe8';
-    ctx.font = '700 14px "Rajdhani", sans-serif';
+    ctx.font = '700 14px sans-serif';
     ctx.fillText(`SCORE ${score}   •   MEILLEUR ${best}`, W / 2, 44);
 
-    // plateau
     ctx.fillStyle = '#0a0a1a';
-    rrect(bx, by, bs, bs, bs * 0.03); ctx.fill();
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(bx, by, bs, bs, bs * 0.03);
+    else ctx.rect(bx, by, bs, bs);
+    ctx.fill();
     ctx.strokeStyle = '#00f3ff'; ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = '#00f3ff'; ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(0,243,255,0.06)';
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) { rrect(cx(c), cy(r), cell, cell, cell * 0.12); ctx.fill(); }
 
-    // animation
+    ctx.fillStyle = 'rgba(0,243,255,0.06)';
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') ctx.roundRect(cx(c), cy(r), cell, cell, cell * 0.12);
+        else ctx.rect(cx(c), cy(r), cell, cell);
+        ctx.fill();
+      }
+    }
+
     let p = 1;
     if (animating) {
       p = Math.min(1, (now - animStart) / ANIM_MS);
       if (p >= 1) finishAnim();
     }
-    const e = 1 - Math.pow(1 - p, 3);   // easeOutCubic
+    const e = 1 - Math.pow(1 - p, 3);
 
-    // tuiles qui disparaissent d'abord, puis les autres
     tiles.filter(t => t.die).forEach(t => drawTile(t, e, 1));
     tiles.filter(t => !t.die).forEach(t => {
       let scale = 1;
@@ -242,19 +240,15 @@ function start2048Game() {
       if (scale > 0) drawTile(t, e, scale);
     });
 
-    // bannière de victoire
     if (now < bannerUntil) {
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx, by + bs / 2 - 34, bs, 68);
-      ctx.fillStyle = '#ffe600'; ctx.font = '900 26px "Rajdhani", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffe600'; ctx.font = '900 26px sans-serif'; ctx.textAlign = 'center';
       ctx.fillText('2048 ATTEINT !', W / 2, by + bs / 2 - 4);
-      ctx.fillStyle = '#ffffff'; ctx.font = '700 14px "Rajdhani", sans-serif';
-      ctx.fillText('Continue, il n’y a pas de limite', W / 2, by + bs / 2 + 20);
     }
 
-    // fin de partie
     if (over) {
       ctx.fillStyle = 'rgba(0,0,0,0.62)'; ctx.fillRect(bx, by, bs, bs);
-      ctx.fillStyle = '#ff0055'; ctx.font = '900 28px "Rajdhani", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#ff0055'; ctx.font = '900 28px sans-serif'; ctx.textAlign = 'center';
       ctx.fillText('PLUS DE MOUVEMENTS', W / 2, by + bs / 2);
     }
   }
@@ -267,12 +261,11 @@ function start2048Game() {
       if (typeof triggerGameOver === 'function') triggerGameOver(score);
       return;
     }
-    currentGameLoop = requestAnimationFrame(loop);
+    requestAnimationFrame(loop);
   }
 
   addTile(false);
   addTile(false);
   setScore(0);
-  if (window.GameMobile) GameMobile.start('2048', {});
-  currentGameLoop = requestAnimationFrame(loop);
-}
+  requestAnimationFrame(loop);
+};

@@ -111,7 +111,7 @@ const GAMES_REGISTRY = {
     script: 'js/games/game2048.js',
     initFn: 'startGame2048',
     controls: 'Arrive bientôt !',
-    disabled: true
+    disabled: false
   },
   survivors: {
     title: 'SURVIVORS',
