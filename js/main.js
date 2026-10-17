@@ -3,10 +3,33 @@ let currentGameLoop = null;
 let soundEnabled = true;
 const loadedScripts = new Set();
 
+// Chargés à la demande : adaptation mobile (plein écran paysage, contrôles tactiles) et Three.js pour les jeux 3D
+const MOBILE_SCRIPT = 'js/games/mobile.js';
+const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+
 // ============================================================
 // REGISTRE DES JEUX
 // ============================================================
 const GAMES_REGISTRY = {
+  gta: {
+    title: 'GTA ARBEST CITY',
+    badge: 'OPEN WORLD 3D',
+    desc: 'Ville ouverte : conduis, braque la banque, fuis la police et deviens le roi de la ville.',
+    script: 'js/games/gta.js',
+    initFn: 'startGTAGame',
+    controls: '💡 ZQSD : bouger/conduire | Souris : caméra | Clic : tirer | E : monter/braquer | Maj : courir | Espace : sauter/frein',
+    needs3D: true,
+    disabled: true
+  },
+  skyline: {
+    title: 'SKYLINE RUSH',
+    badge: '3D NEXT-GEN',
+    desc: 'Cours au-dessus de la ville, esquive, vole en jetpack et traverse le jour et la nuit.',
+    script: 'js/games/skyline.js',
+    initFn: 'startSkylineGame',
+    controls: '💡 Glisse (ou flèches / ZQSD) : changer de voie, sauter, glisser',
+    needs3D: true
+  },
   snake: {
     title: 'SNAKE DOG',
     badge: 'RETRO',
@@ -62,7 +85,8 @@ const GAMES_REGISTRY = {
     script: 'js/games/cybercraft.js',
     initFn: 'startCybercraftGame',
     controls: '💡 Bientôt disponible',
-    disabled: true
+    disabled: true,
+    needs3D: true
   },
   chess: {
     title: 'ECHEQUE',
@@ -99,28 +123,26 @@ const GAMES_REGISTRY = {
   clicker: {
     title: 'SNICKERS',
     badge: 'SIMULATION',
-    desc: 'Cliquez aussi vite que possible pour accumuler des points !',
+    desc: 'Minez, achetez des machines et revenez chaque jour : ta progression est sauvegardée.',
     script: 'js/games/clicker.js',
     initFn: 'startClickerGame',
-    controls: 'Clics : pour gagner des points'
+    controls: '💡 Clic / toucher : miner — achète des générateurs pour gagner même hors-ligne'
   },
   game2048: {
     title: '2048',
     badge: 'RÉFLEXION',
-    desc: 'Aller le plus oin possible pour augmenter vos nombres',
+    desc: 'Fusionnez les tuiles pour atteindre 2048 et aller encore plus loin.',
     script: 'js/games/game2048.js',
-    initFn: 'startGame2048',
-    controls: 'Arrive bientôt !',
-    disabled: false
+    initFn: 'start2048Game',
+    controls: '💡 Flèches ou glisse le doigt : déplacer les tuiles'
   },
   survivors: {
     title: 'SURVIVORS',
     badge: 'SURVIE',
-    desc: 'Aller le plus oin possible pour augmenter vos nombres',
+    desc: 'Survis à des vagues sans fin, monte de niveau et choisis tes améliorations.',
     script: 'js/games/survivors.js',
-    initFn: 'startSurvivorsGame',
-    controls: 'Arrive bientôt !',
-    disabled: true
+    initFn: 'startSurvivorGame',
+    controls: '💡 ZQSD / flèches (ou glisse le doigt) : se déplacer — tu tires automatiquement'
   },
   quiz: {
   title: 'QUIZ BLOCUS',
@@ -138,6 +160,15 @@ dada: {
   initFn: 'startDadaGame',
   controls: '💡 Clic sur le Dé pour lancer | Clic sur ton cheval lumineux pour avancer'
 },
+  hyperdrive: {
+    title: 'BOUNCE RUSH',
+    badge: '3D MUSICAL',
+    desc: 'Ta balle rebondit toute seule : vise le centre de chaque plateforme, enchaîne les parfaits et fais monter la mélodie.',
+    script: 'js/games/hyperdrive3d.js',
+    initFn: 'startHyperDrive3D',
+    controls: '💡 Glisse le doigt / la souris (ou ← →) : diriger la balle de gauche à droite',
+    needs3D: true
+  },
 };
 
 // Synthétiseur audio
@@ -145,6 +176,7 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(freq, duration = 0.1, type = 'sine') {
   if (!soundEnabled) return;
   try {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = type;
@@ -157,6 +189,11 @@ function playSound(freq, duration = 0.1, type = 'sine') {
     osc.stop(audioCtx.currentTime + duration);
   } catch (e) {}
 }
+
+// Sur téléphone, l'audio reste bloqué tant que l'utilisateur n'a pas touché l'écran
+['pointerdown', 'touchend', 'keydown'].forEach(ev =>
+  window.addEventListener(ev, () => { if (audioCtx.state === 'suspended') audioCtx.resume(); }, { passive: true })
+);
 
 // 1. GÉNÉRATION AUTOMATIQUE DU HUB
 function renderHubGrid() {
@@ -218,9 +255,24 @@ function stopAllGames() {
   const cv = document.getElementById('game-canvas');
   if (window._flappyInputHandler) {
     window.removeEventListener('keydown', window._flappyInputHandler);
+    window.removeEventListener('pointerdown', window._flappyInputHandler);
     if (cv) cv.removeEventListener('pointerdown', window._flappyInputHandler);
     window._flappyInputHandler = null;
   }
+  if (window._pongTouch) {
+    window.removeEventListener('touchstart', window._pongTouch);
+    window.removeEventListener('touchmove', window._pongTouch);
+    window._pongTouch = null;
+  }
+  if (window._spaceTouch) {
+    ['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(ev => window.removeEventListener(ev, window._spaceTouch));
+    window._spaceTouch = null;
+  }
+  // Nouveaux jeux : chacun expose sa fonction de nettoyage (écouteurs, rendu 3D, sauvegarde…)
+  ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup'].forEach(k => {
+    if (typeof window[k] === 'function') window[k]();
+  });
+  if (window.GameMobile) GameMobile.reset();
   if (window._runnerDownHandler) {
     window.removeEventListener('keydown', window._runnerDownHandler);
     window.removeEventListener('keyup', window._runnerUpHandler);
@@ -263,6 +315,8 @@ async function openGame(gameId) {
   }
 
   try {
+    await loadGameScript(MOBILE_SCRIPT).catch(() => console.warn('mobile.js introuvable : adaptation mobile désactivée'));
+    if (gameConfig.needs3D && typeof THREE === 'undefined') await loadGameScript(THREE_URL);
     await loadGameScript(gameConfig.script);
     if (typeof window[gameConfig.initFn] === 'function') {
       window[gameConfig.initFn]();

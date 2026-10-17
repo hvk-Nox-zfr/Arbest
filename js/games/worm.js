@@ -926,3 +926,18 @@ window.addCoins = addCoins;
 window.openCustomizationMenu = openCustomizationMenu;
 window.selectSkin = selectSkin;
 window.buySkin = buySkin;
+// Appelé par main.js quand on quitte le jeu : stoppe la boucle et retire les écouteurs
+window.__wormStop = function () {
+  if (wormAnimationId) cancelAnimationFrame(wormAnimationId);
+  wormAnimationId = null;
+  gameState = 'MENU';
+  wormMouse.isBoosting = false;
+  window.removeEventListener('mousemove', handleWormMouseMove);
+  window.removeEventListener('mousedown', handleWormMouseDown);
+  window.removeEventListener('mouseup', handleWormMouseUp);
+  window.removeEventListener('touchstart', handleWormTouch);
+  window.removeEventListener('touchmove', handleWormTouch);
+  window.removeEventListener('resize', resizeWormCanvas);
+  const modal = document.getElementById('custom-menu-modal');
+  if (modal) modal.remove();
+};
