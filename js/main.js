@@ -169,6 +169,14 @@ dada: {
     controls: '💡 Glisse le doigt / la souris (ou ← →) : diriger la balle de gauche à droite',
     needs3D: true
   },
+  mario: {
+    title: 'MARIO C\'EST LE BOSS',
+    badge: 'PLATEFORME',
+    desc: 'Un jeu de plateforme fluide et dynamique inspiré du monde légendaire.',
+    script: 'js/games/mario2d.js',
+    initFn: 'startMarioGame',
+    controls: '💡 Flèches ou Q-D : Se déplacer | Espace ou Flèche Haut : Sauter'
+  },
 };
 
 // Synthétiseur audio
