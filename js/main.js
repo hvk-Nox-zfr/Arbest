@@ -11,6 +11,15 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.mi
 // REGISTRE DES JEUX
 // ============================================================
 const GAMES_REGISTRY = {
+  horror: {
+    title: 'PATIENTE 13',
+    badge: 'HORREUR 3D',
+    desc: "Piégé dans un asile abandonné, trouve 5 fusibles pour rouvrir la sortie… sans que ELLE ne t'entende. Casque et plein écran recommandés.",
+    script: 'js/games/horror.js',
+    initFn: 'startHorrorGame',
+    controls: "💡 ZQSD : bouger | Souris : regarder | Maj : courir (elle t'entend) | F : lampe | E : se cacher | G ou ⛶ : plein écran",
+    needs3D: true
+  },
   gta: {
     title: 'GTA ARBEST CITY',
     badge: 'OPEN WORLD 3D',
@@ -169,14 +178,6 @@ dada: {
     controls: '💡 Glisse le doigt / la souris (ou ← →) : diriger la balle de gauche à droite',
     needs3D: true
   },
-  mario: {
-    title: 'MARIO C\'EST LE BOSS',
-    badge: 'PLATEFORME',
-    desc: 'Un jeu de plateforme fluide et dynamique inspiré du monde légendaire.',
-    script: 'js/games/mario2d.js',
-    initFn: 'startMarioGame',
-    controls: '💡 Flèches ou Q-D : Se déplacer | Espace ou Flèche Haut : Sauter'
-  },
 };
 
 // Synthétiseur audio
@@ -277,7 +278,7 @@ function stopAllGames() {
     window._spaceTouch = null;
   }
   // Nouveaux jeux : chacun expose sa fonction de nettoyage (écouteurs, rendu 3D, sauvegarde…)
-  ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup'].forEach(k => {
+  ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup'].forEach(k => {
     if (typeof window[k] === 'function') window[k]();
   });
   if (window.GameMobile) GameMobile.reset();
