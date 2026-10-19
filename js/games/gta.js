@@ -47,7 +47,7 @@ function startGTAGame() {
   const camera = new THREE.PerspectiveCamera(65, 960 / 540, 0.6, 1000);
   const skyCol = new THREE.Color(0x87c3ff);
   scene.background = skyCol;
-  scene.fog = new THREE.Fog(0xbcd4ee, 140, 560);
+  scene.fog = new THREE.Fog(0xbcd4ee, 160, 760);
   const hemi = new THREE.HemisphereLight(0xcfe3ff, 0x5a5a48, 0.7); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff0d8, 2.2);
   sun.position.set(120, 200, 80); scene.add(sun); scene.add(sun.target);
@@ -59,7 +59,7 @@ function startGTAGame() {
 
   // ---------- Ciel (dégradé, soleil, nuages, étoiles) ----------
   const SKY_FRAG = `
-    uniform vec3 uSun; uniform float uDay; uniform vec3 uHorizon; uniform vec3 uZenith; uniform float uTime;
+    uniform vec3 uSun; uniform float uDay; uniform vec3 uHorizon; uniform vec3 uZenith; uniform float uTime; uniform float uLinear; uniform float uWet;
     varying vec3 vDir;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
     float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
@@ -71,22 +71,25 @@ function startGTAGame() {
       vec3 col = mix(uHorizon, uZenith, pow(h, 0.5));
       float sd = max(dot(d, uSun), 0.0);
       vec3 sunCol = mix(vec3(1.0,0.5,0.25), vec3(1.0,0.93,0.78), clamp(uSun.y*2.0,0.0,1.0));
-      col += sunCol * (pow(sd, 900.0) * 4.0 + pow(sd, 18.0) * 0.28) * smoothstep(-0.05, 0.1, uSun.y);
+      col += sunCol * (pow(sd, 900.0) * 4.0 + pow(sd, 18.0) * 0.28) * smoothstep(-0.05, 0.1, uSun.y) * (1.0 - uWet * 0.92);
       if (d.y > 0.0) {
         vec2 uv = d.xz / (d.y + 0.18) * 1.6 + vec2(uTime * 0.012, uTime * 0.004);
-        float c = smoothstep(0.48, 0.85, fbm(uv));
+        float c = smoothstep(0.48 - uWet * 0.32, 0.85 - uWet * 0.3, fbm(uv));
         vec3 cc = mix(vec3(0.10,0.11,0.17), mix(vec3(0.95,0.7,0.6), vec3(1.0,0.99,0.97), clamp(uSun.y*2.5,0.0,1.0)), uDay);
         cc = mix(cc, uHorizon, 0.25);
+        cc = mix(cc, vec3(0.32,0.34,0.38) * (0.35 + 0.65 * uDay), uWet * 0.8);
         col = mix(col, cc, c * smoothstep(0.0, 0.2, d.y) * 0.9);
         float st = step(0.9965, hash(floor(d.xz / (d.y + 1.0) * 220.0)));
         col += vec3(st) * (1.0 - uDay) * smoothstep(0.08, 0.35, d.y) * 0.9;
       }
+      col = mix(col, vec3(dot(col, vec3(0.33))) * 0.8, uWet * 0.6);
+      if (uLinear > 0.5) col = pow(col, vec3(2.2)) * 1.2;
       gl_FragColor = vec4(col, 1.0);
     }`;
   const SKY_VERT = `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
   function makeSkyMat() {
     return new THREE.ShaderMaterial({
-      uniforms: { uSun: { value: new THREE.Vector3(0, 1, 0) }, uDay: { value: 1 }, uHorizon: { value: new THREE.Vector3(0.72, 0.84, 0.96) }, uZenith: { value: new THREE.Vector3(0.25, 0.5, 0.9) }, uTime: { value: 0 } },
+      uniforms: { uSun: { value: new THREE.Vector3(0, 1, 0) }, uDay: { value: 1 }, uHorizon: { value: new THREE.Vector3(0.72, 0.84, 0.96) }, uZenith: { value: new THREE.Vector3(0.25, 0.5, 0.9) }, uTime: { value: 0 }, uLinear: { value: 0 }, uWet: { value: 0 } },
       vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false
     });
   }
@@ -104,12 +107,13 @@ function startGTAGame() {
   } catch (e) { console.warn('[GTA] environnement indisponible', e); }
 
   // ---------- Batch de géométrie : tout dans un seul mesh ----------
-  function Batch() { this.p = []; this.n = []; this.c = []; this.u = []; this.i = []; }
+  function Batch() { this.p = []; this.n = []; this.c = []; this.u = []; this.i = []; this.si = []; this.sw = []; this.sk = -1; }
   Batch.prototype.quad = function (v, n, rgb, uv) {
     const o = this.p.length / 3;
     for (let k = 0; k < 4; k++) {
       this.p.push(v[k][0], v[k][1], v[k][2]); this.n.push(n[0], n[1], n[2]);
       this.c.push(rgb[0], rgb[1], rgb[2]); this.u.push(uv[k][0], uv[k][1]);
+      if (this.sk >= 0) { this.si.push(this.sk, 0, 0, 0); this.sw.push(1, 0, 0, 0); }
     }
     this.i.push(o, o + 1, o + 2, o, o + 2, o + 3);
   };
@@ -146,7 +150,7 @@ function startGTAGame() {
     this.quad(v, [0, 1, 0], c, tu ? v.map(p => [p[0] / tu, p[2] / tu]) : ZUV);
   };
   // maillage lisse : V = sommets, T = triangles, dir(c) = direction « vers l'extérieur » au centre du triangle
-  Batch.prototype.emit = function (V, T, color, dir, colFn) {
+  Batch.prototype.emit = function (V, T, color, dir, colFn, skinFn, uvFn) {
     const base = Array.isArray(color) ? color : hex2rgb(color);
     const o = this.p.length / 3, nrm = V.map(() => [0, 0, 0]);
     for (const t of T) {
@@ -160,7 +164,10 @@ function startGTAGame() {
     for (let i = 0; i < V.length; i++) {
       const q = nrm[i], l = Math.hypot(q[0], q[1], q[2]) || 1, c = colFn ? colFn(V[i]) : base;
       this.p.push(V[i][0], V[i][1], V[i][2]); this.n.push(q[0] / l, q[1] / l, q[2] / l);
-      this.c.push(c[0], c[1], c[2]); this.u.push(0, 0);
+      this.c.push(c[0], c[1], c[2]);
+      if (uvFn) { const t = uvFn(V[i]); this.u.push(t[0], t[1]); } else this.u.push(0, 0);
+      if (skinFn) { const sk = skinFn(V[i]); this.si.push(sk[0], sk[1], 0, 0); this.sw.push(sk[2], 1 - sk[2], 0, 0); }
+      else if (this.sk >= 0) { this.si.push(this.sk, 0, 0, 0); this.sw.push(1, 0, 0, 0); }
     }
     for (const t of T) this.i.push(o + t[0], o + t[1], o + t[2]);
   };
@@ -219,6 +226,7 @@ function startGTAGame() {
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.u, 2));
+    if (this.si.length) { g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(this.si, 4)); g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(this.sw, 4)); }
     g.setIndex(this.i);
     disposables.push(g);
     return g;
@@ -317,6 +325,8 @@ function startGTAGame() {
       for (let i = 0; i < 9; i++) { g.fillStyle = 'rgba(255,255,255,' + (0.1 + wr() * 0.15) + ')'; g.fillRect(34 + i * 36, 120 + wr() * 60, 22, 18 + wr() * 30); }
       g.fillStyle = '#2a3440'; g.fillRect(398, 98, 82, 150); g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(404, 104, 20, 140);
       g.fillStyle = '#1b1b1d'; g.fillRect(190, 94, 6, 144);
+      const gg = g.createLinearGradient(0, 196, 0, 256); gg.addColorStop(0, 'rgba(0,0,0,0)'); gg.addColorStop(1, 'rgba(12,9,6,.6)');
+      g.fillStyle = gg; g.fillRect(0, 196, 512, 60);
     } else {
       g.fillStyle = '#e8e8e0'; g.fillRect(0, 6, 512, 40);
       g.fillStyle = '#ffd890'; g.fillRect(24, 94, 340, 144);
@@ -355,11 +365,22 @@ function startGTAGame() {
   }
 
   // ---------- Matériaux ----------
-  const STYLE_PBR = { brick: [0.9, 0.0], concrete: [0.82, 0.02], glass: [0.14, 0.7], stucco: [0.92, 0.0] };
+  function ormTex(style) {
+    const S = 1024, c = mkCanvas(S, S), g = c.getContext('2d');
+    g.fillStyle = 'rgb(255,215,0)'; g.fillRect(0, 0, S, S);
+    for (let r = 0; r < 8; r++) for (let col = 0; col < 8; col++) {
+      const x0 = col * 128, y0 = r * 128; g.fillStyle = 'rgb(255,28,215)';
+      if (style === 'brick') g.fillRect(x0 + 32, y0 + 34, 64, 66);
+      else if (style === 'concrete') { for (let k = 0; k < 3; k++) g.fillRect(x0 + 6 + k * 40, y0 + 24, 36, 68); }
+      else if (style === 'glass') { g.fillRect(x0, y0, 128, 100); g.fillStyle = 'rgb(255,120,150)'; g.fillRect(x0, y0 + 100, 128, 28); }
+      else g.fillRect(x0 + 32, y0 + 32, 64, 64);
+    }
+    return tex(c, false);
+  }
   const facade = {};
   for (const k of ['brick', 'concrete', 'glass', 'stucco']) {
-    const dif = facadeTex(k, false), em = facadeTex(k, true);
-    facade[k] = { b: new Batch(), mat: new THREE.MeshStandardMaterial({ map: dif, emissiveMap: em, emissive: new THREE.Color(0, 0, 0), vertexColors: true, roughness: STYLE_PBR[k][0], metalness: STYLE_PBR[k][1], bumpMap: k === 'glass' ? null : dif, bumpScale: k === 'brick' ? 1.6 : 0.8 }) };
+    const dif = facadeTex(k, false), em = facadeTex(k, true), orm = ormTex(k);
+    facade[k] = { b: new Batch(), mat: new THREE.MeshStandardMaterial({ map: dif, emissiveMap: em, emissive: new THREE.Color(0, 0, 0), vertexColors: true, roughness: 1, metalness: 1, roughnessMap: orm, metalnessMap: orm, bumpMap: k === 'glass' ? null : dif, bumpScale: k === 'brick' ? 1.6 : 0.8 }) };
     disposables.push(facade[k].mat); envMats.push(facade[k].mat);
   }
   const shopB = new Batch(), plainB = new Batch(), walkB = new Batch(), roadB = new Batch(), markB = new Batch(), grassB = new Batch(), lampB = new Batch();
@@ -395,13 +416,6 @@ function startGTAGame() {
   }
 
   // ---------- Bâtiments détaillés ----------
-  const TINTS = {
-    glass: [0xffffff, 0xd8ecff, 0xc8eee6, 0xe6e6f4],
-    concrete: [0xffffff, 0xece6dc, 0xdadfe4],
-    brick: [0xffffff, 0xf3d9c6, 0xdcb9a0, 0xffe7d2],
-    stucco: [0xfff1d6, 0xf8d9d2, 0xd8e8f2, 0xe3efd1, 0xf4e4ff]
-  };
-  const SHOP_TINTS = [[1, 1, 1], hex2rgb(0xffe0d0), hex2rgb(0xd8e8ff), hex2rgb(0xe8ffe0), hex2rgb(0xfff0b8)];
   function roofDetails(cx, cz, sx, sz, top, style) {
     plainB.box(cx, top + 0.08, cz, sx - 0.3, 0.16, sz - 0.3, 0x4a4d52);
     if (style !== 'glass') {
@@ -417,23 +431,141 @@ function startGTAGame() {
     if (wr() < 0.3) { const ax = cx + (wr() - 0.5) * (sx - 6), az = cz + (wr() - 0.5) * (sz - 6); plainB.box(ax, top + 4.5, az, 0.18, 9, 0.18, 0x666a70); lampB.box(ax, top + 9.2, az, 0.4, 0.4, 0.4, 0xff3030); glowPts.push([ax, top + 9.2, az, 1]); }
     if (wr() < 0.12 && sx > 20) { const ax = cx, az = cz + sz / 2 - 3; plainB.box(ax, top + 3.4, az, 11, 5, 0.4, 0x2a2a2e); plainB.box(ax, top + 3.4, az + 0.25, 10.2, 4.2, 0.1, [0xe74c3c, 0x2e86de, 0xf1c40f, 0x27ae60][(wr() * 4) | 0]); plainB.box(ax - 3, top + 0.8, az - 0.1, 0.3, 1.6, 0.3, 0x333333); plainB.box(ax + 3, top + 0.8, az - 0.1, 0.3, 1.6, 0.3, 0x333333); }
   }
-  function addBuilding(x0, x1, z0, z1, h, style, tint, noShop) {
-    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, sx = x1 - x0, sz = z1 - z0, y0 = 0.18, SF = Math.min(4.6, h);
-    const F = facade[style].b, col = tint || 0xffffff;
+
+  // ---------- Éléments d'architecture ----------
+  const SHOP_TINTS = [[1, 1, 1], hex2rgb(0xffe0d0), hex2rgb(0xd8e8ff), hex2rgb(0xe8ffe0), hex2rgb(0xfff0b8)];
+  const TINTS = {
+    glass: [0xffffff, 0xd8ecff, 0xc8eee6, 0xe6e6f4],
+    concrete: [0xffffff, 0xece6dc, 0xdadfe4],
+    brick: [0xffffff, 0xf3d9c6, 0xdcb9a0, 0xffe7d2],
+    stucco: [0xfff1d6, 0xf8d9d2, 0xd8e8f2, 0xe3efd1, 0xf4e4ff]
+  };
+  function facePoly(B, pts, out, color) {
+    const T = [];
+    for (let i = 1; i < pts.length - 1; i++) T.push([0, i, i + 1]);
+    B.emit(pts, T, color, () => out);
+  }
+  function pyramid(cx, cz, sx, sz, y, h, color) {
+    const V = [[cx - sx / 2, y, cz - sz / 2], [cx + sx / 2, y, cz - sz / 2], [cx + sx / 2, y, cz + sz / 2], [cx - sx / 2, y, cz + sz / 2], [cx, y + h, cz]];
+    plainB.emit(V, [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]], color, c => [c[0] - cx, c[1] - (y + h * 0.3), c[2] - cz]);
+  }
+  function gableRoof(cx, cz, sx, sz, y, h, tile, wall) {
+    const alongX = sx >= sz, hx = sx / 2 + 0.3, hz = sz / 2 + 0.3;
+    if (alongX) {
+      const r0 = [cx - hx, y + h, cz], r1 = [cx + hx, y + h, cz];
+      facePoly(plainB, [[cx - hx, y, cz + hz], [cx + hx, y, cz + hz], r1, r0], [0, hz, h], tile);
+      facePoly(plainB, [[cx + hx, y, cz - hz], [cx - hx, y, cz - hz], r0, r1], [0, hz, -h], tile);
+      facePoly(plainB, [[cx + sx / 2, y, cz - sz / 2], [cx + sx / 2, y, cz + sz / 2], [cx + sx / 2, y + h * 0.96, cz]], [1, 0, 0], wall);
+      facePoly(plainB, [[cx - sx / 2, y, cz + sz / 2], [cx - sx / 2, y, cz - sz / 2], [cx - sx / 2, y + h * 0.96, cz]], [-1, 0, 0], wall);
+      plainB.box(cx + sx * 0.25, y + h * 0.7, cz + hz * 0.2, 0.9, h * 0.9, 0.9, 0x8a5a44);
+    } else {
+      const r0 = [cx, y + h, cz - hz], r1 = [cx, y + h, cz + hz];
+      facePoly(plainB, [[cx + hx, y, cz + hz], [cx + hx, y, cz - hz], r0, r1], [hx, h, 0], tile);
+      facePoly(plainB, [[cx - hx, y, cz - hz], [cx - hx, y, cz + hz], r1, r0], [-hx, h, 0], tile);
+      facePoly(plainB, [[cx - sx / 2, y, cz + sz / 2], [cx + sx / 2, y, cz + sz / 2], [cx, y + h * 0.96, cz + sz / 2]], [0, 0, 1], wall);
+      facePoly(plainB, [[cx + sx / 2, y, cz - sz / 2], [cx - sx / 2, y, cz - sz / 2], [cx, y + h * 0.96, cz - sz / 2]], [0, 0, -1], wall);
+      plainB.box(cx + hx * 0.2, y + h * 0.7, cz + sz * 0.25, 0.9, h * 0.9, 0.9, 0x8a5a44);
+    }
+  }
+  function streetFaces(x0, x1, z0, z1) {
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, bi = cellOf(cx), bj = cellOf(cz), f = [];
+    if (bi < 0 || bi >= N || bj < 0 || bj >= N) return f;
+    const bx = blockC(bi), bz = blockC(bj);
+    if (z1 > bz + 20) f.push('+z'); if (z0 < bz - 20) f.push('-z'); if (x1 > bx + 20) f.push('+x'); if (x0 < bx - 20) f.push('-x');
+    return f;
+  }
+  function addBalconies(x0, x1, z0, z1, ybot, h, faces) {
+    const nf = Math.floor(h / 4), RAIL = 0x2c3036, SLAB = 0xcfc9bd;
+    for (const face of faces) {
+      const horiz = face === '+z' || face === '-z', len = horiz ? x1 - x0 : z1 - z0;
+      for (let f = 1; f < nf; f += 2) {
+        const yy = ybot + f * 4 + 0.78;
+        for (let d = 2; d < len - 1; d += 4) {
+          let bx, bz, sx = 3.0, sz = 0.9, ox = 0, oz = 0;
+          if (face === '+z') { bx = x0 + d; bz = z1; oz = 1; }
+          else if (face === '-z') { bx = x1 - d; bz = z0; oz = -1; }
+          else if (face === '+x') { bx = x1; bz = z1 - d; ox = 1; sx = 0.9; sz = 3.0; }
+          else { bx = x0; bz = z0 + d; ox = -1; sx = 0.9; sz = 3.0; }
+          const cx = bx + ox * 0.45, cz = bz + oz * 0.45;
+          plainB.box(cx, yy, cz, sx, 0.14, sz, SLAB);
+          if (horiz) {
+            plainB.box(cx, yy + 0.5, bz + oz * 0.88, sx, 0.9, 0.05, RAIL);
+            plainB.box(cx - sx / 2 + 0.03, yy + 0.5, cz, 0.05, 0.9, sz, RAIL); plainB.box(cx + sx / 2 - 0.03, yy + 0.5, cz, 0.05, 0.9, sz, RAIL);
+          } else {
+            plainB.box(bx + ox * 0.88, yy + 0.5, cz, 0.05, 0.9, sz, RAIL);
+            plainB.box(cx, yy + 0.5, cz - sz / 2 + 0.03, sx, 0.9, 0.05, RAIL); plainB.box(cx, yy + 0.5, cz + sz / 2 - 0.03, sx, 0.9, 0.05, RAIL);
+          }
+        }
+      }
+    }
+  }
+  function addAwnings(x0, x1, z0, z1, faces) {
+    for (const face of faces) {
+      const horiz = face === '+z' || face === '-z', len = horiz ? x1 - x0 : z1 - z0, n = Math.max(1, Math.floor(len / 4));
+      for (let k = 0; k < n; k++) {
+        const col = (k % 2) ? 0xe9e4d8 : [0xc0392b, 0x2c6fbb, 0x2e8b57, 0xd9a21b][(wr() * 4) | 0];
+        const t0 = len / n * k, t1 = len / n * (k + 1);
+        let a, b, c, d, out;
+        if (face === '+z') { a = [x0 + t0, 3.75, z1]; b = [x0 + t1, 3.75, z1]; c = [x0 + t1, 3.1, z1 + 1.1]; d = [x0 + t0, 3.1, z1 + 1.1]; out = [0, 1, 0.6]; }
+        else if (face === '-z') { a = [x1 - t0, 3.75, z0]; b = [x1 - t1, 3.75, z0]; c = [x1 - t1, 3.1, z0 - 1.1]; d = [x1 - t0, 3.1, z0 - 1.1]; out = [0, 1, -0.6]; }
+        else if (face === '+x') { a = [x1, 3.75, z1 - t0]; b = [x1, 3.75, z1 - t1]; c = [x1 + 1.1, 3.1, z1 - t1]; d = [x1 + 1.1, 3.1, z1 - t0]; out = [0.6, 1, 0]; }
+        else { a = [x0, 3.75, z0 + t0]; b = [x0, 3.75, z0 + t1]; c = [x0 - 1.1, 3.1, z0 + t1]; d = [x0 - 1.1, 3.1, z0 + t0]; out = [-0.6, 1, 0]; }
+        facePoly(plainB, [a, b, c, d], out, col);
+        facePoly(plainB, [d, c, b, a], [-out[0], -out[1], -out[2]], 0x2a2a2a);
+      }
+    }
+  }
+  function addBladeSign(x0, x1, z0, z1, faces) {
+    if (!faces.length) return;
+    const face = faces[(wr() * faces.length) | 0], col = [0xff3b6b, 0x35e0ff, 0xffd23b, 0x7dff6b, 0xff8a1f][(wr() * 5) | 0];
+    let x, z, ox = 0, oz = 0;
+    if (face === '+z') { x = x0 + 1 + wr() * (x1 - x0 - 2); z = z1; oz = 1; }
+    else if (face === '-z') { x = x0 + 1 + wr() * (x1 - x0 - 2); z = z0; oz = -1; }
+    else if (face === '+x') { z = z0 + 1 + wr() * (z1 - z0 - 2); x = x1; ox = 1; }
+    else { z = z0 + 1 + wr() * (z1 - z0 - 2); x = x0; ox = -1; }
+    plainB.box(x + ox * 0.5, 3.9, z + oz * 0.5, ox ? 1 : 0.06, 0.06, oz ? 1 : 0.06, 0x2c3036);
+    const sx = x + ox * 1.0, sz = z + oz * 1.0;
+    lampB.box(sx, 3.9, sz, ox ? 0.12 : 0.6, 0.9, oz ? 0.12 : 0.6, col);
+    glowPts.push([sx, 3.9, sz, 2]);
+  }
+  function addCylTower(cx, cz, r, h, yb, tint) {
+    const seg = 28, y0 = 0.18 + yb, V = [], T = [], col = hex2rgb(tint), F = facade.glass.b;
+    for (let i = 0; i <= seg; i++) {
+      const a = i / seg * TAU, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r, u = i / seg * TAU * r / 32;
+      V.push([x, y0, z, col, null, [u, 0]], [x, y0 + h, z, col, null, [u, h / 32]]);
+    }
+    for (let i = 0; i < seg; i++) { const a = i * 2; T.push([a, a + 2, a + 3], [a, a + 3, a + 1]); }
+    F.emit(V, T, col, c => [c[0] - cx, 0, c[2] - cz], v => v[3], null, v => v[5]);
+    plainB.cyl(cx, y0 + h, cz, r, r, r * 0.96, r * 0.96, 0.8, 28, 0x555a60);
+    plainB.cyl(cx, y0 + h + 0.8, cz, 0.3, 0.3, 0.2, 0.2, 9, 8, 0x777b80);
+    lampB.box(cx, y0 + h + 9.8, cz, 0.4, 0.4, 0.4, 0xff3030); glowPts.push([cx, y0 + h + 9.8, cz, 1]);
+    addRect(cx - r * 0.8, cx + r * 0.8, cz - r * 0.8, cz + r * 0.8, h + yb);
+  }
+  function addBuilding(x0, x1, z0, z1, h, style, tint, o) {
+    if (typeof o !== 'object' || o === null) o = { noShop: !!o };
+    const yb = o.yBase || 0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, sx = x1 - x0, sz = z1 - z0, y0 = 0.18 + yb;
+    const noShop = o.noShop || yb > 0, SF = noShop ? 0 : Math.min(4.6, h), F = facade[style].b, col = tint || 0xffffff;
+    const faces = streetFaces(x0, x1, z0, z1), bodyH = h - SF, uo = Math.floor(wr() * 8) / 8;
     if (!noShop) shopB.box(cx, y0 + SF / 2, cz, sx, SF, sz, pick(SHOP_TINTS), { tu: 8, tv: SF, uo: Math.floor(wr() * 4) / 4 });
-    else F.box(cx, y0 + SF / 2, cz, sx, SF, sz, col, { tu: 32, vo: 0, uo: 0 });
-    if (h > SF) F.box(cx, y0 + SF + (h - SF) / 2, cz, sx, h - SF, sz, col, { tu: 32, tv: 32, uo: Math.floor(wr() * 8) / 8, vo: 0.125 * Math.floor(wr() * 8), shade: 1 });
-    if (style !== 'glass') plainB.box(cx, y0 + SF + 0.12, cz, sx + 0.4, 0.4, sz + 0.4, 0xcfc9bd);
-    if (style !== 'glass') plainB.box(cx, y0 + h - 0.3, cz, sx + 0.6, 0.6, sz + 0.6, 0xd6d0c4);
-    addRect(x0, x1, z0, z1, h);
+    if (bodyH > 0) F.box(cx, y0 + SF + bodyH / 2, cz, sx, bodyH, sz, col, { tu: 32, tv: 32, uo, vo: 0, shade: 1 });
+    if (style !== 'glass') {
+      if (!noShop) plainB.box(cx, y0 + SF + 0.12, cz, sx + 0.4, 0.4, sz + 0.4, 0xcfc9bd);
+      plainB.box(cx, y0 + h - 0.3, cz, sx + 0.6, 0.6, sz + 0.6, 0xd6d0c4);
+      for (const px of [x0, x1]) for (const pz of [z0, z1]) plainB.box(px, y0 + h / 2, pz, 0.6, h, 0.6, 0xc8c2b6);
+    }
+    addRect(x0, x1, z0, z1, h + yb);
+    if (!noShop) { if (o.awn !== false) addAwnings(x0, x1, z0, z1, faces); if (wr() < 0.5) addBladeSign(x0, x1, z0, z1, faces); }
+    if (o.balc && style !== 'glass' && bodyH > 9) addBalconies(x0, x1, z0, z1, y0 + SF, bodyH, faces);
     let top = y0 + h, tsx = sx, tsz = sz, tcx = cx, tcz = cz;
-    if (h > 36 && sx > 22 && sz > 22) {
+    if (o.roof === 'gable') { const gh = 2.6 + Math.min(sx, sz) * 0.18; gableRoof(cx, cz, sx, sz, top, gh, wr() < 0.5 ? 0x9a4a33 : 0x4b4f58, 0xe7dfd0); addRect(x0, x1, z0, z1, h + yb + gh * 0.5); return; }
+    if (o.roof === 'none') return;
+    if (!o.noTier && h > 36 && sx > 22 && sz > 22) {
       const k = 0.62 + wr() * 0.12, h2 = 8 + wr() * 14, nx = sx * k, nz = sz * k;
       tcx = cx + (wr() - 0.5) * (sx - nx) * 0.6; tcz = cz + (wr() - 0.5) * (sz - nz) * 0.6;
       roofDetails(cx, cz, sx, sz, top, 'glass');
-      F.box(tcx, top + h2 / 2, tcz, nx, h2, nz, col, { tu: 32, tv: 32, uo: Math.floor(wr() * 8) / 8, vo: 0.125 * Math.floor(wr() * 8), shade: 1 });
+      F.box(tcx, top + h2 / 2, tcz, nx, h2, nz, col, { tu: 32, tv: 32, uo: Math.floor(wr() * 8) / 8, vo: 0, shade: 1 });
       top += h2; tsx = nx; tsz = nz;
-      addRect(tcx - nx / 2, tcx + nx / 2, tcz - nz / 2, tcz + nz / 2, h + h2);
+      addRect(tcx - nx / 2, tcx + nx / 2, tcz - nz / 2, tcz + nz / 2, h + yb + h2);
     }
     roofDetails(tcx, tcz, tsx, tsz, top, style);
   }
@@ -443,20 +575,76 @@ function startGTAGame() {
     if (dc < 4.2) return r < 0.3 ? 'concrete' : r < 0.65 ? 'brick' : r < 0.9 ? 'stucco' : 'glass';
     return r < 0.55 ? 'brick' : r < 0.95 ? 'stucco' : 'concrete';
   }
+  function podiumTower(l, dc) {
+    const hb = 9 + wr() * 5, ht = 40 + wr() * 45 + Math.max(0, 3.5 - dc) * 10;
+    addBuilding(l[0], l[1], l[2], l[3], hb, pick(['concrete', 'brick']), pick(TINTS.concrete), { noTier: true, balc: false });
+    addBuilding(l[0] + 4, l[1] - 4, l[2] + 4, l[3] - 4, ht, 'glass', pick(TINTS.glass), { yBase: hb, noTier: true });
+  }
+  function crownTower(l) {
+    let x0 = l[0], x1 = l[1], z0 = l[2], z1 = l[3], yb = 0;
+    const style = pick(['concrete', 'glass']), tint = pick(TINTS[style]);
+    const tiers = [[0, 30 + wr() * 30], [3.5, 12 + wr() * 10], [3.5, 8 + wr() * 8]];
+    for (const t of tiers) {
+      x0 += t[0]; x1 -= t[0]; z0 += t[0]; z1 -= t[0];
+      addBuilding(x0, x1, z0, z1, t[1], style, tint, { yBase: yb, noTier: true, roof: 'none', noShop: yb > 0 });
+      yb += t[1];
+    }
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    pyramid(cx, cz, x1 - x0, z1 - z0, 0.18 + yb, 8, 0x5b8f7a);
+    plainB.box(cx, 0.18 + yb + 13, cz, 0.35, 10, 0.35, 0x777b80);
+    lampB.box(cx, 0.18 + yb + 18.2, cz, 0.4, 0.4, 0.4, 0xff3030); glowPts.push([cx, 0.18 + yb + 18.2, cz, 1]);
+  }
+  function cylTower(l, dc) {
+    const cx = (l[0] + l[1]) / 2, cz = (l[2] + l[3]) / 2, r = Math.min(l[1] - l[0], l[3] - l[2]) / 2 - 1.2, h = 40 + wr() * 50 + Math.max(0, 3 - dc) * 10;
+    plainB.cyl(cx, 0.18, cz, r + 1, r + 1, r + 0.8, r + 0.8, 6, 28, 0x8d9298);
+    addCylTower(cx, cz, r, h, 6, pick(TINTS.glass));
+  }
+  function lShape(l, dc) {
+    const w = l[1] - l[0], d = l[3] - l[2], st = pickStyle(dc), tint = pick(TINTS[st]), h = 14 + wr() * 22;
+    addBuilding(l[0], l[0] + w * 0.58, l[2], l[3], h, st, tint, { balc: true });
+    addBuilding(l[0] + w * 0.58, l[1], l[2], l[2] + d * 0.55, h * 0.7, st, tint, { balc: wr() < 0.5 });
+  }
+  function house(l) {
+    const st = wr() < 0.5 ? 'stucco' : 'brick', h = 7 + wr() * 6;
+    addBuilding(l[0], l[1], l[2], l[3], h, st, pick(TINTS[st]), { roof: 'gable', balc: wr() < 0.5 });
+  }
+  function warehouse(l) {
+    const h = 8 + wr() * 3;
+    addBuilding(l[0], l[1], l[2], l[3], h, 'concrete', pick(TINTS.concrete), { noShop: true });
+    const cx = (l[0] + l[1]) / 2, n = Math.max(2, Math.floor((l[1] - l[0]) / 8));
+    for (let k = 0; k < n; k++) plainB.box(l[0] + (k + 0.5) * (l[1] - l[0]) / n, 2.0, l[3] + 0.1, 4, 3.6, 0.2, 0x4a525a);
+  }
+  function placeBuilding(bi, bj, l, dc) {
+    const w = l[1] - l[0], d = l[3] - l[2], r = wr(), big = w > 22 && d > 22;
+    if (dc < 2.6) {
+      if (big && r < 0.18) return podiumTower(l, dc);
+      if (big && r < 0.38) return crownTower(l);
+      if (big && r < 0.55) return cylTower(l, dc);
+    } else if (dc < 4.4) {
+      if (big && r < 0.1) return podiumTower(l, dc);
+      if (big && r < 0.24) return lShape(l, dc);
+      if (r < 0.42 && w < 40 && d < 40) return house(l);
+      if (r > 0.9) return warehouse(l);
+    } else {
+      if (r < 0.3 && w < 40 && d < 40) return house(l);
+      if (r < 0.45) return warehouse(l);
+      if (big && r < 0.6) return lShape(l, dc);
+    }
+    const st = pickStyle(dc);
+    const base = st === 'glass' ? 30 + wr() * 40 : st === 'brick' || st === 'stucco' ? 12 + wr() * 16 : 16 + wr() * 30;
+    const h = Math.max(10, base + Math.max(0, 4.6 - dc) * (st === 'glass' ? 9 : 5));
+    addBuilding(l[0], l[1], l[2], l[3], h, st, pick(TINTS[st]), { balc: st !== 'glass' && wr() < 0.55 });
+  }
   function fillRegion(bi, bj, x0, x1, z0, z1) {
-    const w = x1 - x0, d = z1 - z0, g = 3, m = wr(), L = [];
+    const w = x1 - x0, d = z1 - z0, g = 3, L = [], dc = Math.hypot(bi - 3.5, bj - 3.5);
+    let m = wr();
     if (w < 8 || d < 8) return;
+    if (dc > 4.4 && w > 40 && wr() < 0.55) m = 0.9;
     if (m < 0.3) L.push([x0, x1, z0, z1]);
     else if (m < 0.58) { const a = x0 + w * (0.35 + wr() * 0.3); L.push([x0, a - g / 2, z0, z1], [a + g / 2, x1, z0, z1]); }
     else if (m < 0.82) { const a = z0 + d * (0.35 + wr() * 0.3); L.push([x0, x1, z0, a - g / 2], [x0, x1, a + g / 2, z1]); }
     else { const ax = x0 + w * 0.5, az = z0 + d * 0.5; L.push([x0, ax - g / 2, z0, az - g / 2], [ax + g / 2, x1, z0, az - g / 2], [x0, ax - g / 2, az + g / 2, z1], [ax + g / 2, x1, az + g / 2, z1]); }
-    const dc = Math.hypot(bi - 3.5, bj - 3.5);
-    for (const l of L) {
-      const st = pickStyle(dc);
-      const base = st === 'glass' ? 30 + wr() * 40 : st === 'brick' || st === 'stucco' ? 12 + wr() * 16 : 16 + wr() * 30;
-      const h = Math.max(10, base + Math.max(0, 4.6 - dc) * (st === 'glass' ? 9 : 5));
-      addBuilding(l[0], l[1], l[2], l[3], h, st, pick(TINTS[st]));
-    }
+    for (const l of L) placeBuilding(bi, bj, l, dc);
   }
 
   // ---------- Mobilier urbain ----------
@@ -483,6 +671,30 @@ function startGTAGame() {
     lampB.box(hx, 5.0, hz, 0.22, 0.22, 0.45, 0x403a10);
     lampB.box(hx, 4.6, hz, 0.22, 0.22, 0.45, greenAxisX ? 0x103a18 : 0x401010);
     addRect(x - 0.25, x + 0.25, z - 0.25, z + 0.25, 5);
+  }
+
+
+  function addProps(bx, bz) {
+    const sides = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+    for (const sd of sides) {
+      const tx = sd[1] !== 0 ? 1 : 0, tz = sd[0] !== 0 ? 1 : 0;
+      for (let k = 0; k < 4; k++) {
+        if (wr() > 0.42) continue;
+        const o = (wr() - 0.5) * 34, px = bx + sd[0] * 30.9 + tx * o, pz = bz + sd[1] * 30.9 + tz * o, t = wr();
+        if (t < 0.34) { plainB.cyl(px, 0.18, pz, 0.13, 0.13, 0.11, 0.11, 0.55, 8, 0xc0392b); plainB.cyl(px, 0.73, pz, 0.15, 0.15, 0.15, 0.15, 0.1, 8, 0xa93226); addRect(px - 0.2, px + 0.2, pz - 0.2, pz + 0.2, 0.8); }
+        else if (t < 0.67) { plainB.cyl(px, 0.18, pz, 0.28, 0.26, 0.26, 0.26, 0.85, 10, 0x2f4f3f); plainB.cyl(px, 1.03, pz, 0.3, 0.3, 0.3, 0.3, 0.07, 10, 0x1f3a2c); addRect(px - 0.3, px + 0.3, pz - 0.3, pz + 0.3, 1); }
+        else { plainB.cyl(px, 0.18, pz, 0.04, 0.04, 0.04, 0.04, 1.15, 6, 0x555a60); plainB.box(px, 1.4, pz, 0.2, 0.28, 0.12, 0x2d3036); }
+      }
+    }
+    if (wr() < 0.5) {
+      const sx = bx + 9, sz = bz + 30.5;
+      plainB.box(sx, 2.55, sz, 3.6, 0.1, 1.5, 0x2c3036);
+      for (const e of [-1.6, 1.6]) plainB.box(sx + e, 1.35, sz, 0.08, 2.4, 0.08, 0x2c3036);
+      plainB.box(sx, 1.4, sz + 0.65, 3.2, 2.2, 0.04, 0x6f8a99);
+      plainB.box(sx, 0.62, sz + 0.3, 2.6, 0.08, 0.4, 0x7a5a3c);
+      plainB.box(sx + 2.3, 1.5, sz + 0.2, 0.05, 1.7, 0.7, 0x2e86de);
+      addRect(sx - 1.8, sx + 1.8, sz - 0.1, sz + 0.8, 2.5);
+    }
   }
 
   // ---------- Construction du monde ----------
@@ -531,6 +743,7 @@ function startGTAGame() {
       addLamp(bx + s, bz + 31.3, 0, 1); addLamp(bx + s, bz - 31.3, 0, -1);
       addLamp(bx + 31.3, bz + s, 1, 0); addLamp(bx - 31.3, bz + s, -1, 0);
     }
+    addProps(bx, bz);
     if (t === 'std') { fillRegion(bi, bj, bx - 27, bx + 27, bz - 27, bz + 27); for (let k = 0; k < 3; k++) addTree(bx - 22 + k * 22 + (wr() - 0.5) * 3, bz + 29.6, 0.8 + wr() * 0.3); return; }
     if (t === 'park') {
       grassB.flat(bx, 0.19, bz, 56, 56, WHITE, 6);
@@ -630,6 +843,24 @@ function startGTAGame() {
   if (qHigh) ground.receiveShadow = true;
   disposables.push(ground.geometry, ground.material, sea.geometry, seaMat, groundMap); envMats.push(seaMat);
   scene.add(ground); scene.add(sea);
+  // plage
+  const SAND = 0xdcca98, sb = LIM + 30;
+  plainB.flat(0, 0.04, -(LIM + 7), 2 * sb, 46, SAND); plainB.flat(0, 0.04, LIM + 7, 2 * sb, 46, SAND);
+  plainB.flat(-(LIM + 7), 0.04, 0, 46, 2 * (LIM - 16), SAND); plainB.flat(LIM + 7, 0.04, 0, 46, 2 * (LIM - 16), SAND);
+  // relief lointain (deux rangées de collines autour de la baie)
+  const hillB = new Batch();
+  for (const lay of [[640, 1.0, 0.0], [720, 1.5, 2.0]]) {
+    const segs = 140, V = [], T = [], r0 = lay[0];
+    for (let i = 0; i < segs; i++) {
+      const a = i / segs * TAU, hh = Math.max(30, (80 + 42 * Math.sin(3 * a + lay[2]) + 26 * Math.sin(7 * a + 1 + lay[2]) + 14 * Math.sin(13 * a + 2) + 8 * Math.sin(29 * a)) * lay[1]);
+      V.push([Math.cos(a) * r0, -10, Math.sin(a) * r0], [Math.cos(a) * (r0 - hh * 0.9), hh, Math.sin(a) * (r0 - hh * 0.9)]);
+    }
+    for (let i = 0; i < segs; i++) { const j = (i + 1) % segs; T.push([i * 2, j * 2, j * 2 + 1], [i * 2, j * 2 + 1, i * 2 + 1]); }
+    hillB.emit(V, T, 0x3d5a3c, c => [-c[0], 30, -c[2]], v => (v[1] > 60 ? hex2rgb(0x587a52) : hex2rgb(0x34502f)));
+  }
+  const hillMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
+  disposables.push(hillMat);
+  scene.add(hillB.mesh(hillMat, false, false));
   for (const k in facade) scene.add(facade[k].b.mesh(facade[k].mat, true, true));
   scene.add(shopB.mesh(shopMat, true, true)); scene.add(plainB.mesh(plainMat, true, true));
   scene.add(walkB.mesh(walkMat, false, true)); scene.add(roadB.mesh(roadMat, false, true));
@@ -679,10 +910,10 @@ function startGTAGame() {
   const bmat = h => { if (!bmatCache[h]) { bmatCache[h] = new THREE.MeshBasicMaterial({ color: lin(h) }); disposables.push(bmatCache[h]); } return bmatCache[h]; };
   const wreckMat = new THREE.MeshStandardMaterial({ color: lin(0x1b1b1b), roughness: 0.95, metalness: 0.1 });
   const paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.6 });
-  const glassMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.05, metalness: 0.92 });
+  const glassMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.05, metalness: 0.9, transparent: true, opacity: 0.4, depthWrite: false });
   const trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.25 });
   const lightMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-  const humanMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 });
+  const humanMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, skinning: true });
   const CAR_MATS = [paintMat, glassMat, trimMat, lightMat];
   disposables.push(wreckMat, paintMat, glassMat, trimMat, lightMat, humanMat);
   envMats.push(paintMat, glassMat, trimMat);
@@ -744,7 +975,7 @@ function startGTAGame() {
   function shade(c, k) { return [clamp(c[0] * k, 0, 1), clamp(c[1] * k, 0, 1), clamp(c[2] * k, 0, 1)]; }
   function buildCar(st, color, kind) {
     const PB = new Batch(), GB = new Batch(), TB = new Batch(), LB = new Batch();
-    const L = st.L, hw = st.W / 2, y0 = st.y0, paint = hex2rgb(color), dark = hex2rgb(0x0d0d0f), glass = hex2rgb(0x0b1620);
+    const L = st.L, hw = st.W / 2, y0 = st.y0, paint = hex2rgb(color), dark = hex2rgb(0x0d0d0f), glass = hex2rgb(0x1a2d40), intr = hex2rgb(0x1f2023);
     const cf = st.cabF, cr = Math.max(st.cabR, -L / 2 + 0.8);
     // carrosserie basse
     const S = carStations(st), V = [], T = [];
@@ -755,7 +986,7 @@ function startGTAGame() {
       T.push([a, b, d], [a, d, c]);
     }
     const stMid = z => { let best = S[0], bd = 1e9; for (const q of S) { const d = Math.abs(q.z - z); if (d < bd) { bd = d; best = q; } } return (best.yb + best.top) / 2; };
-    PB.emit(V, T, paint, c => [c[0], c[1] - stMid(c[2]), 0], v => (v[1] < y0 + 0.03 ? dark : paint));
+    PB.emit(V, T, paint, c => [c[0], c[1] - stMid(c[2]), 0], v => (v[1] < y0 + 0.03 ? dark : (v[1] > st.belt - 0.02 && v[2] <= cf + 0.001 && v[2] >= cr - 0.001 ? intr : paint)));
     for (const end of [0, S.length - 1]) {
       const ring = carRing(hw, S[end]), z = S[end].z, W = [[0, (S[end].yb + S[end].top) / 2, z]], U = [];
       for (const p of ring) W.push([p[0], p[1], z]);
@@ -796,6 +1027,15 @@ function startGTAGame() {
     TB.box(0, y0 + 0.42, -L / 2 - 0.03, 0.5, 0.12, 0.03, 0xe8e8e0);
     const wallLo = y0 + (st.belt - y0) * 0.2, wallH = (st.belt - y0) * 0.42;
     for (const sx of [-1, 1]) for (const zz of [cf - 0.2, (cf + cr) / 2, cr + 0.2]) TB.box(sx * (hw + 0.002), wallLo + wallH / 2, zz, 0.012, wallH, 0.014, dark);
+    // intérieur visible à travers les vitres
+    const seatC = hex2rgb(0x2a2a2e), seatX = st.W * 0.21, seatZ = cf - 0.95, hrH = Math.min(0.44, st.roof - st.belt - 0.03);
+    for (const sx of [-1, 1]) { TB.box(sx * seatX, st.belt + 0.1, seatZ - 0.28, 0.5, 0.26, 0.12, seatC); TB.box(sx * seatX, st.belt + hrH - 0.1, seatZ - 0.28, 0.24, 0.2, 0.1, seatC); }
+    if (!st.cargo && cr < seatZ - 0.9) TB.box(0, st.belt + 0.1, cr + 0.4, st.W * 0.8, 0.22, 0.12, seatC);
+    TB.box(0, st.belt + 0.07, cf - 0.3, st.W * 0.8, 0.14, 0.5, 0x232326);
+    const wz = cf - 0.62, wy = st.belt + 0.27, WV = [[seatX, wy, wz]], WU = [];
+    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; WV.push([seatX + Math.cos(a) * 0.17, wy + Math.sin(a) * 0.17, wz]); }
+    for (let i = 0; i < 12; i++) WU.push([0, 1 + i, 1 + (i + 1) % 12]);
+    TB.emit(WV, WU, 0x151518, () => [0, 0, -1]);
     if (kind === 'police') {
       for (const sx of [-1, 1]) TB.box(sx * (hw + 0.004), y0 + (st.belt - y0) * 0.4, (cf + cr) / 2, 0.01, 0.24, L * 0.45, 0x14171c);
       TB.box(0, st.roof + 0.06, (c1 + c2) / 2, 1.0, 0.06, 0.34, dark);
@@ -803,7 +1043,8 @@ function startGTAGame() {
     if (kind === 'taxi') LB.box(0, st.roof + 0.15, (c1 + c2) / 2, 0.6, 0.18, 0.28, 0xfff0a0);
     const g = new THREE.Group();
     const m = new THREE.Mesh(combine([PB, GB, TB, LB]), CAR_MATS);
-    if (qHigh) m.castShadow = true; else g.add(makeShadow(st.W * 1.25, L * 1.15));
+    if (qHigh) m.castShadow = true;
+    g.add(makeShadow(st.W * 1.15, L * 1.05));
     g.add(m);
     let bars = null;
     if (kind === 'police') {
@@ -816,7 +1057,7 @@ function startGTAGame() {
       g.add(a); g.add(b);
       bars = { a, b, mr, mb };
     }
-    return { g, m, bars };
+    return { g, m, bars, paint };
   }
 
   const cars = [];
@@ -824,12 +1065,33 @@ function startGTAGame() {
   function makeCar(styleKey, x, z, ang, kind) {
     const st = STYLES[styleKey];
     const b = buildCar(st, pick(st.cols), styleKey);
-    b.g.position.set(x, 0, z); b.g.rotation.y = ang;
+    b.g.rotation.order = 'YXZ'; b.g.position.set(x, 0, z); b.g.rotation.y = ang;
     scene.add(b.g);
-    const c = { id: ++carId, sk: styleKey, st, g: b.g, mesh: b.m, bars: b.bars, x, z, ang, speed: 0, hp: styleKey === 'van' ? 130 : 100, kind, ai: null, stuck: 0, cruise: R(9, 14), copSpeed: 26, direct: false, noDirect: 0, revT: 0, wreckT: 0, hitCd: 0, lastBlink: 0, deploy: 0, smokeT: 0 };
+    const c = { paint: b.paint, driver: null, door: null, steerVis: 0, id: ++carId, sk: styleKey, st, g: b.g, mesh: b.m, bars: b.bars, x, z, ang, speed: 0, hp: styleKey === 'van' ? 130 : 100, kind, ai: null, stuck: 0, cruise: R(9, 14), copSpeed: 26, direct: false, noDirect: 0, revT: 0, wreckT: 0, hitCd: 0, lastBlink: 0, deploy: 0, smokeT: 0, pitch: 0, roll: 0, lastSpeed: 0, lastAng: ang };
     cars.push(c);
+    if (kind === 'traffic' || kind === 'cop') attachDriver(c);
     return c;
   }
+  const seatOf = c => ({ x: c.st.W * 0.21, z: c.st.cabF - 0.95, y: Math.max(c.st.y0 + 0.12, c.st.roof - 0.9) });
+  function attachDriver(c) {
+    const cop = c.kind === 'cop' || c.sk === 'police', h = buildHuman(cop ? COP_OUTFIT : randomOutfit(), false), seat = seatOf(c);
+    h.g.position.set(seat.x, 0, seat.z); h.g.scale.set(0.95, 0.95, 0.95);
+    animateHuman(h, { mode: 'drive', hipY: seat.y }, 1);
+    c.g.add(h.g); c.driver = h;
+  }
+  function ensureDoor(c) {
+    if (c.door) return c.door;
+    const st = c.st, hw = st.W / 2, seat = seatOf(c), hz = seat.z + 0.75, len = 1.15;
+    const PBd = new Batch(), GBd = new Batch(), yb = st.y0 + 0.2, yt = st.belt - 0.02;
+    PBd.box(0.03, (yb + yt) / 2, -len / 2, 0.06, yt - yb, len, c.paint);
+    facePoly(GBd, [[-hw * 0.07, st.belt, -0.05], [-hw * 0.07, st.belt, -len + 0.1], [-hw * 0.28, st.roof - 0.06, -len + 0.3], [-hw * 0.28, st.roof - 0.06, -0.15]], [1, 0.3, 0], hex2rgb(0x1a2d40));
+    facePoly(GBd, [[-hw * 0.28, st.roof - 0.06, -0.15], [-hw * 0.28, st.roof - 0.06, -len + 0.3], [-hw * 0.07, st.belt, -len + 0.1], [-hw * 0.07, st.belt, -0.05]], [-1, -0.3, 0], hex2rgb(0x1a2d40));
+    const g = new THREE.Group(); g.position.set(hw, 0, hz);
+    g.add(new THREE.Mesh(PBd.geo(), paintMat)); g.add(new THREE.Mesh(GBd.geo(), glassMat));
+    g.visible = false; c.g.add(g); c.door = { g, open: 0 };
+    return c.door;
+  }
+  function setDoor(c, open) { if (!c.door) return; c.door.open = open; c.door.g.rotation.y = -open * 1.15; c.door.g.visible = open > 0.001; }
   function carCircles(c) {
     const off = c.st.L / 2 - c.st.W / 2 - 0.1, s = Math.sin(c.ang), co = Math.cos(c.ang), r = c.st.W / 2 + 0.12;
     return [{ x: c.x + s * off, z: c.z + co * off, r }, { x: c.x - s * off, z: c.z - co * off, r }];
@@ -839,52 +1101,191 @@ function startGTAGame() {
     const i = cars.indexOf(c); if (i >= 0) cars.splice(i, 1);
   }
 
-  // ---------- Humains (corps arrondis, vêtements, visage) ----------
-  const SHIRTS = [0xd94a3c, 0x3f7fc4, 0x3aa86a, 0xe8c23a, 0x8e5bb0, 0xe8ecef, 0xe0802a, 0x1f9a88, 0xf08ab8, 0x2b2f38];
-  const PANTS = [0x2c3e50, 0x3a4a5c, 0x5d4037, 0x1b1b1b, 0x607d8b, 0x7a6a4a];
-  const SKINS = [0xf3c9a5, 0xd9a577, 0xa87048, 0x6e4a31, 0xffdbb4];
-  const HAIRS = [0x16110d, 0x3a2a1e, 0x6a4a2a, 0xb08a4a, 0x8a8a8a, null];
+  // ---------- Humains : maillage unique lissé sur squelette ----------
   const peds = [];
+  const SHIRTS = [0xd94a3c, 0x3f7fc4, 0x3aa86a, 0xe8c23a, 0x8e5bb0, 0xe8ecef, 0xe0802a, 0x1f9a88, 0xf08ab8, 0x2b2f38, 0x6b7a8f];
+  const PANTS = [0x2c3e50, 0x3a4a5c, 0x5d4037, 0x1b1b1b, 0x607d8b, 0x7a6a4a, 0x3d4a3a];
+  const SKINS = [0xf3c9a5, 0xd9a577, 0xa87048, 0x6e4a31, 0xffdbb4, 0xc68b5e];
+  const HAIRS = [0x16110d, 0x3a2a1e, 0x6a4a2a, 0xb08a4a, 0x8a8a8a, 0x2a1810];
+  const BN = ['hips', 'spine', 'chest', 'neck', 'head', 'uL', 'fL', 'hL', 'uR', 'fR', 'hR', 'tL', 'sL', 'ftL', 'tR', 'sR', 'ftR'];
+  const BI = {}; BN.forEach((n, i) => { BI[n] = i; });
+  const RJ = [[0, 0.95, 0, -1], [0, 1.06, 0, 0], [0, 1.24, 0, 1], [0, 1.5, 0, 2], [0, 1.58, 0, 3],
+    [0.2, 1.45, 0, 2], [0.2, 1.15, 0, 5], [0.2, 0.9, 0, 6], [-0.2, 1.45, 0, 2], [-0.2, 1.15, 0, 8], [-0.2, 0.9, 0, 9],
+    [0.09, 0.93, 0, 0], [0.09, 0.5, 0, 11], [0.09, 0.08, 0, 12], [-0.09, 0.93, 0, 0], [-0.09, 0.5, 0, 14], [-0.09, 0.08, 0, 15]];
   const humanCache = {};
-  function humanGeoms(sp) {
+  const Wt = (a, b, w) => [BI[a], BI[b], w];
+  function tubeRings(B, rings, seg, capBottom) {
+    const V = [], T = [];
+    for (const r of rings) for (let i = 0; i < seg; i++) { const a = i / seg * TAU; V.push([r.x + Math.cos(a) * r.rx, r.y, r.z + Math.sin(a) * r.rz, r.col, r.sk]); }
+    for (let k = 0; k < rings.length - 1; k++) for (let i = 0; i < seg; i++) {
+      const j = (i + 1) % seg, a = k * seg + i, b = k * seg + j, c = (k + 1) * seg + i, d = (k + 1) * seg + j;
+      T.push([a, b, d], [a, d, c]);
+    }
+    const dir = c => { let best = rings[0], bd = 1e9; for (const r of rings) { const d = Math.abs(r.y - c[1]); if (d < bd) { bd = d; best = r; } } return [c[0] - best.x, 0, c[2] - best.z]; };
+    B.emit(V, T, [1, 1, 1], dir, v => v[3], v => v[4]);
+    if (capBottom) {
+      const r = rings[0], W = [[r.x, r.y, r.z, r.col, r.sk]], U = [];
+      for (let i = 0; i < seg; i++) { const a = i / seg * TAU; W.push([r.x + Math.cos(a) * r.rx, r.y, r.z + Math.sin(a) * r.rz, r.col, r.sk]); }
+      for (let i = 0; i < seg; i++) U.push([0, 1 + i, 1 + (i + 1) % seg]);
+      B.emit(W, U, [1, 1, 1], () => [0, -1, 0], v => v[3], v => v[4]);
+    }
+  }
+  function humanGeom(sp) {
     const key = JSON.stringify(sp);
     if (humanCache[key]) return humanCache[key];
-    const B = new Batch(), A = new Batch(), Lg = new Batch();
+    const B = new Batch(), f = sp.fat || 1;
     const shirt = hex2rgb(sp.shirt), pants = hex2rgb(sp.pants), skin = hex2rgb(sp.skin), shoes = hex2rgb(sp.shoes);
-    const skinD = shade(skin, 0.8), sleeveForearm = sp.long ? shirt : skin;
-    B.cyl(0, 0.84, 0, 0.17, 0.115, 0.17, 0.115, 0.16, 10, pants);
-    B.cyl(0, 0.98, 0, 0.16, 0.1, 0.21, 0.125, 0.56, 12, shirt);
-    for (const sx of [-1, 1]) B.sphere(sx * 0.235, 1.5, 0, 0.075, 0.075, 0.075, shirt, 7, 5);
-    B.cyl(0, 1.52, 0, 0.05, 0.05, 0.05, 0.05, 0.08, 8, skin);
-    B.sphere(0, 1.66, 0.005, 0.1, 0.12, 0.11, skin, 10, 8);
-    if (sp.hair !== null) B.sphere(0, 1.7, -0.014, 0.108, 0.106, 0.118, hex2rgb(sp.hair), 10, 6);
-    for (const sx of [-1, 1]) B.box(sx * 0.04, 1.67, 0.108, 0.026, 0.02, 0.012, 0x15110e);
-    B.box(0, 1.63, 0.118, 0.03, 0.045, 0.03, skinD);
-    if (sp.hat) { B.cyl(0, 1.755, 0, 0.12, 0.12, 0.115, 0.115, 0.06, 10, sp.hat); B.box(0, 1.76, 0.12, 0.2, 0.015, 0.1, sp.hat); }
-    A.cyl(0, -0.29, 0, 0.043, 0.043, 0.05, 0.05, 0.29, 8, shirt, false);
-    A.cyl(0, -0.56, 0, 0.036, 0.036, 0.043, 0.043, 0.27, 8, sleeveForearm, false);
-    A.sphere(0, -0.6, 0, 0.042, 0.05, 0.042, skin, 6, 5);
-    Lg.cyl(0, -0.46, 0, 0.06, 0.06, 0.078, 0.078, 0.46, 8, pants, false);
-    Lg.cyl(0, -0.9, 0, 0.05, 0.05, 0.06, 0.06, 0.44, 8, pants, false);
-    Lg.box(0, -0.885, 0.05, 0.1, 0.07, 0.25, shoes);
-    const r = { body: B.geo(), arm: A.geo(), leg: Lg.geo() };
-    humanCache[key] = r; return r;
+    const belt = hex2rgb(0x1a1a1c), skinD = shade(skin, 0.8), collar = shade(shirt, 1.15);
+    const hair = sp.hair !== null && sp.hair !== undefined ? hex2rgb(sp.hair) : skinD;
+    const R_ = (y, rx, rz, zc, col, sk, x) => ({ x: x || 0, y, z: zc, rx, rz, col, sk });
+    // torse
+    tubeRings(B, [
+      R_(0.84, 0.15 * f, 0.1 * f, 0, pants, Wt('hips', 'hips', 1)), R_(0.93, 0.165 * f, 0.11 * f, 0, pants, Wt('hips', 'hips', 1)),
+      R_(0.98, 0.162 * f, 0.108 * f, 0, belt, Wt('hips', 'hips', 1)), R_(1.03, 0.155 * f, 0.104 * f, 0, shirt, Wt('hips', 'spine', 0.5)),
+      R_(1.12, 0.147 * f, 0.098 * f, 0, shirt, Wt('spine', 'spine', 1)), R_(1.21, 0.16 * f, 0.105 * f, 0.004, shirt, Wt('spine', 'chest', 0.5)),
+      R_(1.31, 0.18 * f, 0.114 * f, 0.01, shirt, Wt('chest', 'chest', 1)), R_(1.41, 0.205 * f, 0.114 * f, 0, shirt, Wt('chest', 'chest', 1)),
+      R_(1.46, 0.19 * f, 0.1 * f, -0.004, shirt, Wt('chest', 'chest', 1)), R_(1.5, 0.09, 0.075, 0, collar, Wt('chest', 'neck', 0.5)),
+      R_(1.535, 0.052, 0.052, 0, skin, Wt('neck', 'neck', 1)), R_(1.6, 0.05, 0.05, 0, skin, Wt('neck', 'head', 0.5))
+    ], 12, true);
+    // bras et jambes (gauche = +x)
+    for (const sg of [1, -1]) {
+      const u = sg > 0 ? 'uL' : 'uR', fo = sg > 0 ? 'fL' : 'fR', hd = sg > 0 ? 'hL' : 'hR', ax = sg * 0.235;
+      const sl = y => (sp.long ? (y > 0.97 ? shirt : skin) : (y > 1.27 ? shirt : skin));
+      const arm = [[1.47, 0.056, Wt(u, u, 1)], [1.4, 0.053, Wt(u, u, 1)], [1.3, 0.048, Wt(u, u, 1)], [1.21, 0.043, Wt(u, u, 1)], [1.17, 0.041, Wt(u, fo, 0.5)],
+        [1.13, 0.039, Wt(fo, fo, 1)], [1.03, 0.036, Wt(fo, fo, 1)], [0.94, 0.031, Wt(fo, hd, 0.5)], [0.9, 0.029, Wt(hd, hd, 1)]];
+      tubeRings(B, arm.map(a => R_(a[0], a[1], a[1], 0, sl(a[0]), a[2], ax)), 8, false);
+      B.sk = BI[u]; B.sphere(ax, 1.455, 0, 0.066, 0.07, 0.066, shirt, 8, 6);
+      B.sk = BI[hd]; B.sphere(ax, 0.845, 0.005, 0.03, 0.058, 0.022, skin, 6, 5); B.sphere(ax - sg * 0.026, 0.875, 0.022, 0.012, 0.03, 0.012, skin, 5, 4);
+      B.sk = -1;
+      const th = sg > 0 ? 'tL' : 'tR', sh = sg > 0 ? 'sL' : 'sR', ft = sg > 0 ? 'ftL' : 'ftR', lx = sg * 0.09;
+      const leg = [[0.97, 0.088 * f, 0.092 * f, Wt(th, th, 1)], [0.88, 0.086 * f, 0.09 * f, Wt(th, th, 1)], [0.75, 0.077 * f, 0.08 * f, Wt(th, th, 1)], [0.63, 0.067 * f, 0.07 * f, Wt(th, th, 1)],
+        [0.56, 0.062 * f, 0.065 * f, Wt(th, sh, 0.75)], [0.5, 0.058 * f, 0.062 * f, Wt(th, sh, 0.5)], [0.44, 0.058 * f, 0.064 * f, Wt(th, sh, 0.25)], [0.38, 0.062 * f, 0.07 * f, Wt(sh, sh, 1)],
+        [0.26, 0.05, 0.056, Wt(sh, sh, 1)], [0.14, 0.042, 0.045, Wt(sh, sh, 1)], [0.095, 0.04, 0.043, Wt(sh, ft, 0.6)]];
+      tubeRings(B, leg.map(a => R_(a[0], a[1], a[2], 0, pants, a[3], lx)), 8, false);
+      B.sk = BI[ft]; B.sphere(lx, 0.05, 0.055, 0.048, 0.047, 0.125, shoes, 8, 6); B.box(lx, 0.015, 0.06, 0.1, 0.03, 0.25, 0x15110e);
+      B.sk = -1;
+    }
+    // détails du torse
+    B.sk = BI.hips; B.box(0, 0.98, 0.112, 0.04, 0.03, 0.012, 0xc9a227);
+    B.sk = BI.chest;
+    if (sp.jacket) B.box(0, 1.28, 0.119, 0.012, 0.32, 0.01, 0x15151a);
+    if (sp.pack) B.box(0, 1.3, -0.14, 0.3, 0.4, 0.12, 0x3a4a5c);
+    if (sp.badge) { B.sphere(0.11, 1.36, 0.116, 0.015, 0.015, 0.008, 0xd4af37, 5, 4); for (const sx of [-1, 1]) B.box(sx * 0.2, 1.47, 0, 0.09, 0.02, 0.11, 0x0b1324); }
+    // tête
+    B.sk = BI.head;
+    B.sphere(0, 1.675, 0.005, 0.087, 0.108, 0.1, skin, 12, 8); B.sphere(0, 1.617, 0.04, 0.058, 0.05, 0.06, skin, 8, 6);
+    for (const sx of [-1, 1]) {
+      B.sphere(sx * 0.088, 1.68, 0, 0.018, 0.03, 0.016, skinD, 5, 4);
+      B.sphere(sx * 0.034, 1.695, 0.087, 0.013, 0.011, 0.008, 0xf2f2f2, 5, 4); B.sphere(sx * 0.034, 1.695, 0.094, 0.006, 0.006, 0.004, 0x15110e, 4, 3);
+      B.box(sx * 0.034, 1.718, 0.092, 0.04, 0.008, 0.01, hair);
+    }
+    B.sphere(0, 1.655, 0.098, 0.016, 0.022, 0.02, skinD, 5, 4); B.box(0, 1.612, 0.1, 0.04, 0.008, 0.008, 0x8a3a3a);
+    if (sp.glasses) for (const sx of [-1, 1]) B.box(sx * 0.034, 1.695, 0.099, 0.038, 0.024, 0.006, 0x101014);
+    if (sp.beard) B.sphere(0, 1.596, 0.045, 0.06, 0.04, 0.05, hair, 7, 5);
+    const hs = sp.hs || 'short';
+    if (hs !== 'bald' && sp.hair !== null && sp.hair !== undefined) {
+      B.sphere(0, 1.735, -0.012, 0.093, 0.082, 0.104, hair, 10, 6); B.box(0, 1.74, 0.075, 0.15, 0.035, 0.04, hair);
+      if (hs === 'bun') B.sphere(0, 1.8, -0.07, 0.04, 0.04, 0.04, hair, 6, 5);
+      if (hs === 'long') { B.sphere(0, 1.6, -0.065, 0.085, 0.14, 0.052, hair, 8, 6); B.sk = BI.chest; B.sphere(0, 1.47, -0.07, 0.07, 0.12, 0.04, hair, 8, 6); B.sk = BI.head; }
+    }
+    if (sp.hat) {
+      const hc = hex2rgb(sp.hat);
+      B.cyl(0, 1.755, 0, 0.1, 0.1, 0.095, 0.095, 0.06, 12, hc); B.cyl(0, 1.745, 0, 0.115, 0.125, 0.115, 0.125, 0.02, 12, hc); B.box(0, 1.752, 0.115, 0.2, 0.012, 0.09, hc);
+    }
+    B.sk = -1;
+    const geo = B.geo();
+    humanCache[key] = geo; return geo;
   }
-  function makeOutfit() { return { shirt: pick(SHIRTS), pants: pick(PANTS), skin: pick(SKINS), hair: pick(HAIRS), long: Math.random() < 0.45, shoes: pick([0x1a1a1a, 0xf0f0f0, 0x4a3020]) }; }
-  const OUTFITS = []; for (let i = 0; i < 18; i++) OUTFITS.push(makeOutfit());
+  function makeOutfit() {
+    const hs = pick(['short', 'short', 'long', 'bun', 'bald']);
+    return { shirt: pick(SHIRTS), pants: pick(PANTS), skin: pick(SKINS), hair: pick(HAIRS), hs, long: Math.random() < 0.45, shoes: pick([0x1a1a1a, 0xf0f0f0, 0x4a3020]), fat: Math.round(R(0.92, 1.2) * 100) / 100, beard: Math.random() < 0.15 && hs !== 'long', glasses: Math.random() < 0.15, jacket: Math.random() < 0.35, pack: Math.random() < 0.15 };
+  }
+  const OUTFITS = []; for (let i = 0; i < 22; i++) OUTFITS.push(makeOutfit());
   const randomOutfit = () => pick(OUTFITS);
-  const COP_OUTFIT = { shirt: 0x2a4a8c, pants: 0x14213d, skin: 0xe8bb98, hair: null, long: true, shoes: 0x0a0a0a, hat: 0x101820 };
-  const PLAYER_OUTFIT = { shirt: 0xff7a1a, pants: 0x23325a, skin: 0xf3c9a5, hair: 0x3a2a1e, long: true, shoes: 0xe8e8e8 };
+  const COP_OUTFIT = { shirt: 0x2a4a8c, pants: 0x14213d, skin: 0xe8bb98, hair: 0x2a1810, hs: 'short', long: true, shoes: 0x0a0a0a, hat: 0x101820, badge: true, fat: 1.05 };
+  const PLAYER_OUTFIT = { shirt: 0xff7a1a, pants: 0x23325a, skin: 0xf3c9a5, hair: 0x3a2a1e, hs: 'short', long: true, shoes: 0xe8e8e8, jacket: true, fat: 1.04 };
+  function makeBones() {
+    const bones = RJ.map(() => new THREE.Bone());
+    RJ.forEach((j, i) => {
+      const p = j[3], pp = p >= 0 ? RJ[p] : [0, 0, 0];
+      bones[i].position.set(j[0] - pp[0], j[1] - pp[1], j[2] - pp[2]);
+      if (p >= 0) bones[p].add(bones[i]);
+    });
+    return bones;
+  }
   function buildHuman(sp, gun) {
-    const gs = humanGeoms(sp), g = new THREE.Group();
-    const mk = geo => { const m = new THREE.Mesh(geo, humanMat); if (qHigh) m.castShadow = true; return m; };
-    const body = mk(gs.body), legL = mk(gs.leg), legR = mk(gs.leg), armL = mk(gs.arm), armR = mk(gs.arm);
-    legL.position.set(-0.1, 0.92, 0); legR.position.set(0.1, 0.92, 0);
-    armL.position.set(-0.25, 1.5, 0); armR.position.set(0.25, 1.5, 0);
-    const gm = new THREE.Mesh(gunGeo, mat(0x111111)); gm.position.set(0, -0.58, 0.16); gm.visible = !!gun; armR.add(gm);
-    g.add(body); g.add(legL); g.add(legR); g.add(armL); g.add(armR);
-    if (!qHigh) g.add(makeShadow(0.8, 0.8));
-    return { g, legL, legR, armL, armR, gm };
+    const g = new THREE.Group(), geo = humanGeom(sp), bones = makeBones();
+    const mesh = new THREE.SkinnedMesh(geo, humanMat);
+    mesh.add(bones[0]); mesh.bind(new THREE.Skeleton(bones));
+    mesh.frustumCulled = false; if (qHigh) mesh.castShadow = true;
+    g.add(mesh);
+    const b = {}; BN.forEach((n, i) => { b[n] = bones[i]; });
+    const gm = new THREE.Mesh(gunGeo, mat(0x111111)); gm.rotation.x = Math.PI / 2; gm.position.set(0, -0.12, 0.03); gm.visible = !!gun; b.hR.add(gm);
+    g.add(makeShadow(0.7, 0.7));
+    return { g, mesh, b, gm, phase: Math.random() * 6, t: 0 };
+  }
+
+  // ---------- Animation procédurale du squelette ----------
+  function animateHuman(h, a, dt) {
+    const b = h.b, k = Math.min(1, dt * 12), mode = a.mode || 'idle', sp = a.speed || 0;
+    h.t += dt;
+    if (sp > 0.05) h.phase += dt * sp * (sp > 3.2 ? 1.75 : 4.1 - clamp(sp - 1.4, 0, 1.8) * 0.9);
+    const ph = h.phase, amp = clamp(sp / 6, 0.2, 1);
+    const S = (bn, x, y, z) => { const r = bn.rotation; r.x += (x - r.x) * k; r.y += (y - r.y) * k; r.z += (z - r.z) * k; };
+    let hipY = a.hipY !== undefined ? a.hipY : 0.95, lean = 0;
+    if (mode === 'walk' || mode === 'run' || mode === 'scared') {
+      const s = Math.sin(ph), c = Math.cos(ph), run = mode === 'walk' ? 0 : 1, A = 0.42 + 0.55 * amp;
+      S(b.tL, -s * A, 0, 0.03); S(b.tR, s * A, 0, -0.03);
+      S(b.sL, Math.max(0, c) * (0.55 + 0.9 * amp) + 0.06, 0, 0); S(b.sR, Math.max(0, -c) * (0.55 + 0.9 * amp) + 0.06, 0, 0);
+      S(b.ftL, Math.max(0, -c) * 0.25, 0, 0); S(b.ftR, Math.max(0, c) * 0.25, 0, 0);
+      hipY += -0.015 - Math.abs(c) * 0.03 * (0.4 + amp);
+      lean = 0.03 + 0.2 * amp * run;
+      S(b.spine, lean, s * 0.14 * amp, 0); S(b.chest, 0.02, -s * 0.09 * amp, 0); S(b.hips, 0, -s * 0.1 * amp, 0); S(b.head, -lean * 1.1, s * 0.05, 0);
+      if (mode === 'scared') {
+        S(b.uL, -2.5 + Math.sin(ph * 2) * 0.25, 0, 0.35); S(b.uR, -2.5 + Math.sin(ph * 2 + 1) * 0.25, 0, -0.35); S(b.fL, -0.5, 0, 0); S(b.fR, -0.5, 0, 0);
+      } else {
+        const ea = 0.2 + 0.9 * amp * run + 0.15;
+        S(b.uL, s * (0.35 + 0.55 * amp), 0, 0.06); S(b.uR, -s * (0.35 + 0.55 * amp), 0, -0.06); S(b.fL, -ea, 0, 0); S(b.fR, -ea, 0, 0);
+      }
+    } else if (mode === 'drive') {
+      const st = a.steer || 0;
+      S(b.tL, -1.5, 0, 0.08); S(b.tR, -1.45, 0, -0.08); S(b.sL, 1.55, 0, 0); S(b.sR, 1.45 - (a.gas ? 0.2 : 0), 0, 0); S(b.ftL, 0, 0, 0); S(b.ftR, 0.15, 0, 0);
+      S(b.uL, -0.85, st * 0.3, 0.12); S(b.uR, -0.85, st * 0.3, -0.12); S(b.fL, -0.85, 0, 0); S(b.fR, -0.85, 0, 0);
+      S(b.spine, -0.05, st * 0.08, 0); S(b.chest, 0, 0, 0); S(b.hips, 0, 0, 0); S(b.head, 0.02, st * 0.35, 0);
+    } else if (mode === 'jump') {
+      S(b.tL, -0.9, 0, 0.05); S(b.tR, -0.5, 0, -0.05); S(b.sL, 1.1, 0, 0); S(b.sR, 0.7, 0, 0);
+      S(b.uL, -2.6, 0, 0.3); S(b.uR, -2.6, 0, -0.3); S(b.fL, -0.3, 0, 0); S(b.fR, -0.3, 0, 0); S(b.spine, 0.05, 0, 0); S(b.head, -0.1, 0, 0);
+    } else if (mode === 'dead') {
+      S(b.uL, -0.4, 0, 0.9); S(b.uR, 0.3, 0, -1.0); S(b.fL, -0.5, 0, 0); S(b.fR, -0.2, 0, 0); S(b.tL, -0.3, 0, 0.25); S(b.tR, 0.2, 0, -0.3);
+      S(b.sL, 0.4, 0, 0); S(b.sR, 0.1, 0, 0); S(b.head, 0.2, 0.4, 0); S(b.spine, 0, 0.1, 0); S(b.chest, 0, 0, 0);
+    } else if (mode === 'yank') {
+      const fl = Math.sin(h.t * 22);
+      S(b.tL, -0.9 + fl * 0.2, 0, 0.1); S(b.tR, -0.7 - fl * 0.2, 0, -0.1); S(b.sL, 0.9, 0, 0); S(b.sR, 0.6, 0, 0);
+      S(b.uL, -1.9 + fl * 0.3, 0, 0.5); S(b.uR, -1.7 - fl * 0.3, 0, -0.5); S(b.fL, -0.4, 0, 0); S(b.fR, -0.4, 0, 0);
+      S(b.spine, -0.3, 0, 0.1); S(b.head, 0.2, fl * 0.15, 0);
+    } else {
+      const br = Math.sin(h.t * 1.8) * 0.02;
+      S(b.tL, 0, 0, 0.03); S(b.tR, 0, 0, -0.03); S(b.sL, 0.04, 0, 0); S(b.sR, 0.04, 0, 0); S(b.ftL, 0, 0, 0); S(b.ftR, 0, 0, 0);
+      S(b.uL, 0.04 + br, 0, 0.08); S(b.uR, 0.04 - br, 0, -0.08); S(b.fL, -0.25, 0, 0); S(b.fR, -0.25, 0, 0);
+      S(b.spine, br, 0, 0); S(b.chest, br * 1.5, 0, 0); S(b.hips, 0, 0, Math.sin(h.t * 0.6) * 0.02); S(b.head, -0.02, Math.sin(h.t * 0.5) * 0.25 * (a.look || 0), 0);
+    }
+    if (a.upper === 'aim') {
+      S(b.uR, -1.5 - (a.recoil || 0) * 0.3, 0, -0.05); S(b.fR, -0.08, 0, 0); S(b.uL, -1.28, 0, -0.28); S(b.fL, -0.75, 0, 0);
+      S(b.spine, lean - 0.04, -0.12, 0); S(b.head, -0.05 - (a.recoil || 0) * 0.1, 0.06, 0);
+    } else if (a.upper === 'punch') {
+      const p = clamp(a.punch || 0, 0, 1);
+      const ux = p < 0.3 ? lerp(0, 0.6, p / 0.3) : p < 0.55 ? lerp(0.6, -1.55, (p - 0.3) / 0.25) : lerp(-1.55, 0, (p - 0.55) / 0.45);
+      const fx = p < 0.3 ? -0.9 : p < 0.55 ? lerp(-0.9, -0.1, (p - 0.3) / 0.25) : lerp(-0.1, -0.5, (p - 0.55) / 0.45);
+      S(b.uR, ux, 0, -0.1); S(b.fR, fx, 0, 0); S(b.uL, -0.9, 0, -0.3); S(b.fL, -1.0, 0, 0); S(b.spine, lean, p > 0.3 && p < 0.7 ? 0.3 : -0.2, 0);
+    } else if (a.upper === 'reach') {
+      S(b.uR, -1.3, 0, -0.1); S(b.fR, -0.3, 0, 0);
+    } else if (a.upper === 'grab') {
+      const pl = Math.sin(h.t * 14) * 0.15;
+      S(b.uL, -1.35 + pl, 0, -0.1); S(b.uR, -1.35 - pl, 0, 0.1); S(b.fL, -0.7, 0, 0); S(b.fR, -0.7, 0, 0); S(b.spine, 0.28, 0, 0); S(b.head, -0.2, 0, 0);
+    }
+    if (a.flinch > 0) b.spine.rotation.x += 0.4 * a.flinch;
+    b.hips.position.y += (hipY - b.hips.position.y) * Math.min(1, dt * 14);
+    h.gm.visible = !!a.gun;
   }
 
   // ---------- Particules & traces de tirs ----------
@@ -1184,12 +1585,12 @@ function startGTAGame() {
     if (Math.abs(dz) >= Math.abs(dx)) return dz < 0 ? x + RH : 4 * RH + (RH - x);
     return dx > 0 ? 2 * RH + (z + RH) : 6 * RH + (RH - z);
   }
-  function makePed(kind) {
+  function makePed(kind, human) {
     const cop = kind === 'cop';
-    const h = cop ? buildHuman(COP_OUTFIT, true) : buildHuman(randomOutfit(), false);
-    if (!cop) { const sc = R(0.94, 1.06); h.g.scale.set(sc, sc, sc); }
+    const h = human || (cop ? buildHuman(COP_OUTFIT, true) : buildHuman(randomOutfit(), false));
+    if (!cop) { const sc = R(0.94, 1.06); h.g.scale.set(sc, sc, sc); } else h.g.scale.set(1, 1, 1);
     scene.add(h.g);
-    const p = { kind, h, g: h.g, x: 0, z: 0, y: 0.18, yaw: 0, state: 'walk', hp: cop ? 70 : 40, bi: 0, bj: 0, s: 0, dir: 1, speed: R(1.3, 2.1), t: 0, anim: Math.random() * 6, dead: false, deadT: 0, fx: 0, fz: 0, shootT: R(0.5, 1.2), retT: 0 };
+    const p = { kind, h, g: h.g, x: 0, z: 0, y: 0.18, yaw: 0, state: 'walk', hp: cop ? 70 : 40, bi: 0, bj: 0, s: 0, dir: 1, speed: R(1.3, 2.1), t: 0, anim: Math.random() * 6, dead: false, deadT: 0, fx: 0, fz: 0, shootT: R(0.5, 1.2), retT: 0, fallT: 0, flinch: 0, cine: null, y2: 0.18 };
     peds.push(p);
     return p;
   }
@@ -1226,7 +1627,7 @@ function startGTAGame() {
   function killPed(p, byPlayer, dir) {
     if (p.dead) return;
     p.dead = true; p.deadT = 0; p.hp = 0;
-    p.g.rotation.set(-Math.PI / 2, p.yaw, 0); p.g.position.set(p.x, 0.35, p.z);
+    p.fallT = 0; p.sprawl = R(-0.5, 0.5);
     burst(p.x, 1, p.z, 7, 'blood', 3);
     if (byPlayer) addHeat(p.kind === 'cop' ? 22 : 12);
     addPickup('cash', p.x + R(-0.5, 0.5), p.z + R(-0.5, 0.5), p.kind === 'cop' ? rint(100, 250) : rint(15, 110), true);
@@ -1234,7 +1635,7 @@ function startGTAGame() {
   }
   function damagePed(p, dmg, byPlayer) {
     if (p.dead) return;
-    p.hp -= dmg;
+    p.hp -= dmg; p.flinch = 1;
     if (p.kind === 'ped' && p.state === 'walk') { p.state = 'flee'; p.t = R(5, 8); const dx = p.x - P.x, dz = p.z - P.z, l = Math.hypot(dx, dz) || 1; p.fx = dx / l; p.fz = dz / l; }
     if (p.hp <= 0) killPed(p, byPlayer);
     else burst(p.x, 1.2, p.z, 3, 'blood', 2);
@@ -1242,7 +1643,17 @@ function startGTAGame() {
   function updatePeds(dt) {
     for (const p of peds) {
       if (p.dead) {
-        p.deadT += dt; if (p.deadT > 22) { p.g.visible = false; p.recycle = true; }
+        p.deadT += dt; p.fallT += dt;
+        if (p.deadT > 22) { p.g.visible = false; p.recycle = true; }
+        const q = Math.min(1, p.fallT / 0.5), e = q * q * (3 - 2 * q);
+        animateHuman(p.h, { mode: 'dead', speed: 0 }, dt);
+        p.g.position.set(p.x, lerp(p.y2, 0.22, e), p.z); p.g.rotation.set(-Math.PI / 2 * e, p.yaw + p.sprawl * e, 0);
+        continue;
+      }
+      if (p.state === 'cine') {
+        p.flinch = 0;
+        animateHuman(p.h, p.cine || { mode: 'idle' }, dt);
+        p.g.position.set(p.x, p.y2, p.z); p.g.rotation.set(0, p.yaw, 0);
         continue;
       }
       const ox = p.x, oz = p.z;
@@ -1280,9 +1691,10 @@ function startGTAGame() {
       const gy = groundY(p.x, p.z);
       p.y = gy;
       p.g.position.set(p.x, p.y, p.z); p.g.rotation.set(0, p.yaw, 0);
-      const sw = Math.sin(p.anim) * 0.7, moving = (mvx * mvx + mvz * mvz) > 1e-6;
-      p.h.legL.rotation.x = moving ? sw : 0; p.h.legR.rotation.x = moving ? -sw : 0;
-      p.h.armL.rotation.x = moving ? -sw * 0.8 : 0; p.h.armR.rotation.x = p.kind === 'cop' && p.aim ? -1.4 : (moving ? sw * 0.8 : 0);
+      const spd = Math.hypot(mvx, mvz) / Math.max(dt, 1e-4);
+      p.flinch = Math.max(0, p.flinch - dt * 4);
+      const mode = p.state === 'flee' ? 'scared' : spd > 3.4 ? 'run' : spd > 0.25 ? 'walk' : 'idle';
+      animateHuman(p.h, { mode, speed: spd, gun: p.kind === 'cop', upper: p.kind === 'cop' && p.aim ? 'aim' : null, flinch: p.flinch, look: 1 }, dt);
     }
     for (let i = peds.length - 1; i >= 0; i--) if (peds[i].recycle) { scene.remove(peds[i].g); peds.splice(i, 1); }
     // re-population
@@ -1345,6 +1757,8 @@ function startGTAGame() {
     if (c.kind === 'wreck') return;
     const wasPlayer = c.kind === 'player';
     if (byPlayer) addHeat(c.kind === 'cop' ? 25 : 8);
+    if (cine && cine.c === c) cancelCine();
+    if (c.driver) c.driver.g.visible = false;
     if (wasPlayer) leaveCar(true);
     c.kind = 'wreck'; c.hp = 0; c.wreckT = 30; c.ai = null; c.speed *= 0.3;
     c.mesh.material = wreckMat;
@@ -1402,7 +1816,7 @@ function startGTAGame() {
   let jx = 0, jy = 0;
   function fireWeapon(dt) {
     P.fireT -= dt;
-    if (!(firing || keys.fire) || P.fireT > 0 || P.mode !== 'foot' || state !== 'play') return;
+    if (!(firing || keys.fire) || P.fireT > 0 || P.mode !== 'foot' || state !== 'play' || cine) return;
     const w = WEAPONS[P.weapon];
     aimT = 2.5; P.fireT = w.rate;
     if (w.melee) {
@@ -1412,7 +1826,7 @@ function startGTAGame() {
         const dx = p.x - P.x, dz = p.z - P.z, d = Math.hypot(dx, dz);
         if (d < bd && dx * Math.sin(camYaw) + dz * Math.cos(camYaw) > 0) { bd = d; best = p; }
       }
-      P.punch = 0.2; snd(160, 0.06, 'square');
+      P.punch = 0.35; snd(160, 0.06, 'square');
       if (best) { damagePed(best, w.dmg, true); addHeat(best.kind === 'cop' ? 8 : 1.5); burst(best.x, 1.4, best.z, 3, 'blood', 2); }
       return;
     }
@@ -1430,7 +1844,7 @@ function startGTAGame() {
       else if (hit.type === 'car') damageCar(hit.ent, w.dmg * 1.1, true);
       else if (hit.type) burst(mx + ex * hit.t, my + ey * hit.t, mz + ez * hit.t, 2, 'spark', 3);
     }
-    snd(w.auto ? 260 : 190, 0.07, 'square');
+    snd(w.auto ? 260 : 190, 0.07, 'square'); P.recoil = 1;
     shake = Math.max(shake, w.pellets ? 0.25 : 0.06);
     scarePeds(P.x, P.z, 30);
     addHeat(w.pellets ? 0.8 : 0.35);
@@ -1439,17 +1853,87 @@ function startGTAGame() {
   // ============================================================
   //  VÉHICULES : monter / descendre
   // ============================================================
-  function enterCar(c) {
-    if (c.kind === 'traffic' || c.kind === 'cop') {
-      addHeat(c.kind === 'cop' ? 30 : 16); toast('Carjacking !', '#ff5555');
-      const p = makePed('ped');
-      p.x = c.x + Math.cos(c.ang) * 2.4; p.z = c.z - Math.sin(c.ang) * 2.4;
-      p.bi = clamp(cellOf(p.x), 0, N - 1); p.bj = clamp(cellOf(p.z), 0, N - 1);
-      p.state = 'flee'; p.t = 6; const l = Math.hypot(p.x - c.x, p.z - c.z) || 1; p.fx = (p.x - c.x) / l; p.fz = (p.z - c.z) / l;
+  // ---------- Animations d'entrée / sortie / carjacking ----------
+  let cine = null;
+  const toWorld = (c, lx, lz) => { const s = Math.sin(c.ang), co = Math.cos(c.ang); return [c.x + co * lx + s * lz, c.z - s * lx + co * lz]; };
+  const easeIO = q => q * q * (3 - 2 * q);
+  function takeDriver(c) {
+    const h = c.driver; c.driver = null;
+    const seat = seatOf(c), S = toWorld(c, seat.x, seat.z), p = makePed('ped', h);
+    p.x = S[0]; p.z = S[1]; p.yaw = c.ang; p.y2 = 0; p.state = 'cine'; p.cine = { mode: 'drive', hipY: seat.y };
+    p.bi = clamp(cellOf(p.x), 0, N - 1); p.bj = clamp(cellOf(p.z), 0, N - 1);
+    return p;
+  }
+  function startEnter(c) {
+    if (cine || state !== 'play' || P.mode !== 'foot') return;
+    const jack = (c.kind === 'traffic' || c.kind === 'cop') && !!c.driver;
+    if (c.kind === 'traffic' || c.kind === 'cop') { addHeat(c.kind === 'cop' ? 30 : 16); toast('Carjacking !', '#ff5555'); }
+    c.speed = 0; c.kind = 'parked'; c.ai = null; c.direct = false; c.revT = 0;
+    ensureDoor(c);
+    cine = { type: 'enter', c, t: 0, dur: jack ? 1.8 : 1.0, jack, fx: P.x, fz: P.z, victim: null, released: false };
+    P.vx = P.vz = 0; firing = false; heist = null; snd(300, 0.06, 'square');
+  }
+  const enterCar = startEnter;
+  function startExit() {
+    const c = P.car; if (!c || cine || state !== 'play') return;
+    if (Math.abs(c.speed) > 9) { toast('Ralentis pour descendre', '#ffd23f'); return; }
+    c.kind = 'parked'; ensureDoor(c);
+    const seat = seatOf(c), S = toWorld(c, seat.x, seat.z);
+    c.g.remove(pm.g); scene.add(pm.g); pm.g.scale.set(1, 1, 1);
+    P.x = S[0]; P.z = S[1]; P.y = 0; P.yaw = c.ang; P.mode = 'foot'; P.car = null; P.vx = P.vz = 0;
+    pm.g.position.set(P.x, P.y, P.z); pm.g.rotation.set(0, P.yaw, 0);
+    cine = { type: 'exit', c, t: 0, dur: 0.95 };
+  }
+  function cancelCine() {
+    if (!cine) return;
+    const k = cine; cine = null;
+    setDoor(k.c, 0);
+    if (k.victim && !k.released) { k.released = true; k.victim.state = 'flee'; k.victim.t = 6; k.victim.cine = null; k.victim.fx = 1; k.victim.fz = 0; }
+    if (pm.g.parent === k.c.g) { k.c.g.remove(pm.g); scene.add(pm.g); pm.g.scale.set(1, 1, 1); }
+  }
+  function finishEnter() {
+    const c = cine.c; cine = null;
+    scene.remove(pm.g); c.g.add(pm.g);
+    const seat = seatOf(c);
+    pm.g.position.set(seat.x, 0, seat.z); pm.g.rotation.set(0, 0, 0); pm.g.scale.set(0.95, 0.95, 0.95); pm.g.visible = true;
+    c.kind = 'player'; P.mode = 'car'; P.car = c; P.vx = P.vz = 0; camYaw = c.ang; setDoor(c, 0);
+  }
+  function updateCine(dt) {
+    const k = cine, c = k.c, hw = c.st.W / 2, seat = seatOf(c);
+    k.t += dt;
+    const t = k.t, D = toWorld(c, hw + 0.62, seat.z + 0.2), S = toWorld(c, seat.x, seat.z);
+    const faceYaw = Math.atan2(-Math.cos(c.ang), Math.sin(c.ang));
+    let door = 0, pose = null, y = P.y;
+    if (k.type === 'enter') {
+      const t0 = 0.3, t1 = k.jack ? 0.6 : 0.5, tin0 = k.jack ? 1.1 : 0.5, tin1 = k.jack ? 1.5 : 0.8;
+      if (t < t0) door = 0; else if (t < t1) door = easeIO((t - t0) / (t1 - t0)); else if (t < tin1 + 0.05) door = 1; else door = 1 - easeIO((t - tin1 - 0.05) / Math.max(0.01, k.dur - tin1 - 0.05));
+      if (t < t0) { const q = easeIO(t / t0); P.x = lerp(k.fx, D[0], q); P.z = lerp(k.fz, D[1], q); P.yaw += angDiff(P.yaw, faceYaw) * Math.min(1, dt * 10); y = 0.18; pose = { mode: 'walk', speed: 2.2 }; }
+      else if (t < tin0) { P.x = D[0]; P.z = D[1]; P.yaw += angDiff(P.yaw, faceYaw) * Math.min(1, dt * 12); y = 0.18; pose = { mode: 'idle', upper: k.jack ? 'grab' : 'reach' }; }
+      else if (t < tin1) { const q = easeIO((t - tin0) / (tin1 - tin0)); P.x = lerp(D[0], S[0], q); P.z = lerp(D[1], S[1], q); P.yaw += angDiff(P.yaw, c.ang) * Math.min(1, dt * 10); y = lerp(0.18, 0, q); pose = { mode: 'drive', hipY: lerp(0.95, seat.y, q) }; }
+      else { P.x = S[0]; P.z = S[1]; P.yaw = c.ang; y = 0; pose = { mode: 'drive', hipY: seat.y }; }
+      if (k.jack && c.driver && t >= 0.5 && !k.victim) k.victim = takeDriver(c);
+      if (k.victim && !k.released) {
+        const v = k.victim, q = clamp((t - 0.5) / 0.6, 0, 1), e = easeIO(q), out = toWorld(c, hw + 1.1, seat.z + 0.2);
+        v.x = lerp(S[0], out[0], e); v.z = lerp(S[1], out[1], e); v.y2 = lerp(0, 0.18, e);
+        v.yaw += angDiff(v.yaw, faceYaw + Math.PI) * Math.min(1, dt * 8);
+        v.cine = { mode: q < 1 ? 'yank' : 'idle', hipY: lerp(seat.y, 0.95, e) };
+        if (q >= 1) {
+          k.released = true; v.state = 'flee'; v.t = 7; v.cine = null; v.y2 = 0.18;
+          const dx = out[0] - c.x, dz = out[1] - c.z, l = Math.hypot(dx, dz) || 1; v.fx = dx / l; v.fz = dz / l; snd(140, 0.1, 'square');
+        }
+      }
+    } else {
+      const tA = 0.25, tB = 0.65;
+      door = t < tA ? easeIO(t / tA) : t < tB ? 1 : 1 - easeIO((t - tB) / (k.dur - tB));
+      if (t < tA) { P.x = S[0]; P.z = S[1]; y = 0; pose = { mode: 'drive', hipY: seat.y }; }
+      else if (t < tB) { const q = easeIO((t - tA) / (tB - tA)); P.x = lerp(S[0], D[0], q); P.z = lerp(S[1], D[1], q); P.yaw += angDiff(P.yaw, faceYaw) * Math.min(1, dt * 10); y = lerp(0, 0.18, q); pose = { mode: q < 0.5 ? 'drive' : 'idle', hipY: lerp(seat.y, 0.95, q) }; }
+      else { P.x = D[0]; P.z = D[1]; y = 0.18; pose = { mode: 'idle' }; }
     }
-    c.kind = 'player'; c.ai = null; c.direct = false; c.revT = 0;
-    P.mode = 'car'; P.car = c; P.vx = P.vz = 0; pm.g.visible = false;
-    camYaw = c.ang; snd(300, 0.08, 'square');
+    P.y = y;
+    pm.g.position.set(P.x, P.y, P.z); pm.g.rotation.set(0, P.yaw, 0);
+    animateHuman(pm, Object.assign({ gun: false }, pose), dt);
+    setDoor(c, door);
+    if (t >= k.dur) { if (k.type === 'enter') finishEnter(); else { cine = null; setDoor(c, 0); P.y = groundY(P.x, P.z); } }
   }
   function leaveCar() {
     const c = P.car; if (!c) return;
@@ -1459,7 +1943,8 @@ function startGTAGame() {
     for (const t of tries) { const x = c.x + t[0] * t[2], z = c.z + t[1] * t[2]; if (!pushCircle(x, z, 0.5)) { px = x; pz = z; break; } }
     P.x = px; P.z = pz; P.y = groundY(px, pz); P.mode = 'foot'; P.vx = P.vz = 0; P.car = null;
     if (c.kind === 'player') c.kind = 'parked';
-    pm.g.visible = true;
+    if (pm.g.parent === c.g) { c.g.remove(pm.g); scene.add(pm.g); pm.g.scale.set(1, 1, 1); }
+    pm.g.visible = true; pm.g.position.set(P.x, P.y, P.z); setDoor(c, 0);
   }
   function nearestCar(r) {
     let best = null, bd = r;
@@ -1527,17 +2012,14 @@ function startGTAGame() {
   // ============================================================
   function handleAct() {
     if (state !== 'play') return;
-    if (P.mode === 'car') {
-      if (Math.abs(P.car.speed) > 9) { toast('Ralentis pour descendre', '#ffd23f'); return; }
-      leaveCar(); return;
-    }
+    if (P.mode === 'car') { startExit(); return; }
     if (curMarker) {
       if (curMarker.type === 'heist') startHeist(curMarker);
       else if (curMarker.type === 'shop') openShop();
       return;
     }
     const c = nearestCar(3.8);
-    if (c) enterCar(c);
+    if (c) startEnter(c);
   }
   function cycleWeapon(dir) {
     const avail = WORDER.filter(k => own[k]);
@@ -1546,6 +2028,7 @@ function startGTAGame() {
   }
   function updatePlayer(dt) {
     P.hurtT = Math.max(0, P.hurtT - dt); aimT -= dt; P.punch = Math.max(0, (P.punch || 0) - dt);
+    if (cine) { pressed.act = false; pressed.jump = false; pressed.wpn = false; updateCine(dt); return; }
     if (pressed.act) { pressed.act = false; handleAct(); }
     if (pressed.wpn) { pressed.wpn = false; cycleWeapon(1); }
     for (let k = 1; k <= 4; k++) if (pressed['w' + k]) { pressed['w' + k] = false; if (own[WORDER[k - 1]]) P.weapon = WORDER[k - 1]; }
@@ -1594,16 +2077,27 @@ function startGTAGame() {
     fireWeapon(dt);
     // ----- ramasser (voiture ou à pied) géré dans updatePickups -----
   }
-  function updatePlayerMesh() {
-    const g = pm.g;
-    if (!g.visible) return;
-    if (state !== 'play') { g.position.set(P.x, 0.3, P.z); g.rotation.set(-Math.PI / 2, P.yaw, 0); return; }
+  function updatePlayerMesh(dt) {
+    dt = dt || 0.016;
+    const g = pm.g, w = WEAPONS[P.weapon], armed = !w.melee;
+    P.recoil = Math.max(0, (P.recoil || 0) - dt * 6);
+    if (cine) return;
+    if (P.mode === 'car' && P.car) {
+      const c = P.car, seat = seatOf(c);
+      animateHuman(pm, { mode: 'drive', hipY: seat.y, steer: c.steerVis, gas: keys.up, speed: 0 }, dt);
+      return;
+    }
+    if (state !== 'play') {
+      const q = clamp((3.4 - stateT) / 0.5, 0, 1), e = q * q * (3 - 2 * q);
+      animateHuman(pm, { mode: 'dead', speed: 0 }, dt);
+      g.position.set(P.x, lerp(P.y, 0.22, e), P.z); g.rotation.set(-Math.PI / 2 * e, P.yaw, 0);
+      return;
+    }
+    const sp = Math.hypot(P.vx, P.vz), air = P.y > groundY(P.x, P.z) + 0.08;
+    const mode = air ? 'jump' : sp > 3.6 ? 'run' : sp > 0.3 ? 'walk' : 'idle';
+    const upper = P.punch > 0 ? 'punch' : (armed && aimT > 0 ? 'aim' : null);
+    animateHuman(pm, { mode, speed: sp, gun: armed, upper, punch: 1 - P.punch / 0.35, recoil: P.recoil, flinch: P.hurtT > 0 ? P.hurtT * 3 : 0 }, dt);
     g.position.set(P.x, P.y, P.z); g.rotation.set(0, P.yaw, 0);
-    const sp = Math.hypot(P.vx, P.vz), sw = Math.sin(P.anim) * 0.8 * Math.min(1, sp / 3);
-    pm.legL.rotation.x = sw; pm.legR.rotation.x = -sw; pm.armL.rotation.x = -sw;
-    const armed = !WEAPONS[P.weapon].melee;
-    pm.gm.visible = armed;
-    pm.armR.rotation.x = armed ? (aimT > 0 ? -1.45 : -0.5) : (P.punch > 0 ? -1.5 : sw);
   }
 
   // ============================================================
@@ -1618,6 +2112,7 @@ function startGTAGame() {
         if (state === 'play') {
           const gas = Math.max(keys.up ? 1 : 0, jy > 0.25 ? jy : 0), brake = Math.max(keys.down ? 1 : 0, jy < -0.25 ? -jy : 0);
           const steer = clamp((keys.left ? 1 : 0) - (keys.right ? 1 : 0) - jx, -1, 1);
+          c.steerVis = lerp(c.steerVis, steer, Math.min(1, dt * 8));
           driveCar(c, dt, gas, brake, steer, keys.jump);
         } else driveCar(c, dt, 0, 0.5, 0, false);
       } else if (c.kind === 'traffic') {
@@ -1664,7 +2159,17 @@ function startGTAGame() {
     }
     // explosions en attente
     for (let i = boomQ.length - 1; i >= 0; i--) { boomQ[i].t -= dt; if (boomQ[i].t <= 0) { const b = boomQ.splice(i, 1)[0]; explode(b.x, b.z, 60, b.byPlayer); } }
-    for (const c of cars) { c.g.position.set(c.x, 0, c.z); c.g.rotation.y = c.ang; }
+    for (const c of cars) {
+      const d2 = (c.x - P.x) * (c.x - P.x) + (c.z - P.z) * (c.z - P.z);
+      c.g.visible = d2 < 62500 || c.kind === 'player';
+      if (d2 < 14400 && dt > 0) {
+        const ac = (c.speed - c.lastSpeed) / dt, yr = angDiff(c.lastAng, c.ang) / dt, k = Math.min(1, dt * 6);
+        c.pitch += (clamp(-ac * 0.0035, -0.06, 0.06) - c.pitch) * k;
+        c.roll += (clamp(yr * c.speed * 0.0045, -0.07, 0.07) - c.roll) * k;
+      }
+      c.lastSpeed = c.speed; c.lastAng = c.ang;
+      c.g.position.set(c.x, 0, c.z); c.g.rotation.set(c.pitch, c.ang, c.roll);
+    }
   }
 
   // ============================================================
@@ -1738,7 +2243,7 @@ function startGTAGame() {
   function showBig(t, col, sub) { if (!bigEl) return; bigEl.innerHTML = '<b style="color:' + col + '">' + t + '</b><small>' + (sub || '') + '</small>'; bigEl.style.display = 'flex'; }
   function die(kind) {
     if (state !== 'play') return;
-    heist = null;
+    heist = null; cancelCine();
     const loss = kind === 'busted' ? Math.floor(money * 0.2) : Math.min(money, Math.floor(money * 0.1) + 100);
     money -= loss;
     if (P.mode === 'car') leaveCar();
@@ -1755,6 +2260,148 @@ function startGTAGame() {
     for (const p of peds) if (p.kind === 'cop') p.recycle = true;
     if (bigEl) bigEl.style.display = 'none';
     pm.g.visible = true;
+  }
+
+
+  // ============================================================
+  //  POST-TRAITEMENT HDR : MSAA, bloom, étalonnage ciné, flou de vitesse
+  // ============================================================
+  let post = null;
+  function initPost() {
+    if (!qHigh) return null;
+    try {
+      if (!renderer.capabilities.isWebGL2 || !renderer.extensions.has('EXT_color_buffer_float')) return null;
+      const W = 960, H = 540;
+      const opt = { type: THREE.HalfFloatType, format: THREE.RGBAFormat, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter };
+      const sceneRT = new THREE.WebGLMultisampleRenderTarget(W, H, opt); sceneRT.samples = 4;
+      const mk = (w, h) => new THREE.WebGLRenderTarget(Math.max(2, w), Math.max(2, h), Object.assign({ depthBuffer: false }, opt));
+      const b1 = mk(W >> 2, H >> 2), b2 = mk(W >> 2, H >> 2), c1 = mk(W >> 3, H >> 3), c2 = mk(W >> 3, H >> 3);
+      const vs = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+      const mkMat = (uniforms, fs) => { const m = new THREE.ShaderMaterial({ uniforms, vertexShader: vs, fragmentShader: fs, depthTest: false, depthWrite: false }); disposables.push(m); return m; };
+      const bright = mkMat({ tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1 / W, 1 / H) }, uThresh: { value: 0.8 } }, `
+        uniform sampler2D tDiffuse; uniform vec2 uTexel; uniform float uThresh; varying vec2 vUv;
+        vec3 f(vec2 uv){ vec3 c = texture2D(tDiffuse, uv).rgb; float l = max(max(c.r, c.g), c.b); float k = max(l - uThresh, 0.0) / (l + 0.0001); return c * k; }
+        void main(){ vec3 a = f(vUv + uTexel * vec2(-1.5, -1.5)) + f(vUv + uTexel * vec2(1.5, -1.5)) + f(vUv + uTexel * vec2(-1.5, 1.5)) + f(vUv + uTexel * vec2(1.5, 1.5));
+          gl_FragColor = vec4(min(a * 0.25, vec3(8.0)), 1.0); }`);
+      const blur = mkMat({ tDiffuse: { value: null }, uDir: { value: new THREE.Vector2(1, 0) } }, `
+        uniform sampler2D tDiffuse; uniform vec2 uDir; varying vec2 vUv;
+        void main(){ vec3 c = texture2D(tDiffuse, vUv).rgb * 0.227027;
+          c += (texture2D(tDiffuse, vUv + uDir * 1.3846).rgb + texture2D(tDiffuse, vUv - uDir * 1.3846).rgb) * 0.3162162;
+          c += (texture2D(tDiffuse, vUv + uDir * 3.2308).rgb + texture2D(tDiffuse, vUv - uDir * 3.2308).rgb) * 0.0702702;
+          gl_FragColor = vec4(c, 1.0); }`);
+      const comp = mkMat({
+        tScene: { value: null }, tB1: { value: null }, tB2: { value: null }, uBloom: { value: 0.6 }, uTime: { value: 0 }, uBlur: { value: 0 },
+        uAspect: { value: 16 / 9 }, uExposure: { value: 1.1 }, uVig: { value: 0.5 }, uGrain: { value: 0.03 }, uSat: { value: 1.08 }, uHurt: { value: 0 }, uWet: { value: 0 }
+      }, `
+        uniform sampler2D tScene, tB1, tB2; uniform float uBloom, uTime, uBlur, uAspect, uExposure, uVig, uGrain, uSat, uHurt, uWet; varying vec2 vUv;
+        vec3 RRT(vec3 v){ vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
+        vec3 aces(vec3 c){
+          mat3 inM = mat3(vec3(0.59719, 0.07600, 0.02840), vec3(0.35458, 0.90834, 0.13383), vec3(0.04823, 0.01566, 0.83777));
+          mat3 outM = mat3(vec3(1.60475, -0.10208, -0.00327), vec3(-0.53108, 1.10813, -0.07276), vec3(-0.07367, -0.00605, 1.07602));
+          c *= uExposure / 0.6; c = inM * c; c = RRT(c); c = outM * c; return clamp(c, 0.0, 1.0); }
+        void main(){
+          vec2 uv = vUv, d = uv - 0.5; float r2 = dot(d, d);
+          vec3 col;
+          if (uBlur > 0.02) {
+            vec3 acc = vec3(0.0);
+            for (int i = 0; i < 9; i++) { float t = float(i) / 8.0; acc += texture2D(tScene, 0.5 + d * (1.0 - uBlur * 0.09 * t)).rgb; }
+            col = acc / 9.0;
+          } else {
+            float ca = 0.0016 * r2 * 4.0;
+            col = vec3(texture2D(tScene, uv + d * ca).r, texture2D(tScene, uv).g, texture2D(tScene, uv - d * ca).b);
+          }
+          col += (texture2D(tB1, uv).rgb * 0.7 + texture2D(tB2, uv).rgb * 0.9) * uBloom;
+          col = aces(col);
+          float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
+          col = mix(vec3(l), col, uSat * (1.0 - uWet * 0.12));
+          col = mix(col * vec3(0.95, 1.0, 1.05), col * vec3(1.05, 1.0, 0.94), smoothstep(0.25, 0.85, l));
+          col = (col - 0.5) * 1.06 + 0.5;
+          float vg = smoothstep(0.95, 0.2, length(d * vec2(uAspect, 1.0) * 0.85));
+          col *= mix(1.0, vg, uVig);
+          col = mix(col, vec3(0.75, 0.04, 0.04), uHurt * (1.0 - vg * 0.7) * 0.7);
+          float g = fract(sin(dot(uv * vec2(1920.0, 1080.0) + uTime * 37.0, vec2(12.9898, 78.233))) * 43758.5453);
+          col += (g - 0.5) * uGrain;
+          gl_FragColor = vec4(pow(max(col, 0.0), vec3(1.0 / 2.2)), 1.0);
+        }`);
+      const qs = new THREE.Scene(), qc = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bright); quad.frustumCulled = false; qs.add(quad);
+      disposables.push(quad.geometry, sceneRT, b1, b2, c1, c2);
+      let W0 = W, H0 = H;
+      const pass = (mat, target) => { quad.material = mat; renderer.setRenderTarget(target); renderer.render(qs, qc); };
+      const p = {
+        u: comp.uniforms,
+        resize(w, h) { W0 = w; H0 = h; sceneRT.setSize(w, h); b1.setSize(Math.max(2, w >> 2), Math.max(2, h >> 2)); b2.setSize(Math.max(2, w >> 2), Math.max(2, h >> 2)); c1.setSize(Math.max(2, w >> 3), Math.max(2, h >> 3)); c2.setSize(Math.max(2, w >> 3), Math.max(2, h >> 3)); bright.uniforms.uTexel.value.set(1 / w, 1 / h); comp.uniforms.uAspect.value = w / h; },
+        render() {
+          renderer.setRenderTarget(sceneRT); renderer.render(scene, camera);
+          bright.uniforms.tDiffuse.value = sceneRT.texture; pass(bright, b1);
+          blur.uniforms.tDiffuse.value = b1.texture; blur.uniforms.uDir.value.set(1 / (W0 >> 2), 0); pass(blur, b2);
+          blur.uniforms.tDiffuse.value = b2.texture; blur.uniforms.uDir.value.set(0, 1 / (H0 >> 2)); pass(blur, b1);
+          blur.uniforms.tDiffuse.value = b1.texture; blur.uniforms.uDir.value.set(1 / (W0 >> 2), 0); pass(blur, c1);
+          blur.uniforms.tDiffuse.value = c1.texture; blur.uniforms.uDir.value.set(0, 1 / (H0 >> 3)); pass(blur, c2);
+          comp.uniforms.tScene.value = sceneRT.texture; comp.uniforms.tB1.value = b1.texture; comp.uniforms.tB2.value = c2.texture;
+          pass(comp, null);
+        },
+        dispose() { try { sceneRT.dispose(); b1.dispose(); b2.dispose(); c1.dispose(); c2.dispose(); } catch (e) {} }
+      };
+      renderer.toneMapping = THREE.NoToneMapping;
+      skyMat.uniforms.uLinear.value = 1;
+      return p;
+    } catch (e) { console.warn('[GTA] post-traitement indisponible', e); renderer.toneMapping = THREE.ACESFilmicToneMapping; skyMat.uniforms.uLinear.value = 0; return null; }
+  }
+  function disablePost() {
+    try { if (post) post.dispose(); } catch (e) {}
+    post = null;
+    try { renderer.setRenderTarget(null); } catch (e) {}
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; skyMat.uniforms.uLinear.value = 0;
+  }
+
+  // ============================================================
+  //  MÉTÉO : pluie, routes mouillées, ciel couvert
+  // ============================================================
+  let wet = 0, wetTarget = 0, weatherT = 70 + Math.random() * 60;
+  const RN = 420, rainPos = new Float32Array(RN * 3), rainGeo = new THREE.BufferGeometry();
+  for (let i = 0; i < RN; i++) { rainPos[i * 3] = R(-25, 25); rainPos[i * 3 + 1] = R(0, 22); rainPos[i * 3 + 2] = R(-25, 25); }
+  rainGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(RN * 6), 3));
+  const rainMat = new THREE.LineBasicMaterial({ color: lin(0xc8d8e8), transparent: true, opacity: 0, depthWrite: false });
+  const rainLines = new THREE.LineSegments(rainGeo, rainMat);
+  rainLines.frustumCulled = false; scene.add(rainLines);
+  disposables.push(rainGeo, rainMat);
+  let rainSnd = null;
+  function rainStart() {
+    if (rainSnd) return;
+    try {
+      if (typeof audioCtx === 'undefined') return;
+      const len = audioCtx.sampleRate * 2, buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = audioCtx.createBufferSource(), f = audioCtx.createBiquadFilter(), g = audioCtx.createGain();
+      src.buffer = buf; src.loop = true; f.type = 'bandpass'; f.frequency.value = 3200; g.gain.value = 0;
+      src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start(); rainSnd = { src, g };
+    } catch (e) {}
+  }
+  function updateWeather(dt, cx, cz) {
+    weatherT -= dt;
+    if (weatherT <= 0) {
+      wetTarget = wetTarget > 0 ? 0 : (Math.random() < 0.65 ? 1 : 0);
+      weatherT = R(80, 170);
+      if (wetTarget > 0) toast('☔ Il commence à pleuvoir', '#9fd3ff'); else if (wet > 0.3) toast('Le ciel se dégage', '#9fd3ff');
+    }
+    wet += clamp(wetTarget - wet, -dt * 0.04, dt * 0.04);
+    roadMat.roughness = lerp(0.88, 0.28, wet); roadMat.metalness = lerp(0, 0.18, wet);
+    walkMat.roughness = lerp(0.9, 0.45, wet);
+    skyMat.uniforms.uWet.value = wet;
+    scene.fog.near = lerp(160, 50, wet); scene.fog.far = lerp(760, 320, wet);
+    rainMat.opacity = 0.42 * wet; rainLines.visible = wet > 0.04;
+    if (wet > 0.04) {
+      const a = rainGeo.attributes.position.array;
+      for (let i = 0; i < RN; i++) {
+        let y = rainPos[i * 3 + 1] - 26 * dt, x = rainPos[i * 3] + 3 * dt, z = rainPos[i * 3 + 2];
+        if (y < 0 || Math.abs(x - cx) > 26 || Math.abs(z - cz) > 26) { x = cx + R(-25, 25); z = cz + R(-25, 25); y = R(10, 22); }
+        rainPos[i * 3] = x; rainPos[i * 3 + 1] = y; rainPos[i * 3 + 2] = z;
+        a[i * 6] = x; a[i * 6 + 1] = y; a[i * 6 + 2] = z; a[i * 6 + 3] = x - 0.12; a[i * 6 + 4] = y + 0.75; a[i * 6 + 5] = z;
+      }
+      rainGeo.attributes.position.needsUpdate = true;
+    }
+    try { if (rainSnd) { const ok = (typeof soundEnabled === 'undefined') || soundEnabled; rainSnd.g.gain.value = ok ? 0.05 * wet : 0; } } catch (e) {}
   }
 
   // ============================================================
@@ -1791,6 +2438,10 @@ function startGTAGame() {
     glowMat.opacity = em * 0.9;
     const lc = 0.3 + 0.7 * em; lampMat.color.setRGB(lc, lc, lc);
     renderer.toneMappingExposure = 1.1 + 0.2 * em;
+    sun.intensity *= (1 - wet * 0.65); hemi.intensity *= (1 - wet * 0.2);
+    const hdr = post ? 1 : 0;
+    lampMat.color.setRGB(lc * (1 + 2.5 * em * hdr), lc * (1 + 2.5 * em * hdr), lc * (1 + 2.5 * em * hdr));
+    const lg = 1 + 3 * em * hdr; lightMat.color.setRGB(lg, lg, lg);
     nightK = em;
   }
   let nightK = 0;
@@ -1999,7 +2650,7 @@ function startGTAGame() {
     setD(H.cross, 'cross', (!inCar && !w.melee && state === 'play' && started) ? 'block' : 'none');
     // invite contextuelle
     let pr = '';
-    if (state === 'play') {
+    if (state === 'play' && !cine) {
       if (inCar) pr = Math.abs(P.car.speed) < 9 ? 'E : Descendre' : '';
       else if (curMarker) {
         const m = curMarker;
@@ -2072,7 +2723,7 @@ function startGTAGame() {
   }
   function begin() {
     started = true; paused = false; H.start.style.display = 'none';
-    engineStart();
+    engineStart(); rainStart();
     if (!isTouch && !noLock && canvas.requestPointerLock) { try { canvas.requestPointerLock(); } catch (e) {} }
   }
   function showPause() {
@@ -2090,7 +2741,7 @@ function startGTAGame() {
     if (document.fullscreenElement) document.exitFullscreen();
     else if (container.requestFullscreen) container.requestFullscreen();
   });
-  function setSize(w, h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  function setSize(w, h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); if (post) post.resize(w, h); }
   function onFullscreen() {
     if (!running) return;
     if (document.fullscreenElement === container) {
@@ -2150,6 +2801,7 @@ function startGTAGame() {
   let loopId = 0, last = 0;
   function step(dt) {
     now += dt; hornT -= dt;
+    updateWeather(dt, camPos[0], camPos[2]);
     updateSky(dt);
     if (state !== 'play') { stateT -= dt; if (stateT <= 0) respawn(); }
     updatePlayer(dt);
@@ -2162,7 +2814,7 @@ function startGTAGame() {
     updateWanted(dt);
     updateParticles(dt);
     for (const t of tracers) if (t.life > 0) { t.life -= dt; if (t.life <= 0) t.line.visible = false; }
-    updatePlayerMesh();
+    updatePlayerMesh(dt);
     updateCamera(dt);
     afterCamera();
     updateHud();
@@ -2175,9 +2827,17 @@ function startGTAGame() {
     try { currentGameLoop = loopId; } catch (e) {}
     const dt = Math.min(0.05, ((ts - last) / 1000) || 0.016); last = ts;
     if (started && !paused && !menuOpen) step(dt);
-    else { updatePlayerMesh(); updateCamera(0.016); afterCamera(); updateHud(); engineUpdate(false); }
+    else { updatePlayerMesh(dt); updateCamera(0.016); afterCamera(); updateHud(); engineUpdate(false); }
     drawMap();
-    renderer.render(scene, camera);
+    if (post) {
+      try {
+        const u = post.u, inCar = P.mode === 'car' && P.car;
+        u.uTime.value = now; u.uExposure.value = renderer.toneMappingExposure; u.uWet.value = wet;
+        u.uBlur.value = inCar ? clamp((Math.abs(P.car.speed) - 22) / 22, 0, 1) : 0;
+        u.uBloom.value = 0.45 + 0.5 * nightK; u.uHurt.value = P.hurtT > 0 ? clamp(P.hurtT * 4, 0, 1) : 0;
+        post.render();
+      } catch (e) { console.warn('[GTA] post-traitement désactivé', e); disablePost(); renderer.render(scene, camera); }
+    } else renderer.render(scene, camera);
   }
 
   // ============================================================
@@ -2198,6 +2858,8 @@ function startGTAGame() {
     try { if (eng) { eng.g.gain.value = 0; eng.o.stop(); eng = null; } } catch (e) {}
     try { if (hud && hud.parentNode) hud.parentNode.removeChild(hud); if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl); } catch (e) {}
     try { for (const d of disposables) if (d && d.dispose) d.dispose(); } catch (e) {}
+    try { if (post) post.dispose(); } catch (e) {}
+    try { if (rainSnd) { rainSnd.g.gain.value = 0; rainSnd.src.stop(); rainSnd = null; } } catch (e) {}
     try { renderer.dispose(); renderer.forceContextLoss(); } catch (e) {}
     const fresh = document.createElement('canvas');
     fresh.id = 'game-canvas'; fresh.width = 600; fresh.height = 400;
@@ -2207,6 +2869,8 @@ function startGTAGame() {
   };
 
   // ---------- Lancement ----------
+  post = initPost();
+  if (post) { const v = hud.querySelector('.g-vig'); if (v) v.style.display = 'none'; }
   setTimeout(() => toast('Ta voiture de sport est garée juste à côté — E pour monter', '#7fe8ff'), 400);
   loopId = requestAnimationFrame(frame);
   try { currentGameLoop = loopId; } catch (e) {}

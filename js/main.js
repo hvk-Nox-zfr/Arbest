@@ -1,38 +1,41 @@
 let currentGameId = null;
 let currentGameLoop = null;
 let soundEnabled = true;
+let currentCategoryFilter = 'all';
 const loadedScripts = new Set();
 
-// Chargés à la demande : adaptation mobile (plein écran paysage, contrôles tactiles) et Three.js pour les jeux 3D
 const MOBILE_SCRIPT = 'js/games/mobile.js';
 const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
 
 // ============================================================
-// REGISTRE DES JEUX
+// REGISTRE DES JEUX ET CATÉGORIES
 // ============================================================
 const GAMES_REGISTRY = {
   horror: {
     title: 'PATIENTE 13',
     badge: 'HORREUR 3D',
-    desc: "Piégé dans un asile abandonné, trouve 5 fusibles pour rouvrir la sortie… sans que ELLE ne t'entende. Casque et plein écran recommandés.",
+    category: '3d',
+    desc: "Piégé dans un asile abandonné, trouve 5 fusibles pour rouvrir la sortie… sans que ELLE ne t'entende.",
     script: 'js/games/horror.js',
     initFn: 'startHorrorGame',
-    controls: "💡 ZQSD : bouger | Souris : regarder | Maj : courir (elle t'entend) | F : lampe | E : se cacher | G ou ⛶ : plein écran",
+    controls: "💡 ZQSD : bouger | Souris : regarder | Maj : courir | F : lampe | E : se cacher",
     needs3D: true
   },
   gta: {
     title: 'GTA ARBEST CITY',
     badge: 'OPEN WORLD 3D',
+    category: '3d',
     desc: 'Ville ouverte : conduis, braque la banque, fuis la police et deviens le roi de la ville.',
     script: 'js/games/gta.js',
     initFn: 'startGTAGame',
-    controls: '💡 ZQSD : bouger/conduire | Souris : caméra | Clic : tirer | E : monter/braquer | Maj : courir | Espace : sauter/frein',
+    controls: '💡 ZQSD : bouger/conduire | Souris : caméra | Clic : tirer | E : monter | Espace : sauter',
     needs3D: true,
     disabled: true
   },
   skyline: {
     title: 'SKYLINE RUSH',
     badge: '3D NEXT-GEN',
+    category: '3d',
     desc: 'Cours au-dessus de la ville, esquive, vole en jetpack et traverse le jour et la nuit.',
     script: 'js/games/skyline.js',
     initFn: 'startSkylineGame',
@@ -42,6 +45,7 @@ const GAMES_REGISTRY = {
   snake: {
     title: 'SNAKE DOG',
     badge: 'RETRO',
+    category: 'retro',
     desc: "Dévorez les orbes d'énergie et survivez dans la matrice.",
     script: 'js/games/snake.js',
     initFn: 'startSnakeGame',
@@ -50,6 +54,7 @@ const GAMES_REGISTRY = {
   pong: {
     title: 'PLOUF PONG',
     badge: 'VS IA',
+    category: 'arcade',
     desc: 'Un duel laser à haute vitesse contre le processeur central.',
     script: 'js/games/pong.js',
     initFn: 'startPongGame',
@@ -58,6 +63,7 @@ const GAMES_REGISTRY = {
   memory: {
     title: 'MEMORY',
     badge: 'PUZZLE',
+    category: 'reflexion',
     desc: 'Synchronisez votre mémoire quantique pour retrouver les paires.',
     script: 'js/games/memory.js',
     initFn: 'startMemoryGame',
@@ -66,6 +72,7 @@ const GAMES_REGISTRY = {
   tetris: {
     title: 'TETRIS DE LA HESS',
     badge: 'ARCADE',
+    category: 'arcade',
     desc: 'Empilez les blocs d\'énergie avant la surchauffe.',
     script: 'js/games/tetris.js',
     initFn: 'startTetrisGame',
@@ -74,6 +81,7 @@ const GAMES_REGISTRY = {
   space: {
     title: 'STAR WOUARS',
     badge: 'SHOOTER',
+    category: 'action',
     desc: 'Repoussez l\'invasion extraterrestre du secteur binaire.',
     script: 'js/games/space-invaders.js',
     initFn: 'startSpaceGame',
@@ -82,6 +90,7 @@ const GAMES_REGISTRY = {
   runner: {
     title: 'BLOCK DOUSK',
     badge: 'ACTION',
+    category: 'action',
     desc: 'Fuyez la purge en esquivant les obstacles holographiques.',
     script: 'js/games/runner.js',
     initFn: 'startRunnerGame',
@@ -90,6 +99,7 @@ const GAMES_REGISTRY = {
   cybercraft: {
     title: 'MANECROUTE',
     badge: 'EN DEV',
+    category: '3d',
     desc: 'En cours de développement — Arrive bientôt !',
     script: 'js/games/cybercraft.js',
     initFn: 'startCybercraftGame',
@@ -100,6 +110,7 @@ const GAMES_REGISTRY = {
   chess: {
     title: 'ECHEQUE',
     badge: 'STRATÉGIE',
+    category: 'reflexion',
     desc: 'Affrontez l\'IA de la matrice dans un duel d\'échecs tactique.',
     script: 'js/games/chess.js',
     initFn: 'startChessGame',
@@ -108,6 +119,7 @@ const GAMES_REGISTRY = {
   worm: {
     title: 'MANGE MOI',
     badge: 'ACTION',
+    category: 'action',
     desc: 'Affrontez les autres joueurs dans une arène et ne vous faites pas manger.',
     script: 'js/games/worm.js',
     initFn: 'startWormGame',
@@ -116,6 +128,7 @@ const GAMES_REGISTRY = {
   moto: {
     title: 'MOTO X3M NEON',
     badge: 'CASCADE',
+    category: 'action',
     desc: 'Domptez les rampes néon, réalisez des flips et franchissez l\'arrivée.',
     script: 'js/games/moto.js',
     initFn: 'startMotoGame',
@@ -124,6 +137,7 @@ const GAMES_REGISTRY = {
   flappy: {
     title: 'FLAPPY POULET',
     badge: 'ARCADE',
+    category: 'arcade',
     desc: 'Guidez le poulet cosmique à travers les tuyaux sans heurter les obstacles !',
     script: 'js/games/flappy.js',
     initFn: 'startFlappyGame',
@@ -132,14 +146,16 @@ const GAMES_REGISTRY = {
   clicker: {
     title: 'SNICKERS',
     badge: 'SIMULATION',
+    category: 'arcade',
     desc: 'Minez, achetez des machines et revenez chaque jour : ta progression est sauvegardée.',
     script: 'js/games/clicker.js',
     initFn: 'startClickerGame',
-    controls: '💡 Clic / toucher : miner — achète des générateurs pour gagner même hors-ligne'
+    controls: '💡 Clic / toucher : miner — achète des générateurs'
   },
   game2048: {
     title: '2048',
     badge: 'RÉFLEXION',
+    category: 'reflexion',
     desc: 'Fusionnez les tuiles pour atteindre 2048 et aller encore plus loin.',
     script: 'js/games/game2048.js',
     initFn: 'start2048Game',
@@ -148,36 +164,51 @@ const GAMES_REGISTRY = {
   survivors: {
     title: 'SURVIVORS',
     badge: 'SURVIE',
+    category: 'action',
     desc: 'Survis à des vagues sans fin, monte de niveau et choisis tes améliorations.',
     script: 'js/games/survivors.js',
     initFn: 'startSurvivorGame',
-    controls: '💡 ZQSD / flèches (ou glisse le doigt) : se déplacer — tu tires automatiquement'
+    controls: '💡 ZQSD / flèches : se déplacer — tir automatique'
   },
   quiz: {
-  title: 'QUIZ BLOCUS',
-  badge: 'CULTURE',
-  desc: 'Testez vos connaissances sur la vie lycéenne et les mouvements de contestation.',
-  script: 'js/games/quiz.js',
-  initFn: 'startQuizGame',
-  controls: '💡 Clic : Sélectionner la bonne réponse'
-},
-dada: {
-  title: 'JEU DES DADAS',
-  badge: 'SOCIÉTÉ',
-  desc: 'Sortez vos petits chevaux, évitez l\'IA et grimpez l\'escalier en premier !',
-  script: 'js/games/dada.js',
-  initFn: 'startDadaGame',
-  controls: '💡 Clic sur le Dé pour lancer | Clic sur ton cheval lumineux pour avancer'
-},
-  hyperdrive: {
-    title: 'BOUNCE RUSH',
-    badge: '3D MUSICAL',
-    desc: 'Ta balle rebondit toute seule : vise le centre de chaque plateforme, enchaîne les parfaits et fais monter la mélodie.',
-    script: 'js/games/hyperdrive3d.js',
-    initFn: 'startHyperDrive3D',
-    controls: '💡 Glisse le doigt / la souris (ou ← →) : diriger la balle de gauche à droite',
-    needs3D: true
+    title: 'QUIZ BLOCUS',
+    badge: 'CULTURE',
+    category: 'reflexion',
+    desc: 'Testez vos connaissances sur la vie lycéenne et les mouvements de contestation.',
+    script: 'js/games/quiz.js',
+    initFn: 'startQuizGame',
+    controls: '💡 Clic : Sélectionner la bonne réponse'
   },
+  dada: {
+    title: 'JEU DES DADAS',
+    badge: 'SOCIÉTÉ',
+    category: 'reflexion',
+    desc: 'Sortez vos petits chevaux, évitez l\'IA et grimpez l\'escalier en premier !',
+    script: 'js/games/dada.js',
+    initFn: 'startDadaGame',
+    controls: '💡 Clic sur le Dé pour lancer'
+  },
+  mario: {
+    title: 'MARIO C\'EST LE BOSS',
+    badge: 'RETRO 8-BIT',
+    category: 'retro',
+    desc: 'Parcours les mondes classiques (1-1, souterrain) avec la physique NES.',
+    script: 'js/games/mario2d.js',
+    initFn: 'startMarioGame',
+    controls: '💡 Flèches / Q-D : Se déplacer | Espace : Sauter',
+    needs3D: false
+  },
+  beamdrive: {
+    title: 'VOITURE 3D',
+    badge: '3D PHYSIQUE',
+    category: '3d',
+    desc: 'Simulateur de conduite réaliste : testez la physique et les chocs.',
+    script: 'js/games/beam.js',
+    initFn: 'startBeamDrive',
+    controls: '💡 Flèches / ZQSD : Conduire | Choc en temps réel',
+    needs3D: true,
+    disabled: true
+  }
 };
 
 // Synthétiseur audio
@@ -190,7 +221,7 @@ function playSound(freq, duration = 0.1, type = 'sine') {
     const gain = audioCtx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
@@ -199,56 +230,68 @@ function playSound(freq, duration = 0.1, type = 'sine') {
   } catch (e) {}
 }
 
-// Sur téléphone, l'audio reste bloqué tant que l'utilisateur n'a pas touché l'écran
 ['pointerdown', 'touchend', 'keydown'].forEach(ev =>
   window.addEventListener(ev, () => { if (audioCtx.state === 'suspended') audioCtx.resume(); }, { passive: true })
 );
 
-// 1. GÉNÉRATION AUTOMATIQUE DU HUB
+// 1. GÉNÉRATION DU HUB AVEC FILTRAGE
 function renderHubGrid() {
   const grid = document.getElementById('game-grid');
   if (!grid) return;
 
-  grid.innerHTML = Object.entries(GAMES_REGISTRY).map(([id, game]) => {
-    const hs = localStorage.getItem(`hs_${id}`) || 0;
-    const isDisabled = game.disabled || false;
-    const btnText = isDisabled ? 'EN DEV' : 'JOUER';
-    const cardClass = isDisabled ? 'game-card disabled' : 'game-card';
-    const clickHandler = isDisabled ? '' : `onclick="openGame('${id}')"`;
+  const searchQuery = (document.getElementById('game-search')?.value || '').toLowerCase();
 
-    return `
-      <div class="${cardClass}" ${clickHandler}>
-        <div class="card-badge">${game.badge}</div>
-        <h3>${game.title}</h3>
-        <p>${game.desc}</p>
-        <div class="card-footer">
-          <div class="hs-tag">BEST: <span id="hs-${id}">${hs}</span></div>
-          <button class="btn-neon" ${isDisabled ? 'disabled' : ''}>${btnText}</button>
+  grid.innerHTML = Object.entries(GAMES_REGISTRY)
+    .filter(([_, game]) => {
+      const matchCategory = currentCategoryFilter === 'all' || game.category === currentCategoryFilter;
+      const matchSearch = game.title.toLowerCase().includes(searchQuery) || game.desc.toLowerCase().includes(searchQuery);
+      return matchCategory && matchSearch;
+    })
+    .map(([id, game]) => {
+      const hs = localStorage.getItem(`hs_${id}`) || 0;
+      const isDisabled = game.disabled || false;
+      const btnText = isDisabled ? 'EN DEV' : 'JOUER';
+      const cardClass = isDisabled ? 'game-card disabled' : 'game-card';
+      const clickHandler = isDisabled ? '' : `onclick="openGame('${id}')"`;
+
+      return `
+        <div class="${cardClass}" ${clickHandler}>
+          <div class="card-badge">${game.badge}</div>
+          <h3>${game.title}</h3>
+          <p>${game.desc}</p>
+          <div class="card-footer">
+            <div class="hs-tag">BEST: <span id="hs-${id}">${hs}</span></div>
+            <button class="btn-neon sm" ${isDisabled ? 'disabled' : ''}>${btnText}</button>
+          </div>
         </div>
-      </div>
-    `;
-  }).join('');
+      `;
+    }).join('');
 }
 
-// 2. CHARGEUR DYNAMIQUE DE SCRIPTS JS
+function setFilter(cat, btn) {
+  currentCategoryFilter = cat;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHubGrid();
+}
+
+function filterGames() {
+  renderHubGrid();
+}
+
+// 2. CHARGEUR DYNAMIQUE
 function loadGameScript(scriptUrl) {
   return new Promise((resolve, reject) => {
-    if (loadedScripts.has(scriptUrl)) {
-      resolve();
-      return;
-    }
+    if (loadedScripts.has(scriptUrl)) return resolve();
     const script = document.createElement('script');
     script.src = scriptUrl;
-    script.onload = () => {
-      loadedScripts.add(scriptUrl);
-      resolve();
-    };
-    script.onerror = () => reject(`Erreur de chargement du script : ${scriptUrl}`);
+    script.onload = () => { loadedScripts.add(scriptUrl); resolve(); };
+    script.onerror = () => reject(`Erreur de chargement : ${scriptUrl}`);
     document.body.appendChild(script);
   });
 }
 
-// 3. ARRÊT PROPRE DU JEU EN COURS (évite qu'un ancien jeu continue en arrière-plan)
+// 3. NETTOYAGE DES JEUX
 function stopAllGames() {
   if (currentGameLoop) cancelAnimationFrame(currentGameLoop);
   currentGameLoop = null;
@@ -256,43 +299,20 @@ function stopAllGames() {
   if (typeof window.__motoStop === 'function') window.__motoStop();
   if (typeof window.__wormStop === 'function') window.__wormStop();
 
-  // Écouteurs laissés par certains jeux
   window.onkeydown = null;
   window.onmousemove = null;
   window.onmousedown = null;
   window.onmouseup = null;
-  const cv = document.getElementById('game-canvas');
-  if (window._flappyInputHandler) {
-    window.removeEventListener('keydown', window._flappyInputHandler);
-    window.removeEventListener('pointerdown', window._flappyInputHandler);
-    if (cv) cv.removeEventListener('pointerdown', window._flappyInputHandler);
-    window._flappyInputHandler = null;
-  }
-  if (window._pongTouch) {
-    window.removeEventListener('touchstart', window._pongTouch);
-    window.removeEventListener('touchmove', window._pongTouch);
-    window._pongTouch = null;
-  }
-  if (window._spaceTouch) {
-    ['touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(ev => window.removeEventListener(ev, window._spaceTouch));
-    window._spaceTouch = null;
-  }
-  // Nouveaux jeux : chacun expose sa fonction de nettoyage (écouteurs, rendu 3D, sauvegarde…)
-  ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup'].forEach(k => {
+
+  ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup', '_beamCleanup'].forEach(k => {
     if (typeof window[k] === 'function') window[k]();
   });
+
   if (window.GameMobile) GameMobile.reset();
-  if (window._runnerDownHandler) {
-    window.removeEventListener('keydown', window._runnerDownHandler);
-    window.removeEventListener('keyup', window._runnerUpHandler);
-    window.removeEventListener('pointerdown', window._runnerDownHandler);
-    window.removeEventListener('pointerup', window._runnerUpHandler);
-    window._runnerDownHandler = null;
-  }
   if (window.MobileKit) MobileKit.teardown();
 }
 
-// 4. OUVERTURE D'UN JEU
+// 4. NAVIGATION
 async function openGame(gameId) {
   const gameConfig = GAMES_REGISTRY[gameId];
   if (!gameConfig || gameConfig.disabled) return;
@@ -306,12 +326,12 @@ async function openGame(gameId) {
   document.getElementById('game-overlay').classList.add('hidden');
   document.getElementById('current-score').innerText = '0';
   document.getElementById('game-title').innerText = gameConfig.title;
+  document.getElementById('game-badge-current').innerText = gameConfig.badge;
   document.getElementById('controls-hint').innerText = gameConfig.controls;
 
   const canvas = document.getElementById('game-canvas');
   const memoryBoard = document.getElementById('memory-board');
 
-  // Worm redimensionne le canvas : on remet la taille d'origine pour les autres jeux
   canvas.width = 600;
   canvas.height = 400;
 
@@ -324,7 +344,7 @@ async function openGame(gameId) {
   }
 
   try {
-    await loadGameScript(MOBILE_SCRIPT).catch(() => console.warn('mobile.js introuvable : adaptation mobile désactivée'));
+    await loadGameScript(MOBILE_SCRIPT).catch(() => {});
     if (gameConfig.needs3D && typeof THREE === 'undefined') await loadGameScript(THREE_URL);
     await loadGameScript(gameConfig.script);
     if (typeof window[gameConfig.initFn] === 'function') {
@@ -337,7 +357,6 @@ async function openGame(gameId) {
 
 function closeGame() {
   stopAllGames();
-
   document.getElementById('game-view').classList.remove('active');
   document.getElementById('hub-view').classList.add('active');
   updateHighScoresDisplay();
@@ -367,13 +386,13 @@ function triggerGameOver(score) {
   playSound(120, 0.5, 'sawtooth');
   updateHighScore(currentGameId, score);
   document.getElementById('final-score').innerText = score;
-  document.getElementById('overlay-title').innerText = "SYSTEM FAILURE";
   document.getElementById('game-overlay').classList.remove('hidden');
 }
 
 // Événements
 document.getElementById('sound-toggle')?.addEventListener('click', () => {
   soundEnabled = !soundEnabled;
+  document.getElementById('sound-icon').innerText = soundEnabled ? '🔊' : '🔇';
   document.getElementById('sound-toggle').innerText = soundEnabled ? '🔊 SON: ON' : '🔇 SON: OFF';
 });
 
@@ -386,9 +405,7 @@ window.onload = () => {
   updateHighScoresDisplay();
 };
 
-// ============================================================
-// ANIMATION GLITCH CUBES LOADER
-// ============================================================
+// Loader Cubes Glitch Animation
 (function () {
   function initGlitchLoader() {
     const loader = document.getElementById('glitch-cubes-loader');
@@ -397,98 +414,54 @@ window.onload = () => {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
     const cubes = [];
-    const stepX = 50;
-    const stepY = 50;
-
     const fragment = document.createDocumentFragment();
 
-    for (let y = -50; y < screenHeight + 50; y += stepY) {
-      for (let x = -50; x < screenWidth + 50; x += stepX) {
-        const cubeSize = 35 + Math.floor(Math.random() * 45);
-        const offsetX = (Math.random() - 0.5) * 60;
-        const offsetY = (Math.random() - 0.5) * 60;
-
+    for (let y = -50; y < screenHeight + 50; y += 60) {
+      for (let x = -50; x < screenWidth + 50; x += 60) {
+        const cubeSize = 35 + Math.floor(Math.random() * 40);
         const cube = document.createElement('div');
         cube.classList.add('glitch-cube-3d');
 
-        const rand = Math.random();
-        if (rand < 0.28) cube.classList.add('cyan-heavy');
-        else if (rand < 0.55) cube.classList.add('pink-heavy');
-        else if (rand < 0.72) cube.classList.add('dark');
-
-        const posX = x + offsetX;
-        const posY = y + offsetY;
-
         cube.style.width = `${cubeSize}px`;
         cube.style.height = `${cubeSize}px`;
-        cube.style.left = `${posX}px`;
-        cube.style.top = `${posY}px`;
-        cube.style.zIndex = Math.floor(posY * 2 + Math.random() * 200);
-
-        const shiftX = (Math.random() - 0.5) * 140;
-        const rot = (Math.random() - 0.5) * 100;
-        cube.style.setProperty('--shift-x', `${shiftX}px`);
-        cube.style.setProperty('--rot', `${rot}deg`);
+        cube.style.left = `${x}px`;
+        cube.style.top = `${y}px`;
 
         fragment.appendChild(cube);
-        cubes.push({ el: cube, y: posY });
+        cubes.push({ el: cube, y });
       }
     }
 
     loader.appendChild(fragment);
-    cubes.sort((a, b) => b.y - a.y);
 
     setTimeout(() => {
-      if (cubes.length === 0) return;
-      const maxY = cubes[0].y;
-      const minY = cubes[cubes.length - 1].y;
-      const totalSpan = maxY - minY || 1;
-
-      cubes.forEach(item => {
-        const normalizedY = (maxY - item.y) / totalSpan;
-        const baseDelay = normalizedY * 750;
-        const randomGlitch = Math.random() * 100;
-
+      cubes.forEach((item, index) => {
         setTimeout(() => {
           item.el.classList.add('disappear');
-        }, baseDelay + randomGlitch);
+        }, index * 2);
       });
-
-      setTimeout(() => {
-        loader.remove();
-      }, 1300);
-    }, 1000);
+      setTimeout(() => loader.remove(), 1000);
+    }, 800);
   }
 
-  if (document.readyState === 'interactive' || document.readyState === 'complete') {
-    initGlitchLoader();
-  } else {
-    document.addEventListener('DOMContentLoaded', initGlitchLoader);
-  }
+  if (document.readyState === 'complete') initGlitchLoader();
+  else document.addEventListener('DOMContentLoaded', initGlitchLoader);
 })();
 
-// ============================================================
-// SYSTÈME DE SÉCURITÉ ET CAMOUFLAGE (ARBEST STEALTH)
-// ============================================================
+// Camouflage Stealth System (Mode Panique)
 (function initStealthSystem() {
   const ORIGINAL_TITLE = 'Arbest';
 
-  // 1. Raccourcis Panique : Shift + Échap OU Alt + Q
   document.addEventListener('keydown', (e) => {
-    const isShiftEscape = e.shiftKey && e.key === 'Escape';
-    const isAltQ = e.altKey && (e.key === 'q' || e.key === 'Q');
-
-    if (isShiftEscape || isAltQ) {
+    if ((e.shiftKey && e.key === 'Escape') || (e.altKey && (e.key === 'q' || e.key === 'Q'))) {
       window.location.href = 'https://docs.google.com';
     }
   });
 
-  // 2. Camouflage de l'onglet si l'élève change d'application ou d'onglet
   window.addEventListener('blur', () => {
     document.title = 'Google Docs — Document sans titre';
   });
 
-  // Remet le vrai nom quand il revient sur l'onglet
   window.addEventListener('focus', () => {
     document.title = ORIGINAL_TITLE;
   });
