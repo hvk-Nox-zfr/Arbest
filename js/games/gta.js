@@ -869,7 +869,7 @@ function startGTAGame() {
   const glowArr = []; for (const p of glowPts) glowArr.push(p[0], p[1], p[2]);
   const glowGeo = new THREE.BufferGeometry();
   glowGeo.setAttribute('position', new THREE.Float32BufferAttribute(glowArr, 3));
-  const glowMat = new THREE.PointsMaterial({ map: glowTex(), size: 9, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: lin(0xffd9a0), opacity: 0 });
+  const glowMat = new THREE.PointsMaterial({ map: glowTex(), size: 4.5, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: lin(0xffd9a0), opacity: 0 });
   scene.add(new THREE.Points(glowGeo, glowMat));
   disposables.push(glowGeo, glowMat);
 
@@ -909,7 +909,7 @@ function startGTAGame() {
   const mat = h => { if (!matCache[h]) { matCache[h] = new THREE.MeshStandardMaterial({ color: lin(h), roughness: 0.8, metalness: 0.05 }); disposables.push(matCache[h]); } return matCache[h]; };
   const bmat = h => { if (!bmatCache[h]) { bmatCache[h] = new THREE.MeshBasicMaterial({ color: lin(h) }); disposables.push(bmatCache[h]); } return bmatCache[h]; };
   const wreckMat = new THREE.MeshStandardMaterial({ color: lin(0x1b1b1b), roughness: 0.95, metalness: 0.1 });
-  const paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.6 });
+  const paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.45 });
   const glassMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.05, metalness: 0.9, transparent: true, opacity: 0.4, depthWrite: false });
   const trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.25 });
   const lightMat = new THREE.MeshBasicMaterial({ vertexColors: true });
@@ -1077,7 +1077,7 @@ function startGTAGame() {
     const cop = c.kind === 'cop' || c.sk === 'police', h = buildHuman(cop ? COP_OUTFIT : randomOutfit(), false), seat = seatOf(c);
     h.g.position.set(seat.x, 0, seat.z); h.g.scale.set(0.95, 0.95, 0.95);
     animateHuman(h, { mode: 'drive', hipY: seat.y }, 1);
-    c.g.add(h.g); c.driver = h;
+    h.mesh.castShadow = false; c.g.add(h.g); c.driver = h;
   }
   function ensureDoor(c) {
     if (c.door) return c.door;
@@ -1101,12 +1101,12 @@ function startGTAGame() {
     const i = cars.indexOf(c); if (i >= 0) cars.splice(i, 1);
   }
 
-  // ---------- Humains : maillage unique lissé sur squelette ----------
+  // ---------- Humains : modèle anatomique détaillé sur squelette ----------
   const peds = [];
-  const SHIRTS = [0xd94a3c, 0x3f7fc4, 0x3aa86a, 0xe8c23a, 0x8e5bb0, 0xe8ecef, 0xe0802a, 0x1f9a88, 0xf08ab8, 0x2b2f38, 0x6b7a8f];
-  const PANTS = [0x2c3e50, 0x3a4a5c, 0x5d4037, 0x1b1b1b, 0x607d8b, 0x7a6a4a, 0x3d4a3a];
-  const SKINS = [0xf3c9a5, 0xd9a577, 0xa87048, 0x6e4a31, 0xffdbb4, 0xc68b5e];
-  const HAIRS = [0x16110d, 0x3a2a1e, 0x6a4a2a, 0xb08a4a, 0x8a8a8a, 0x2a1810];
+  const SHIRTS = [0xd94a3c, 0x3f7fc4, 0x3aa86a, 0xe8c23a, 0x8e5bb0, 0xe8ecef, 0xe0802a, 0x1f9a88, 0xf08ab8, 0x2b2f38, 0x6b7a8f, 0xb8c4d0];
+  const PANTS = [0x3a5a8a, 0x2b3f63, 0x1f2a3d, 0x1b1b1b, 0x6b5a3a, 0x4a4a4a, 0x56667a];
+  const SKINS = [0xf1c6a0, 0xd9a577, 0xa87048, 0x6e4a31, 0xffdbb4, 0xc68b5e];
+  const HAIRS = [0x16110d, 0x3a2a1e, 0x6a4a2a, 0xb08a4a, 0x8a8a8a, 0x2a1810, 0x7a3a1a];
   const BN = ['hips', 'spine', 'chest', 'neck', 'head', 'uL', 'fL', 'hL', 'uR', 'fR', 'hR', 'tL', 'sL', 'ftL', 'tR', 'sR', 'ftR'];
   const BI = {}; BN.forEach((n, i) => { BI[n] = i; });
   const RJ = [[0, 0.95, 0, -1], [0, 1.06, 0, 0], [0, 1.24, 0, 1], [0, 1.5, 0, 2], [0, 1.58, 0, 3],
@@ -1114,96 +1114,280 @@ function startGTAGame() {
     [0.09, 0.93, 0, 0], [0.09, 0.5, 0, 11], [0.09, 0.08, 0, 12], [-0.09, 0.93, 0, 0], [-0.09, 0.5, 0, 14], [-0.09, 0.08, 0, 15]];
   const humanCache = {};
   const Wt = (a, b, w) => [BI[a], BI[b], w];
-  function tubeRings(B, rings, seg, capBottom) {
-    const V = [], T = [];
-    for (const r of rings) for (let i = 0; i < seg; i++) { const a = i / seg * TAU; V.push([r.x + Math.cos(a) * r.rx, r.y, r.z + Math.sin(a) * r.rz, r.col, r.sk]); }
-    for (let k = 0; k < rings.length - 1; k++) for (let i = 0; i < seg; i++) {
-      const j = (i + 1) % seg, a = k * seg + i, b = k * seg + j, c = (k + 1) * seg + i, d = (k + 1) * seg + j;
-      T.push([a, b, d], [a, d, c]);
+  const rgbs = h => [(h >> 16) & 255, (h >> 8) & 255, h & 255];
+  const mulc = (a, k) => [clamp(a[0] * k, 0, 255) | 0, clamp(a[1] * k, 0, 255) | 0, clamp(a[2] * k, 0, 255) | 0];
+  const mixc = (a, b, t) => [lerp(a[0], b[0], t) | 0, lerp(a[1], b[1], t) | 0, lerp(a[2], b[2], t) | 0];
+  const css = (a, al) => 'rgba(' + a[0] + ',' + a[1] + ',' + a[2] + ',' + (al === undefined ? 1 : al) + ')';
+
+  // --- paramètres de la tête (ellipsoïde + traits du visage) ---
+  const HCY = 1.675, HCZ = 0.005, HRX = 0.078, HRY = 0.1, HRZ = 0.092, HN = 28, HM = 22;
+  const FEAT = [[0, 0.0, 0.011, 0.034, 0.011], [0, -0.025, 0.014, 0.013, 0.017], [0.017, -0.03, 0.008, 0.008, 0.007], [-0.017, -0.03, 0.008, 0.008, 0.007],
+    [0.03, 0.047, 0.026, 0.01, 0.007], [-0.03, 0.047, 0.026, 0.01, 0.007], [0, 0.047, 0.02, 0.01, 0.006],
+    [0.034, 0.02, 0.017, 0.012, -0.007], [-0.034, 0.02, 0.017, 0.012, -0.007], [0.052, -0.012, 0.022, 0.02, 0.005], [-0.052, -0.012, 0.022, 0.02, 0.005],
+    [0, -0.043, 0.022, 0.006, 0.009], [0, -0.054, 0.02, 0.007, 0.007], [0, -0.087, 0.022, 0.016, 0.012]];
+  function headPoint(a, vv) {
+    const y = Math.cos(vv) * HRY, r = Math.sin(vv);
+    let x = HRX * r * Math.cos(a), z = HRZ * r * Math.sin(a);
+    const t = clamp((-y - 0.03) / 0.07, 0, 1); x *= 1 - 0.26 * t * t; z *= 1 - 0.1 * t * t;
+    let yy = y; if (y > 0.05) z -= (y - 0.05) * 0.32;
+    return [x, yy, z];
+  }
+  function headVertex(a, vv) {
+    let p = headPoint(a, vv);
+    if (p[2] > 0) {
+      const nx = p[0] / (HRX * HRX), ny = p[1] / (HRY * HRY), nz = p[2] / (HRZ * HRZ), nl = Math.hypot(nx, ny, nz) || 1;
+      let d = 0;
+      for (const f of FEAT) { const dx = (p[0] - f[0]) / f[2], dy = (p[1] - f[1]) / f[3]; d += f[4] * Math.exp(-(dx * dx + dy * dy)); }
+      p = [p[0] + nx / nl * d, p[1] + ny / nl * d, p[2] + nz / nl * d];
     }
+    return [p[0], p[1] + HCY, p[2] + HCZ];
+  }
+
+  // --- textures ---
+  function fabricTex() {
+    const c = mkCanvas(256, 256), g = c.getContext('2d');
+    g.fillStyle = 'rgb(176,176,176)'; g.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 2) for (let x = 0; x < 256; x += 2) { const v = 150 + ((x + y) % 4 === 0 ? 26 : 0) + Math.random() * 22 | 0; g.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; g.fillRect(x, y, 2, 2); }
+    for (let i = 0; i < 70; i++) { g.fillStyle = 'rgba(255,255,255,' + (0.03 + Math.random() * 0.05) + ')'; g.fillRect(Math.random() * 256, 0, 1, 256); }
+    return tex(c, true);
+  }
+  function denimTex() {
+    const c = mkCanvas(256, 256), g = c.getContext('2d');
+    g.fillStyle = 'rgb(165,170,180)'; g.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x += 2) { const v = 150 + Math.sin((x + y) * 0.75) * 24 + Math.random() * 26 | 0; g.fillStyle = 'rgb(' + v + ',' + (v + 4) + ',' + (v + 12) + ')'; g.fillRect(x, y, 2, 1); }
+    for (let i = 0; i < 300; i++) { g.fillStyle = 'rgba(235,240,250,' + (0.08 + Math.random() * 0.1) + ')'; g.fillRect(Math.random() * 256, Math.random() * 256, 1, 3 + Math.random() * 5); }
+    return tex(c, true);
+  }
+  function hairTex() {
+    const c = mkCanvas(256, 256), g = c.getContext('2d');
+    g.fillStyle = 'rgb(150,150,150)'; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 900; i++) { const v = 95 + Math.random() * 150 | 0, x = Math.random() * 256; g.fillStyle = 'rgba(' + v + ',' + v + ',' + v + ',.55)'; g.fillRect(x, Math.random() * 256, 1 + (Math.random() < 0.3 ? 1 : 0), 20 + Math.random() * 90); }
+    return tex(c, true);
+  }
+  function faceTex(skinHex, hairHex, female, beard) {
+    const S = 256, c = mkCanvas(S, S), g = c.getContext('2d'), sk = rgbs(skinHex), hc = rgbs(hairHex);
+    g.fillStyle = css(sk); g.fillRect(0, 0, S, S);
+    const gr = g.createLinearGradient(0, 0, 0, 240); gr.addColorStop(0, css(mulc(sk, 1.04))); gr.addColorStop(0.5, css(sk)); gr.addColorStop(1, css(mulc(sk, 0.86)));
+    g.fillStyle = gr; g.fillRect(0, 0, S, 240);
+    g.fillStyle = css(sk); g.fillRect(0, 240, S, 16);
+    const P = (x, y) => { const rr = HRX * Math.sqrt(Math.max(0.0001, 1 - (y / HRY) * (y / HRY))), a = Math.acos(clamp(x / rr, -1, 1)); return [(1 - a / TAU) * S, Math.acos(clamp(y / HRY, -1, 1)) / Math.PI * 240]; };
+    const iris = pick([[90, 60, 30], [60, 95, 125], [70, 115, 75], [40, 30, 20], [110, 85, 50]]);
+    for (const sx of [1, -1]) {
+      const [bx, by] = P(sx * 0.03, -0.015); const bl = g.createRadialGradient(bx, by, 0, bx, by, 14); bl.addColorStop(0, 'rgba(215,100,95,.16)'); bl.addColorStop(1, 'rgba(215,100,95,0)'); g.fillStyle = bl; g.fillRect(bx - 16, by - 16, 32, 32);
+      const [ex, ey] = P(sx * 0.034, 0.02);
+      g.fillStyle = css(mulc(sk, 0.82), 0.45); g.beginPath(); g.ellipse(ex, ey - 1, 10, 6.5, 0, 0, TAU); g.fill();
+      g.fillStyle = 'rgb(244,240,234)'; g.beginPath(); g.ellipse(ex, ey, 8, 4.4, 0, 0, TAU); g.fill();
+      g.fillStyle = css(iris); g.beginPath(); g.arc(ex, ey, 3.6, 0, TAU); g.fill();
+      g.fillStyle = 'rgb(10,8,8)'; g.beginPath(); g.arc(ex, ey, 1.8, 0, TAU); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(ex - 1.6, ey - 1.8, 1.2, 1.2);
+      g.strokeStyle = 'rgba(25,15,12,.85)'; g.lineWidth = female ? 1.8 : 1.2; g.beginPath(); g.ellipse(ex, ey, 8, 4.6, 0, Math.PI, TAU); g.stroke();
+      g.strokeStyle = 'rgba(25,15,12,.3)'; g.lineWidth = 1; g.beginPath(); g.ellipse(ex, ey, 8, 4.4, 0, 0, Math.PI); g.stroke();
+      const [b0x, b0y] = P(sx * 0.012, 0.047), [b1x, b1y] = P(sx * 0.052, 0.056);
+      g.strokeStyle = css(mulc(hc, 0.85), 0.92); g.lineWidth = female ? 2.2 : 3.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(b0x, b0y + 1); g.quadraticCurveTo((b0x + b1x) / 2, b0y - 3, b1x, b1y); g.stroke();
+      const [nx0, ny0] = P(sx * 0.016, -0.03); g.fillStyle = 'rgba(40,20,18,.6)'; g.beginPath(); g.ellipse(nx0, ny0, 2.4, 1.5, 0, 0, TAU); g.fill();
+      const [s0x, s0y] = P(sx * 0.014, 0.0), [s1x, s1y] = P(sx * 0.024, -0.028); g.strokeStyle = 'rgba(60,30,25,.14)'; g.lineWidth = 2; g.beginPath(); g.moveTo(s0x, s0y); g.lineTo(s1x, s1y); g.stroke();
+      const [m0x, m0y] = P(sx * 0.024, -0.034), [m1x, m1y] = P(sx * 0.03, -0.06); g.strokeStyle = 'rgba(60,30,25,.08)'; g.lineWidth = 2; g.beginPath(); g.moveTo(m0x, m0y); g.lineTo(m1x, m1y); g.stroke();
+    }
+    const lip = mixc(sk, female ? [190, 60, 70] : [165, 85, 85], female ? 0.65 : 0.5);
+    const [ux, uy] = P(0, -0.046), [lx, ly] = P(0, -0.057), [mx0, my0] = P(-0.022, -0.05), [mx1, my1] = P(0.022, -0.05);
+    g.fillStyle = css(mulc(lip, 0.9), 0.9); g.beginPath(); g.ellipse(ux, uy, 9.5, 2.8, 0, 0, TAU); g.fill();
+    g.fillStyle = css(lip, 0.85); g.beginPath(); g.ellipse(lx, ly, 8.5, 3.2, 0, 0, TAU); g.fill();
+    g.strokeStyle = 'rgba(60,20,22,.85)'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(mx0, my0); g.lineTo(mx1, my1); g.stroke();
+    if (beard || (!female && Math.random() < 0.3)) for (let i = 0; i < 700; i++) { const [px, py] = P((Math.random() - 0.5) * 0.11, -0.1 + Math.random() * 0.05); g.fillStyle = 'rgba(30,22,18,' + (0.08 + Math.random() * 0.1) + ')'; g.fillRect(px, py, 1, 1); }
+    if (Math.random() < 0.25) for (let i = 0; i < 40; i++) { const [px, py] = P((Math.random() - 0.5) * 0.08, -0.02 + Math.random() * 0.03); g.fillStyle = 'rgba(150,90,60,.25)'; g.fillRect(px, py, 1.4, 1.4); }
+    return tex(c, true);
+  }
+
+  // --- matériaux (5 groupes : peau, tissu, jean, cheveux, accessoires) ---
+  const fabMap = fabricTex(), denMap = denimTex(), hairMap = hairTex();
+  const clothMat = new THREE.MeshStandardMaterial({ map: fabMap, bumpMap: fabMap, bumpScale: 0.7, vertexColors: true, roughness: 0.92, metalness: 0, skinning: true });
+  const denimMat = new THREE.MeshStandardMaterial({ map: denMap, bumpMap: denMap, bumpScale: 0.9, vertexColors: true, roughness: 0.88, metalness: 0, skinning: true });
+  const hairMat = new THREE.MeshStandardMaterial({ map: hairMap, bumpMap: hairMap, bumpScale: 0.4, vertexColors: true, roughness: 0.5, metalness: 0.08, skinning: true });
+  const trimH = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05, skinning: true });
+  disposables.push(fabMap, denMap, hairMap, clothMat, denimMat, hairMat, trimH); envMats.push(clothMat, denimMat, hairMat, trimH);
+  const skinMats = {};
+  function skinMatFor(sp) {
+    const hh = (sp.hair === null || sp.hair === undefined) ? 0x2a1810 : sp.hair;
+    const key = sp.skin + '_' + hh + '_' + (sp.female ? 1 : 0) + (sp.beard ? 'b' : '');
+    if (!skinMats[key]) { const m = new THREE.MeshStandardMaterial({ map: faceTex(sp.skin, hh, !!sp.female, !!sp.beard), vertexColors: true, roughness: 0.6, metalness: 0, skinning: true }); disposables.push(m); envMats.push(m); skinMats[key] = m; }
+    return skinMats[key];
+  }
+
+  // --- constructeurs de formes ---
+  function tubeA(B, rings, seg, o) {
+    o = o || {};
+    const V = [], T = [], tile = o.tile || 0.25, n = seg + 1, o0 = B.p.length / 3;
+    let vAcc = 0;
+    rings.forEach((r, k) => {
+      if (k > 0) vAcc += Math.abs(r.y - rings[k - 1].y) / tile;
+      const per = TAU * (r.rx + (r.rzf + r.rzb) / 2) / 2 / tile;
+      for (let i = 0; i <= seg; i++) {
+        const a = i / seg * TAU, ca = Math.cos(a), sa = Math.sin(a), bl = 0.5 + 0.5 * clamp(sa * 3, -1, 1), rz = lerp(r.rzb, r.rzf, bl);
+        const w = r.wob ? 1 + r.wob * Math.sin(a * 5 + r.y * 37) : 1;
+        V.push([r.x + ca * r.rx * w, r.y, r.z + sa * rz * w, r.col, r.sk, o.skin ? [0.5, 0.023] : [i / seg * per, vAcc]]);
+      }
+    });
+    for (let k = 0; k < rings.length - 1; k++) for (let i = 0; i < seg; i++) { const a = k * n + i, b = a + 1, c = (k + 1) * n + i, d = c + 1; T.push([a, b, d], [a, d, c]); }
     const dir = c => { let best = rings[0], bd = 1e9; for (const r of rings) { const d = Math.abs(r.y - c[1]); if (d < bd) { bd = d; best = r; } } return [c[0] - best.x, 0, c[2] - best.z]; };
-    B.emit(V, T, [1, 1, 1], dir, v => v[3], v => v[4]);
-    if (capBottom) {
-      const r = rings[0], W = [[r.x, r.y, r.z, r.col, r.sk]], U = [];
-      for (let i = 0; i < seg; i++) { const a = i / seg * TAU; W.push([r.x + Math.cos(a) * r.rx, r.y, r.z + Math.sin(a) * r.rz, r.col, r.sk]); }
+    B.emit(V, T, [1, 1, 1], dir, v => v[3], v => v[4], v => v[5]);
+    for (let k = 0; k < rings.length; k++) {
+      const i0 = (o0 + k * n) * 3, i1 = (o0 + k * n + seg) * 3;
+      const ax = B.n[i0] + B.n[i1], ay = B.n[i0 + 1] + B.n[i1 + 1], az = B.n[i0 + 2] + B.n[i1 + 2], l = Math.hypot(ax, ay, az) || 1;
+      B.n[i0] = B.n[i1] = ax / l; B.n[i0 + 1] = B.n[i1 + 1] = ay / l; B.n[i0 + 2] = B.n[i1 + 2] = az / l;
+    }
+    if (o.capBottom) {
+      const r = rings[0], W = [[r.x, r.y, r.z, r.col, r.sk, [0, 0]]], U = [];
+      for (let i = 0; i < seg; i++) { const a = i / seg * TAU; W.push([r.x + Math.cos(a) * r.rx, r.y, r.z + Math.sin(a) * r.rzf, r.col, r.sk, [0, 0]]); }
       for (let i = 0; i < seg; i++) U.push([0, 1 + i, 1 + (i + 1) % seg]);
-      B.emit(W, U, [1, 1, 1], () => [0, -1, 0], v => v[3], v => v[4]);
+      B.emit(W, U, [1, 1, 1], () => [0, -1, 0], v => v[3], v => v[4], v => v[5]);
     }
   }
+  function loftShoe(B, x0, col, sole) {
+    const st = [{ z: -0.075, w: 0.034, h: 0.026, y: 0.042 }, { z: -0.055, w: 0.044, h: 0.04, y: 0.054 }, { z: -0.01, w: 0.05, h: 0.044, y: 0.062 }, { z: 0.05, w: 0.052, h: 0.036, y: 0.054 },
+      { z: 0.115, w: 0.05, h: 0.027, y: 0.044 }, { z: 0.17, w: 0.04, h: 0.021, y: 0.036 }, { z: 0.2, w: 0.028, h: 0.017, y: 0.032 }];
+    const seg = 10, n = seg, V = [], T = [];
+    for (const s of st) for (let i = 0; i < seg; i++) { const a = i / seg * TAU; V.push([x0 + Math.cos(a) * s.w, Math.max(0.018, s.y + Math.sin(a) * s.h), s.z, col, [BI[x0 > 0 ? 'ftL' : 'ftR'], 0, 1], [0, 0]]); }
+    for (let k = 0; k < st.length - 1; k++) for (let i = 0; i < seg; i++) { const j = (i + 1) % seg, a = k * n + i, b = k * n + j, c = (k + 1) * n + i, d = (k + 1) * n + j; T.push([a, b, d], [a, d, c]); }
+    B.emit(V, T, [1, 1, 1], c => [c[0] - x0, c[1] - 0.05, 0], v => v[3], v => v[4], v => v[5]);
+    for (const end of [0, st.length - 1]) {
+      const s = st[end], W = [[x0, s.y, s.z, col, [BI[x0 > 0 ? 'ftL' : 'ftR'], 0, 1], [0, 0]]], U = [];
+      for (let i = 0; i < seg; i++) { const a = i / seg * TAU; W.push([x0 + Math.cos(a) * s.w, Math.max(0.018, s.y + Math.sin(a) * s.h), s.z, col, [BI[x0 > 0 ? 'ftL' : 'ftR'], 0, 1], [0, 0]]); }
+      for (let i = 0; i < seg; i++) U.push([0, 1 + i, 1 + (i + 1) % seg]);
+      B.emit(W, U, [1, 1, 1], () => [0, 0, end === 0 ? -1 : 1], v => v[3], v => v[4], v => v[5]);
+    }
+  }
+  function ringR(y, rx, rzf, rzb, zc, col, sk, x, wob) { return { x: x || 0, y, z: zc || 0, rx, rzf, rzb, col, sk, wob: wob || 0 }; }
+
   function humanGeom(sp) {
     const key = JSON.stringify(sp);
     if (humanCache[key]) return humanCache[key];
-    const B = new Batch(), f = sp.fat || 1;
-    const shirt = hex2rgb(sp.shirt), pants = hex2rgb(sp.pants), skin = hex2rgb(sp.skin), shoes = hex2rgb(sp.shoes);
-    const belt = hex2rgb(0x1a1a1c), skinD = shade(skin, 0.8), collar = shade(shirt, 1.15);
-    const hair = sp.hair !== null && sp.hair !== undefined ? hex2rgb(sp.hair) : skinD;
-    const R_ = (y, rx, rz, zc, col, sk, x) => ({ x: x || 0, y, z: zc, rx, rz, col, sk });
-    // torse
-    tubeRings(B, [
-      R_(0.84, 0.15 * f, 0.1 * f, 0, pants, Wt('hips', 'hips', 1)), R_(0.93, 0.165 * f, 0.11 * f, 0, pants, Wt('hips', 'hips', 1)),
-      R_(0.98, 0.162 * f, 0.108 * f, 0, belt, Wt('hips', 'hips', 1)), R_(1.03, 0.155 * f, 0.104 * f, 0, shirt, Wt('hips', 'spine', 0.5)),
-      R_(1.12, 0.147 * f, 0.098 * f, 0, shirt, Wt('spine', 'spine', 1)), R_(1.21, 0.16 * f, 0.105 * f, 0.004, shirt, Wt('spine', 'chest', 0.5)),
-      R_(1.31, 0.18 * f, 0.114 * f, 0.01, shirt, Wt('chest', 'chest', 1)), R_(1.41, 0.205 * f, 0.114 * f, 0, shirt, Wt('chest', 'chest', 1)),
-      R_(1.46, 0.19 * f, 0.1 * f, -0.004, shirt, Wt('chest', 'chest', 1)), R_(1.5, 0.09, 0.075, 0, collar, Wt('chest', 'neck', 0.5)),
-      R_(1.535, 0.052, 0.052, 0, skin, Wt('neck', 'neck', 1)), R_(1.6, 0.05, 0.05, 0, skin, Wt('neck', 'head', 0.5))
-    ], 12, true);
-    // bras et jambes (gauche = +x)
+    const SB = new Batch(), CB = new Batch(), DB = new Batch(), HB = new Batch(), TB2 = new Batch();
+    const setSk = i => { SB.sk = CB.sk = DB.sk = HB.sk = TB2.sk = i; };
+    const f = sp.fat || 1, fem = !!sp.female, sh = fem ? 0.9 : 1, hp = fem ? 1.08 : 1, bust = fem ? 0.022 : 0;
+    const WHITE3 = [1, 1, 1], shirt = hex2rgb(sp.shirt), pants = hex2rgb(sp.pants), shoeC = hex2rgb(sp.shoes), beltC = hex2rgb(0x20160f), collar = shade(shirt, 1.12);
+    const hairC = (sp.hair === null || sp.hair === undefined) ? hex2rgb(0x2a1810) : hex2rgb(sp.hair);
+    const Wh = Wt('hips', 'hips', 1);
+    // pantalon (bassin)
+    tubeA(DB, [ringR(0.82, 0.15 * hp * f, 0.1, 0.112, 0, pants, Wh, 0, 0.01), ringR(0.9, 0.172 * hp * f, 0.106, 0.124, 0, pants, Wh, 0, 0.01), ringR(0.97, 0.164 * hp * f, 0.102, 0.114, 0, pants, Wh, 0, 0.012), ringR(1.0, 0.152 * f, 0.097, 0.102, 0, pants, Wt('hips', 'spine', 0.4))], 16, { capBottom: true });
+    tubeA(TB2, [ringR(0.985, 0.155 * f, 0.099, 0.104, 0, beltC, Wt('hips', 'spine', 0.6)), ringR(1.007, 0.154 * f, 0.099, 0.104, 0, beltC, Wt('hips', 'spine', 0.6))], 16);
+    // haut
+    tubeA(CB, [ringR(0.9, 0.178 * hp * f, 0.11, 0.128, 0, shirt, Wh, 0, 0.014), ringR(0.97, 0.17 * hp * f, 0.106, 0.118, 0, shirt, Wh, 0, 0.016), ringR(1.04, 0.152 * f, 0.098, 0.104, 0, shirt, Wt('hips', 'spine', 0.5), 0, 0.02),
+      ringR(1.12, 0.15 * f, 0.098, 0.098, 0, shirt, Wt('spine', 'spine', 1), 0, 0.02), ringR(1.22, 0.163 * f, 0.108, 0.102, 0.004, shirt, Wt('spine', 'chest', 0.5), 0, 0.014), ringR(1.32, 0.184 * sh * f, 0.118 + bust, 0.106, 0.008, shirt, Wt('chest', 'chest', 1), 0, 0.01),
+      ringR(1.4, 0.205 * sh * f, 0.112 + bust * 0.5, 0.108, 0, shirt, Wt('chest', 'chest', 1)), ringR(1.45, 0.202 * sh * f, 0.102, 0.1, -0.004, shirt, Wt('chest', 'chest', 1)), ringR(1.485, 0.13 * sh, 0.078, 0.076, -0.004, shirt, Wt('chest', 'chest', 1)),
+      ringR(1.515, 0.082, 0.066, 0.066, 0, collar, Wt('chest', 'neck', 0.5))], 16);
+    tubeA(SB, [ringR(1.5, 0.056, 0.056, 0.056, 0, WHITE3, Wt('chest', 'neck', 0.5)), ringR(1.55, 0.05, 0.05, 0.05, 0, WHITE3, Wt('neck', 'neck', 1)), ringR(1.6, 0.049, 0.049, 0.049, 0, WHITE3, Wt('neck', 'head', 0.5))], 12, { skin: true });
+    const wArm = (u, fo, hd) => y => (y >= 1.22 ? Wt(u, u, 1) : y >= 1.12 ? Wt(u, fo, (y - 1.12) / 0.1) : y > 0.97 ? Wt(fo, fo, 1) : y > 0.91 ? Wt(fo, hd, (y - 0.91) / 0.06) : Wt(hd, hd, 1));
+    const wLeg = (th, sh2, ft) => y => (y >= 0.56 ? Wt(th, th, 1) : y >= 0.44 ? Wt(th, sh2, (y - 0.44) / 0.12) : y >= 0.14 ? Wt(sh2, sh2, 1) : Wt(sh2, ft, clamp((y - 0.08) / 0.06, 0, 1)));
     for (const sg of [1, -1]) {
-      const u = sg > 0 ? 'uL' : 'uR', fo = sg > 0 ? 'fL' : 'fR', hd = sg > 0 ? 'hL' : 'hR', ax = sg * 0.235;
-      const sl = y => (sp.long ? (y > 0.97 ? shirt : skin) : (y > 1.27 ? shirt : skin));
-      const arm = [[1.47, 0.056, Wt(u, u, 1)], [1.4, 0.053, Wt(u, u, 1)], [1.3, 0.048, Wt(u, u, 1)], [1.21, 0.043, Wt(u, u, 1)], [1.17, 0.041, Wt(u, fo, 0.5)],
-        [1.13, 0.039, Wt(fo, fo, 1)], [1.03, 0.036, Wt(fo, fo, 1)], [0.94, 0.031, Wt(fo, hd, 0.5)], [0.9, 0.029, Wt(hd, hd, 1)]];
-      tubeRings(B, arm.map(a => R_(a[0], a[1], a[1], 0, sl(a[0]), a[2], ax)), 8, false);
-      B.sk = BI[u]; B.sphere(ax, 1.455, 0, 0.066, 0.07, 0.066, shirt, 8, 6);
-      B.sk = BI[hd]; B.sphere(ax, 0.845, 0.005, 0.03, 0.058, 0.022, skin, 6, 5); B.sphere(ax - sg * 0.026, 0.875, 0.022, 0.012, 0.03, 0.012, skin, 5, 4);
-      B.sk = -1;
-      const th = sg > 0 ? 'tL' : 'tR', sh = sg > 0 ? 'sL' : 'sR', ft = sg > 0 ? 'ftL' : 'ftR', lx = sg * 0.09;
-      const leg = [[0.97, 0.088 * f, 0.092 * f, Wt(th, th, 1)], [0.88, 0.086 * f, 0.09 * f, Wt(th, th, 1)], [0.75, 0.077 * f, 0.08 * f, Wt(th, th, 1)], [0.63, 0.067 * f, 0.07 * f, Wt(th, th, 1)],
-        [0.56, 0.062 * f, 0.065 * f, Wt(th, sh, 0.75)], [0.5, 0.058 * f, 0.062 * f, Wt(th, sh, 0.5)], [0.44, 0.058 * f, 0.064 * f, Wt(th, sh, 0.25)], [0.38, 0.062 * f, 0.07 * f, Wt(sh, sh, 1)],
-        [0.26, 0.05, 0.056, Wt(sh, sh, 1)], [0.14, 0.042, 0.045, Wt(sh, sh, 1)], [0.095, 0.04, 0.043, Wt(sh, ft, 0.6)]];
-      tubeRings(B, leg.map(a => R_(a[0], a[1], a[2], 0, pants, a[3], lx)), 8, false);
-      B.sk = BI[ft]; B.sphere(lx, 0.05, 0.055, 0.048, 0.047, 0.125, shoes, 8, 6); B.box(lx, 0.015, 0.06, 0.1, 0.03, 0.25, 0x15110e);
-      B.sk = -1;
+      const u = sg > 0 ? 'uL' : 'uR', fo = sg > 0 ? 'fL' : 'fR', hd = sg > 0 ? 'hL' : 'hR', ax = sg * 0.235, wa = wArm(u, fo, hd);
+      const slY = sp.long ? [1.47, 1.42, 1.36, 1.28, 1.2, 1.17, 1.13, 1.05, 0.985] : [1.47, 1.42, 1.36, 1.3, 1.275];
+      const slR = sp.long ? [0.064, 0.062, 0.056, 0.049, 0.044, 0.0425, 0.041, 0.037, 0.04] : [0.064, 0.062, 0.057, 0.052, 0.057];
+      tubeA(CB, slY.map((y, i) => ringR(y, slR[i], slR[i], slR[i], 0, shirt, wa(y), ax, 0.02)), 12);
+      const skY = sp.long ? [0.985, 0.96, 0.94] : [1.28, 1.2, 1.17, 1.13, 1.08, 1.03, 0.99, 0.96, 0.94], skR = sp.long ? [0.036, 0.032, 0.03] : [0.05, 0.046, 0.0435, 0.041, 0.04, 0.037, 0.034, 0.031, 0.029];
+      tubeA(SB, skY.map((y, i) => ringR(y, skR[i], skR[i], skR[i], 0, WHITE3, wa(y), ax)), 10, { skin: true });
+      setSk(BI[u]); CB.sphere(ax, 1.455, 0, 0.068, 0.072, 0.068, shirt, 10, 8);
+      setSk(BI[hd]); SB.sphere(ax, 0.845, 0.008, 0.034, 0.05, 0.016, WHITE3, 10, 8);
+      for (let k = 0; k < 4; k++) {
+        const fx = ax + sg * (-0.021 + k * 0.014), L = k === 1 || k === 2 ? 1 : 0.9, rr = [0.0095, 0.0088, 0.0078, 0.0068];
+        tubeA(SB, [0, 1, 2, 3].map(j => ringR(0.8 - j * 0.035 * L, rr[j], rr[j], rr[j], 0.012 + 0.004 * j * j * 0.5 * L, WHITE3, Wt(hd, hd, 1), fx)), 6, { skin: true });
+        setSk(BI[hd]); SB.sphere(fx, 0.8 - 3.4 * 0.035 * L, 0.012 + 0.004 * 9 * 0.5 * L, 0.0066, 0.0066, 0.0066, WHITE3, 5, 4);
+      }
+      tubeA(SB, [0, 1, 2].map(j => ringR(0.865 - j * 0.028, 0.0115 - j * 0.0015, 0.0115 - j * 0.0015, 0.0115 - j * 0.0015, 0.018 + j * 0.01, WHITE3, Wt(hd, hd, 1), ax - sg * (0.032 - j * 0.003))), 6, { skin: true });
+      // jambes
+      const th = sg > 0 ? 'tL' : 'tR', sh2 = sg > 0 ? 'sL' : 'sR', ft = sg > 0 ? 'ftL' : 'ftR', lx = sg * 0.09, wl = wLeg(th, sh2, ft);
+      const lg = [[0.99, 0.094, 0.102, 0.108], [0.92, 0.092, 0.1, 0.108], [0.82, 0.083, 0.09, 0.098], [0.72, 0.074, 0.08, 0.086], [0.62, 0.066, 0.07, 0.074], [0.55, 0.06, 0.064, 0.066], [0.5, 0.058, 0.062, 0.062], [0.45, 0.058, 0.064, 0.064],
+        [0.4, 0.062, 0.07, 0.076], [0.33, 0.063, 0.066, 0.082], [0.25, 0.054, 0.056, 0.066], [0.17, 0.047, 0.05, 0.052], [0.11, 0.05, 0.054, 0.054], [0.095, 0.052, 0.056, 0.056]];
+      tubeA(DB, lg.map(r => ringR(r[0], r[1] * (r[0] > 0.6 ? f : 1), r[2], r[3], 0, pants, wl(r[0]), lx, 0.018)), 14);
+      loftShoe(TB2, lx, shoeC);
+      setSk(BI[ft]); TB2.box(lx, 0.01, 0.062, 0.1, 0.02, 0.3, 0x15110e);
+      for (let k = 0; k < 3; k++) TB2.box(lx, 0.085 - k * 0.0, 0.0 + k * 0.03, 0.05, 0.006, 0.012, 0xe8e4dc);
     }
     // détails du torse
-    B.sk = BI.hips; B.box(0, 0.98, 0.112, 0.04, 0.03, 0.012, 0xc9a227);
-    B.sk = BI.chest;
-    if (sp.jacket) B.box(0, 1.28, 0.119, 0.012, 0.32, 0.01, 0x15151a);
-    if (sp.pack) B.box(0, 1.3, -0.14, 0.3, 0.4, 0.12, 0x3a4a5c);
-    if (sp.badge) { B.sphere(0.11, 1.36, 0.116, 0.015, 0.015, 0.008, 0xd4af37, 5, 4); for (const sx of [-1, 1]) B.box(sx * 0.2, 1.47, 0, 0.09, 0.02, 0.11, 0x0b1324); }
+    setSk(BI.hips); TB2.box(0, 0.996, 0.104, 0.04, 0.026, 0.012, 0xc9a227);
+    setSk(BI.chest);
+    if (sp.jacket) { CB.box(0, 1.28, 0.121, 0.012, 0.34, 0.012, 0x15151a); for (const sx of [-1, 1]) CB.box(sx * 0.036, 1.49, 0.07, 0.07, 0.04, 0.03, shade(shirt, 0.85)); }
+    if (sp.pack) { CB.box(0, 1.3, -0.15, 0.3, 0.4, 0.12, 0x3a4a5c); for (const sx of [-1, 1]) CB.box(sx * 0.1, 1.38, 0, 0.04, 0.3, 0.2, 0x2f3b4a); }
+    if (sp.badge) { TB2.sphere(0.11, 1.36, 0.118, 0.015, 0.015, 0.008, 0xd4af37, 6, 4); for (const sx of [-1, 1]) TB2.box(sx * 0.2, 1.47, 0, 0.09, 0.02, 0.11, 0x0b1324); }
     // tête
-    B.sk = BI.head;
-    B.sphere(0, 1.675, 0.005, 0.087, 0.108, 0.1, skin, 12, 8); B.sphere(0, 1.617, 0.04, 0.058, 0.05, 0.06, skin, 8, 6);
-    for (const sx of [-1, 1]) {
-      B.sphere(sx * 0.088, 1.68, 0, 0.018, 0.03, 0.016, skinD, 5, 4);
-      B.sphere(sx * 0.034, 1.695, 0.087, 0.013, 0.011, 0.008, 0xf2f2f2, 5, 4); B.sphere(sx * 0.034, 1.695, 0.094, 0.006, 0.006, 0.004, 0x15110e, 4, 3);
-      B.box(sx * 0.034, 1.718, 0.092, 0.04, 0.008, 0.01, hair);
+    setSk(BI.head);
+    {
+      const V = [], T = [], n = HN + 1;
+      for (let j = 0; j <= HM; j++) for (let i = 0; i <= HN; i++) { const a = i / HN * TAU, vv = j / HM * Math.PI; V.push([...headVertex(a, vv), WHITE3, Wt('head', 'head', 1), [1 - i / HN, 1 - (j / HM) * (240 / 256)]]); }
+      for (let j = 0; j < HM; j++) for (let i = 0; i < HN; i++) { const a = j * n + i, b = a + 1, c = (j + 1) * n + i, d = c + 1; T.push([a, b, d], [a, d, c]); }
+      const o0 = SB.p.length / 3;
+      SB.emit(V, T, WHITE3, c => [c[0], c[1] - HCY, c[2] - HCZ], v => v[3], v => v[4], v => v[5]);
+      for (let j = 0; j <= HM; j++) { const i0 = (o0 + j * n) * 3, i1 = (o0 + j * n + HN) * 3, ax = SB.n[i0] + SB.n[i1], ay = SB.n[i0 + 1] + SB.n[i1 + 1], az = SB.n[i0 + 2] + SB.n[i1 + 2], l = Math.hypot(ax, ay, az) || 1; SB.n[i0] = SB.n[i1] = ax / l; SB.n[i0 + 1] = SB.n[i1 + 1] = ay / l; SB.n[i0 + 2] = SB.n[i1 + 2] = az / l; }
     }
-    B.sphere(0, 1.655, 0.098, 0.016, 0.022, 0.02, skinD, 5, 4); B.box(0, 1.612, 0.1, 0.04, 0.008, 0.008, 0x8a3a3a);
-    if (sp.glasses) for (const sx of [-1, 1]) B.box(sx * 0.034, 1.695, 0.099, 0.038, 0.024, 0.006, 0x101014);
-    if (sp.beard) B.sphere(0, 1.596, 0.045, 0.06, 0.04, 0.05, hair, 7, 5);
+    for (const sx of [-1, 1]) { SB.sphere(sx * 0.081, HCY + 0.002, HCZ - 0.004, 0.012, 0.03, 0.021, WHITE3, 8, 6); }
+    // cheveux / barbe
+    const shell = (mask, k, uvk, col) => {
+      const V = [], T = [], n = HN + 1;
+      for (let j = 0; j <= HM; j++) for (let i = 0; i <= HN; i++) {
+        const a = i / HN * TAU, vv = j / HM * Math.PI, p = headPoint(a, vv), q = 1 + (Math.sin(i * 2.3 + j * 1.7) * 0.012);
+        V.push([p[0] * k * q, (p[1]) * k * q + HCY, p[2] * k * q + HCZ, col, Wt('head', 'head', 1), [i / HN * uvk, p[1] * 7], mask(p)]);
+      }
+      for (let j = 0; j < HM; j++) for (let i = 0; i < HN; i++) {
+        const a = j * n + i, b = a + 1, c = (j + 1) * n + i, d = c + 1;
+        if (V[a][6] && V[b][6] && V[c][6] && V[d][6]) T.push([a, b, d], [a, d, c]);
+      }
+      return { V, T };
+    };
     const hs = sp.hs || 'short';
     if (hs !== 'bald' && sp.hair !== null && sp.hair !== undefined) {
-      B.sphere(0, 1.735, -0.012, 0.093, 0.082, 0.104, hair, 10, 6); B.box(0, 1.74, 0.075, 0.15, 0.035, 0.04, hair);
-      if (hs === 'bun') B.sphere(0, 1.8, -0.07, 0.04, 0.04, 0.04, hair, 6, 5);
-      if (hs === 'long') { B.sphere(0, 1.6, -0.065, 0.085, 0.14, 0.052, hair, 8, 6); B.sk = BI.chest; B.sphere(0, 1.47, -0.07, 0.07, 0.12, 0.04, hair, 8, 6); B.sk = BI.head; }
+      const thick = hs === 'buzz' ? 1.02 : hs === 'long' ? 1.07 : 1.055;
+      const hl = p => lerp(hs === 'long' ? -0.07 : -0.04, hs === 'buzz' ? 0.07 : 0.062, clamp((p[2] + 0.03) / 0.08, 0, 1));
+      const hr = shell(p => p[1] > hl(p) && !(p[2] > 0.02 && p[1] < 0.07), thick, 3, hairC);
+      HB.emit(hr.V, hr.T, [1, 1, 1], c => [c[0], c[1] - HCY, c[2] - HCZ], v => v[3], v => v[4], v => v[5]);
+      if (hs === 'long') tubeA(HB, [ringR(1.62, 0.088, 0.02, 0.044, -0.05, hairC, Wt('head', 'head', 1)), ringR(1.54, 0.09, 0.022, 0.046, -0.06, hairC, Wt('neck', 'chest', 0.5)), ringR(1.46, 0.086, 0.022, 0.04, -0.07, hairC, Wt('chest', 'chest', 1)), ringR(1.38, 0.072, 0.018, 0.03, -0.07, hairC, Wt('chest', 'chest', 1))], 12, { tile: 0.2 });
+      if (hs === 'bun') { setSk(BI.head); HB.sphere(0, HCY + 0.1, HCZ - 0.075, 0.045, 0.04, 0.045, hairC, 10, 8); }
+      if (hs === 'pony') tubeA(HB, [ringR(1.76, 0.026, 0.026, 0.026, -0.1, hairC, Wt('head', 'head', 1)), ringR(1.66, 0.026, 0.026, 0.026, -0.14, hairC, Wt('head', 'head', 1)), ringR(1.54, 0.02, 0.02, 0.02, -0.15, hairC, Wt('neck', 'chest', 0.5)), ringR(1.46, 0.012, 0.012, 0.012, -0.14, hairC, Wt('chest', 'chest', 1))], 8, { tile: 0.2 });
     }
+    if (sp.beard) {
+      const br = shell(p => p[1] < -0.028 && p[1] > -0.097 && p[2] > -0.005 && Math.abs(p[0]) < 0.066, 1.035, 3, hairC);
+      HB.emit(br.V, br.T, [1, 1, 1], c => [c[0], c[1] - HCY, c[2] - HCZ], v => v[3], v => v[4], v => v[5]);
+    }
+    setSk(BI.head);
+    if (sp.glasses) { for (const sx of [-1, 1]) TB2.box(sx * 0.036, HCY + 0.02, HCZ + 0.1, 0.04, 0.026, 0.006, 0x101014); TB2.box(0, HCY + 0.025, HCZ + 0.102, 0.02, 0.005, 0.005, 0x101014); }
     if (sp.hat) {
       const hc = hex2rgb(sp.hat);
-      B.cyl(0, 1.755, 0, 0.1, 0.1, 0.095, 0.095, 0.06, 12, hc); B.cyl(0, 1.745, 0, 0.115, 0.125, 0.115, 0.125, 0.02, 12, hc); B.box(0, 1.752, 0.115, 0.2, 0.012, 0.09, hc);
+      TB2.cyl(0, 1.755, 0, 0.1, 0.1, 0.095, 0.095, 0.06, 14, hc); TB2.cyl(0, 1.745, 0, 0.115, 0.125, 0.115, 0.125, 0.02, 14, hc); TB2.box(0, 1.752, 0.118, 0.2, 0.012, 0.09, hc);
     }
-    B.sk = -1;
-    const geo = B.geo();
+    setSk(-1);
+    const geo = combineSkinned([SB, CB, DB, HB, TB2]);
     humanCache[key] = geo; return geo;
   }
-  function makeOutfit() {
-    const hs = pick(['short', 'short', 'long', 'bun', 'bald']);
-    return { shirt: pick(SHIRTS), pants: pick(PANTS), skin: pick(SKINS), hair: pick(HAIRS), hs, long: Math.random() < 0.45, shoes: pick([0x1a1a1a, 0xf0f0f0, 0x4a3020]), fat: Math.round(R(0.92, 1.2) * 100) / 100, beard: Math.random() < 0.15 && hs !== 'long', glasses: Math.random() < 0.15, jacket: Math.random() < 0.35, pack: Math.random() < 0.15 };
+  function combineSkinned(batches) {
+    const g = new THREE.BufferGeometry(), p = [], n = [], c = [], u = [], si = [], sw = [], idx = [], groups = [];
+    let vo = 0;
+    batches.forEach((b, mi) => {
+      const start = idx.length;
+      for (let i = 0; i < b.i.length; i++) idx.push(b.i[i] + vo);
+      for (let i = 0; i < b.p.length; i++) { p.push(b.p[i]); n.push(b.n[i]); c.push(b.c[i]); }
+      for (let i = 0; i < b.u.length; i++) u.push(b.u[i]);
+      for (let i = 0; i < b.si.length; i++) { si.push(b.si[i]); sw.push(b.sw[i]); }
+      if (b.i.length) groups.push([start, b.i.length, mi]);
+      vo += b.p.length / 3;
+    });
+    g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(n, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(u, 2));
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+    g.setIndex(idx);
+    for (const gr of groups) g.addGroup(gr[0], gr[1], gr[2]);
+    g.computeBoundingSphere(); if (g.boundingSphere) g.boundingSphere.radius += 0.6;
+    disposables.push(g);
+    return g;
   }
-  const OUTFITS = []; for (let i = 0; i < 22; i++) OUTFITS.push(makeOutfit());
+  function makeOutfit() {
+    const female = Math.random() < 0.4, hs = female ? pick(['long', 'long', 'pony', 'bun', 'short']) : pick(['short', 'short', 'buzz', 'bald', 'short']);
+    return { shirt: pick(SHIRTS), pants: pick(PANTS), skin: pick(SKINS), hair: pick(HAIRS), hs, female, long: Math.random() < 0.45, shoes: pick([0x1a1a1a, 0xf0f0f0, 0x4a3020, 0x2a3a5a]), fat: Math.round(R(0.92, 1.18) * 100) / 100, beard: !female && Math.random() < 0.18, glasses: Math.random() < 0.15, jacket: Math.random() < 0.35, pack: Math.random() < 0.15 };
+  }
+  const OUTFITS = []; for (let i = 0; i < 24; i++) OUTFITS.push(makeOutfit());
   const randomOutfit = () => pick(OUTFITS);
-  const COP_OUTFIT = { shirt: 0x2a4a8c, pants: 0x14213d, skin: 0xe8bb98, hair: 0x2a1810, hs: 'short', long: true, shoes: 0x0a0a0a, hat: 0x101820, badge: true, fat: 1.05 };
-  const PLAYER_OUTFIT = { shirt: 0xff7a1a, pants: 0x23325a, skin: 0xf3c9a5, hair: 0x3a2a1e, hs: 'short', long: true, shoes: 0xe8e8e8, jacket: true, fat: 1.04 };
+  const COP_OUTFIT = { shirt: 0x2a4a8c, pants: 0x14213d, skin: 0xe8bb98, hair: 0x2a1810, hs: 'buzz', long: true, shoes: 0x0a0a0a, hat: 0x101820, badge: true, fat: 1.05 };
+  const PLAYER_OUTFIT = { shirt: 0xff7a1a, pants: 0x2b3f63, skin: 0xf1c6a0, hair: 0x3a2a1e, hs: 'short', long: true, shoes: 0xe8e8e8, jacket: true, fat: 1.04, beard: true };
   function makeBones() {
     const bones = RJ.map(() => new THREE.Bone());
     RJ.forEach((j, i) => {
@@ -1215,9 +1399,9 @@ function startGTAGame() {
   }
   function buildHuman(sp, gun) {
     const g = new THREE.Group(), geo = humanGeom(sp), bones = makeBones();
-    const mesh = new THREE.SkinnedMesh(geo, humanMat);
+    const mesh = new THREE.SkinnedMesh(geo, [skinMatFor(sp), clothMat, denimMat, hairMat, trimH]);
     mesh.add(bones[0]); mesh.bind(new THREE.Skeleton(bones));
-    mesh.frustumCulled = false; if (qHigh) mesh.castShadow = true;
+    if (qHigh) mesh.castShadow = true;
     g.add(mesh);
     const b = {}; BN.forEach((n, i) => { b[n] = bones[i]; });
     const gm = new THREE.Mesh(gunGeo, mat(0x111111)); gm.rotation.x = Math.PI / 2; gm.position.set(0, -0.12, 0.03); gm.visible = !!gun; b.hR.add(gm);
@@ -1688,6 +1872,8 @@ function startGTAGame() {
       }
       const mvx = p.x - ox, mvz = p.z - oz;
       if (mvx * mvx + mvz * mvz > 1e-6) p.yaw += angDiff(p.yaw, Math.atan2(mvx, mvz)) * Math.min(1, dt * 10);
+      const dd = Math.hypot(p.x - P.x, p.z - P.z);
+      p.g.visible = dd < 150; p.h.mesh.castShadow = qHigh && dd < 70;
       const gy = groundY(p.x, p.z);
       p.y = gy;
       p.g.position.set(p.x, p.y, p.z); p.g.rotation.set(0, p.yaw, 0);
@@ -2278,7 +2464,7 @@ function startGTAGame() {
       const b1 = mk(W >> 2, H >> 2), b2 = mk(W >> 2, H >> 2), c1 = mk(W >> 3, H >> 3), c2 = mk(W >> 3, H >> 3);
       const vs = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
       const mkMat = (uniforms, fs) => { const m = new THREE.ShaderMaterial({ uniforms, vertexShader: vs, fragmentShader: fs, depthTest: false, depthWrite: false }); disposables.push(m); return m; };
-      const bright = mkMat({ tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1 / W, 1 / H) }, uThresh: { value: 0.8 } }, `
+      const bright = mkMat({ tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1 / W, 1 / H) }, uThresh: { value: 1.15 } }, `
         uniform sampler2D tDiffuse; uniform vec2 uTexel; uniform float uThresh; varying vec2 vUv;
         vec3 f(vec2 uv){ vec3 c = texture2D(tDiffuse, uv).rgb; float l = max(max(c.r, c.g), c.b); float k = max(l - uThresh, 0.0) / (l + 0.0001); return c * k; }
         void main(){ vec3 a = f(vUv + uTexel * vec2(-1.5, -1.5)) + f(vUv + uTexel * vec2(1.5, -1.5)) + f(vUv + uTexel * vec2(-1.5, 1.5)) + f(vUv + uTexel * vec2(1.5, 1.5));
@@ -2310,7 +2496,7 @@ function startGTAGame() {
             float ca = 0.0016 * r2 * 4.0;
             col = vec3(texture2D(tScene, uv + d * ca).r, texture2D(tScene, uv).g, texture2D(tScene, uv - d * ca).b);
           }
-          col += (texture2D(tB1, uv).rgb * 0.7 + texture2D(tB2, uv).rgb * 0.9) * uBloom;
+          col += (texture2D(tB1, uv).rgb * 0.5 + texture2D(tB2, uv).rgb * 0.6) * uBloom;
           col = aces(col);
           float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
           col = mix(vec3(l), col, uSat * (1.0 - uWet * 0.12));
@@ -2427,27 +2613,27 @@ function startGTAGame() {
       sun.intensity = 2.5 * clamp(s * 3, 0, 1);
       lightDir = [sd[0], Math.max(sd[1], 0.2), sd[2]];
     } else {
-      sun.color.setRGB(0.55, 0.65, 1.0); sun.intensity = 0.35;
+      sun.color.setRGB(0.6, 0.7, 1.0); sun.intensity = 0.8;
       lightDir = [-sd[0], Math.max(-sd[1], 0.3), -sd[2]];
     }
-    hemi.intensity = 0.16 + 0.6 * day;
+    hemi.intensity = 0.34 + 0.5 * day;
     const em = clamp(1 - day * 1.5, 0, 1);
-    for (const m of envMats) m.envMapIntensity = 0.12 + 0.55 * day;
+    for (const m of envMats) m.envMapIntensity = 0.3 + 0.4 * day;
     for (const k in facade) facade[k].mat.emissive.setRGB(em, em * 0.9, em * 0.7);
     shopMat.emissive.setRGB(em * 1.1, em, em * 0.8);
-    glowMat.opacity = em * 0.9;
+    glowMat.opacity = em * 0.5;
     const lc = 0.3 + 0.7 * em; lampMat.color.setRGB(lc, lc, lc);
-    renderer.toneMappingExposure = 1.1 + 0.2 * em;
+    renderer.toneMappingExposure = 1.1 + 0.45 * em;
     sun.intensity *= (1 - wet * 0.65); hemi.intensity *= (1 - wet * 0.2);
     const hdr = post ? 1 : 0;
-    lampMat.color.setRGB(lc * (1 + 2.5 * em * hdr), lc * (1 + 2.5 * em * hdr), lc * (1 + 2.5 * em * hdr));
-    const lg = 1 + 3 * em * hdr; lightMat.color.setRGB(lg, lg, lg);
+    lampMat.color.setRGB(lc * (1 + 0.8 * em * hdr), lc * (1 + 0.8 * em * hdr), lc * (1 + 0.8 * em * hdr));
+    const lg = 1 + 0.6 * em * hdr; lightMat.color.setRGB(lg, lg, lg);
     nightK = em;
   }
   let nightK = 0;
   const hlights = [];
   for (let k = 0; k < 2; k++) {
-    const sl = new THREE.SpotLight(0xfff0d0, 0, 60, 0.55, 0.6, 1.4);
+    const sl = new THREE.SpotLight(0xfff0d0, 0, 45, 0.45, 0.85, 1.6);
     scene.add(sl); scene.add(sl.target); hlights.push(sl);
   }
   function afterCamera() {
@@ -2460,7 +2646,7 @@ function startGTAGame() {
       if (!c || nightK < 0.05) { sl.intensity = 0; continue; }
       const sx = k ? 1 : -1, s = Math.sin(c.ang), co = Math.cos(c.ang);
       const px = c.x + s * 2.0 + co * sx * 0.6, pz = c.z + co * 2.0 - s * sx * 0.6;
-      sl.intensity = 5 * nightK; sl.position.set(px, 0.8, pz); sl.target.position.set(px + s * 24, 0, pz + co * 24);
+      sl.intensity = 2.6 * nightK; sl.position.set(px, 0.8, pz); sl.target.position.set(px + s * 24, 0, pz + co * 24);
     }
   }
 
@@ -2834,7 +3020,7 @@ function startGTAGame() {
         const u = post.u, inCar = P.mode === 'car' && P.car;
         u.uTime.value = now; u.uExposure.value = renderer.toneMappingExposure; u.uWet.value = wet;
         u.uBlur.value = inCar ? clamp((Math.abs(P.car.speed) - 22) / 22, 0, 1) : 0;
-        u.uBloom.value = 0.45 + 0.5 * nightK; u.uHurt.value = P.hurtT > 0 ? clamp(P.hurtT * 4, 0, 1) : 0;
+        u.uBloom.value = 0.3 + 0.05 * nightK; u.uHurt.value = P.hurtT > 0 ? clamp(P.hurtT * 4, 0, 1) : 0;
         post.render();
       } catch (e) { console.warn('[GTA] post-traitement désactivé', e); disablePost(); renderer.render(scene, camera); }
     } else renderer.render(scene, camera);

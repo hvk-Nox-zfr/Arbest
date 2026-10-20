@@ -691,3 +691,18 @@ canvas {
   .game-grid { grid-template-columns: 1fr; }
   .game-header-bar { flex-direction: column; gap: 0.8rem; }
 }
+
+/* Halo lumineux qui suit la souris */
+.cursor-orb {
+  position: fixed;
+  width: 450px;
+  height: 450px;
+  background: var(--neon-cyan);
+  border-radius: 50%;
+  filter: blur(130px);
+  opacity: 0.18;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: transform 0.08s ease-out;
+  z-index: -1;
+}
