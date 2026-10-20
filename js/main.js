@@ -208,13 +208,22 @@ const GAMES_REGISTRY = {
     controls: '💡 Flèches / ZQSD : Conduire | Choc en temps réel',
     needs3D: true,
     disabled: true
-  }
+  },
+  physics: {
+    title: 'GRAVITY DRAW',
+    badge: 'PHYSIQUE',
+    category: 'reflexion',
+    desc: 'Trace des lignes avec la souris pour guider la balle soumise à la gravité vers sa cible !',
+    script: 'js/games/physics.js',
+    initFn: 'startPhysicsGame',
+    controls: '💡 Clic GAUCHE : Tracer une ligne | ESPACE : Lancer la balle | R : Recommencer'
+  },
 };
 
 // Synthétiseur audio
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(freq, duration = 0.1, type = 'sine') {
-  if (!soundEnabled) return;
+  if (!window.soundEnabled) return;
   try {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
@@ -291,32 +300,56 @@ function loadGameScript(scriptUrl) {
   });
 }
 
-// 3. NETTOYAGE DES JEUX
+// 3. ARRÊT PROPRE ET RADICAL DE TOUS LES JEUX EN COURS
 function stopAllGames() {
-  if (currentGameLoop) cancelAnimationFrame(currentGameLoop);
-  currentGameLoop = null;
+  // Annule la boucle principale active
+  if (currentGameLoop) {
+    cancelAnimationFrame(currentGameLoop);
+    currentGameLoop = null;
+  }
+
+  // Nettoyage de toutes les boucles connues des différents jeux
   if (window.cybercraftLoopId) cancelAnimationFrame(window.cybercraftLoopId);
   if (typeof window.__motoStop === 'function') window.__motoStop();
   if (typeof window.__wormStop === 'function') window.__wormStop();
 
+  // Sécurité : Stoppe tous les timers / intervalles potentiels en cours (jusqu'à ID 9999)
+  for (let i = 1; i < 9999; i++) {
+    window.clearInterval(i);
+    window.clearTimeout(i);
+  }
+
+  // Réinitialisation totale des écouteurs globaux
   window.onkeydown = null;
+  window.onkeyup = null;
   window.onmousemove = null;
   window.onmousedown = null;
   window.onmouseup = null;
 
-  ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup', '_beamCleanup'].forEach(k => {
-    if (typeof window[k] === 'function') window[k]();
-  });
+  // Appel des fonctions de nettoyage spécifiques exposées par certains jeux
+  ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup', '_beamCleanup', '_physicsCleanup'].forEach(k => {
+  if (typeof window[k] === 'function') {
+    try { window[k](); } catch (e) {}
+  }
+});
 
   if (window.GameMobile) GameMobile.reset();
   if (window.MobileKit) MobileKit.teardown();
+
+  // Effet visuel immédiat : on nettoie le canvas pour éviter qu'une image figée reste affichée
+  const canvas = document.getElementById('game-canvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
 }
 
-// 4. NAVIGATION
+// 4. OUVERTURE D'UN JEU (avec réinitialisation propre du canvas)
 async function openGame(gameId) {
   const gameConfig = GAMES_REGISTRY[gameId];
   if (!gameConfig || gameConfig.disabled) return;
 
+  // 1. On stoppe tout d'abord proprement le jeu précédent
   stopAllGames();
 
   document.getElementById('hub-view').classList.remove('active');
@@ -332,6 +365,7 @@ async function openGame(gameId) {
   const canvas = document.getElementById('game-canvas');
   const memoryBoard = document.getElementById('memory-board');
 
+  // Remet les dimensions de base du canvas
   canvas.width = 600;
   canvas.height = 400;
 
@@ -346,12 +380,16 @@ async function openGame(gameId) {
   try {
     await loadGameScript(MOBILE_SCRIPT).catch(() => {});
     if (gameConfig.needs3D && typeof THREE === 'undefined') await loadGameScript(THREE_URL);
+    
+    // Charge ou réexécute le script du jeu demandé
     await loadGameScript(gameConfig.script);
+    
+    // Lance l'initialisation du jeu frais
     if (typeof window[gameConfig.initFn] === 'function') {
       window[gameConfig.initFn]();
     }
   } catch (err) {
-    console.error(err);
+    console.error("Erreur au lancement du jeu :", err);
   }
 }
 
@@ -466,3 +504,28 @@ window.onload = () => {
     document.title = ORIGINAL_TITLE;
   });
 })();
+
+// ============================================================
+// GESTION DU SON ET DU SUIVI SOURIS
+// ============================================================
+window.soundEnabled = true;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const soundToggle = document.getElementById('sound-toggle');
+  if (soundToggle) {
+    soundToggle.addEventListener('click', () => {
+      window.soundEnabled = !window.soundEnabled;
+      soundEnabled = window.soundEnabled;
+      soundToggle.innerHTML = `<span id="sound-icon">${soundEnabled ? '🔊' : '🔇'}</span> SON: ${soundEnabled ? 'ON' : 'OFF'}`;
+    });
+  }
+});
+
+// Suivi de la souris par le halo lumineux en arrière-plan
+window.addEventListener('mousemove', (e) => {
+  const cursorGlow = document.getElementById('cursor-glow');
+  if (cursorGlow) {
+    cursorGlow.style.left = `${e.clientX}px`;
+    cursorGlow.style.top = `${e.clientY}px`;
+  }
+});

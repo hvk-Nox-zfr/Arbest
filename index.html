@@ -7,13 +7,12 @@
   <title>Arbest</title>
   <meta name="description" content="Arbest — You are the best. Plateforme d'arcade interactive et de jeux rétro-futuristes en HTML5/JS.">
   
-  <!-- Feuilles de style & Polices -->
   <link rel="stylesheet" href="style.css">
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body class="crt">
-  <!-- Arrière-plan animé Néon Cyber Grid -->
+  <!-- Arrière-plan animé Néon Cyber Grid avec le halo suivant la souris -->
   <div class="cyber-bg">
     <div class="grid-line"></div>
     <div class="glow-orb orb-1"></div>
@@ -37,11 +36,11 @@
     </div>
 
     <div class="header-right">
-      <!-- Mode Panique / Stealth -->
       <button onclick="window.location.href='https://docs.google.com'" class="btn-stealth" title="Redirection d'urgence (Shift+Echap)">
         <span class="btn-icon">📄</span> DOCS
       </button>
 
+      <!-- Bouton Son Corrigé -->
       <button id="sound-toggle" class="btn-neon sm">
         <span id="sound-icon">🔊</span> SON: ON
       </button>
@@ -53,16 +52,13 @@
     </div>
   </header>
 
-  <!-- CONTENU PRINCIPAL -->
   <main>
-    <!-- HUB DE SÉLECTION -->
     <section id="hub-view" class="view active">
       <div class="hero">
         <div class="hero-badge">SYSTEM STATUS: ONLINE</div>
         <h1 class="glitch-title" data-text="ARCADE SYSTEM 2.0">ARCADE SYSTEM 2.0</h1>
         <p class="subtitle">Sélectionnez votre simulation interactive et pulvérisez les records du serveur</p>
 
-        <!-- Barre de Recherche et Filtres par Catégorie -->
         <div class="hub-controls">
           <div class="search-box">
             <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -83,11 +79,9 @@
         </div>
       </div>
 
-      <!-- Grille Générée Dynamiquement -->
       <div class="game-grid" id="game-grid"></div>
     </section>
 
-    <!-- ZONE DE JEU (GAME VIEW) -->
     <section id="game-view" class="view">
       <div class="game-header-bar">
         <button onclick="closeGame()" class="btn-neon sm btn-back">
@@ -107,7 +101,6 @@
         <canvas id="game-canvas" width="600" height="400"></canvas>
         <div id="memory-board" class="memory-board hidden"></div>
 
-        <!-- Overlay Game Over / System Failure -->
         <div id="game-overlay" class="overlay hidden">
           <div class="overlay-card">
             <div class="glitch-icon">⚡</div>
@@ -141,7 +134,6 @@
     </div>
   </footer>
 
-  <!-- Chargement des scripts -->
   <script src="mobile.js"></script>
   <script src="js/main.js"></script>
 </body>

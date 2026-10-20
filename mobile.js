@@ -533,12 +533,3 @@ html.gm-lock,body.gm-lock{overflow:hidden!important;overscroll-behavior:none}
   window.addEventListener('orientationchange', () => setTimeout(evaluate, 150));
   setInterval(evaluate, 500);   // détecte aussi la fermeture de l'écran de jeu
 })();
-
-// Effet de halo lumineux suivant la souris
-window.addEventListener('mousemove', (e) => {
-  const cursorGlow = document.getElementById('cursor-glow');
-  if (cursorGlow) {
-    cursorGlow.style.left = `${e.clientX}px`;
-    cursorGlow.style.top = `${e.clientY}px`;
-  }
-});

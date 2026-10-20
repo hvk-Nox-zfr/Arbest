@@ -692,7 +692,7 @@ canvas {
   .game-header-bar { flex-direction: column; gap: 0.8rem; }
 }
 
-/* Halo lumineux qui suit la souris */
+/* Halo lumineux qui suit la souris en arrière-plan */
 .cursor-orb {
   position: fixed;
   width: 450px;
