@@ -22,7 +22,7 @@ const GAMES_REGISTRY = {
     needs3D: true
   },
   gta: {
-    title: 'GTA ARBEST CITY',
+    title: 'GTA OU PAS',
     badge: 'OPEN WORLD 3D',
     category: '3d',
     desc: 'Ville ouverte : conduis, braque la banque, fuis la police et deviens le roi de la ville.',
@@ -30,7 +30,7 @@ const GAMES_REGISTRY = {
     initFn: 'startGTAGame',
     controls: '💡 ZQSD : bouger/conduire | Souris : caméra | Clic : tirer | E : monter | Espace : sauter',
     needs3D: true,
-    disabled: true
+    disabled: false
   },
   skyline: {
     title: 'SKYLINE RUSH',
@@ -217,6 +217,16 @@ const GAMES_REGISTRY = {
     script: 'js/games/physics.js',
     initFn: 'startPhysicsGame',
     controls: '💡 Clic GAUCHE : Tracer une ligne | ESPACE : Lancer la balle | R : Recommencer'
+  },
+  horrorhopital: {
+    title: 'HORROR HOPITAL',
+    badge: 'HORROR',
+    category: 'horror',
+    desc: 'Survivez aux horreurs de l\'hôpital et échappez-vous avant qu\'il ne soit trop tard !',
+    script: 'js/games/horrorhopital.js',
+    initFn: 'startHorrorHopitalGame',
+    controls: '💡 Clic GAUCHE : Tracer une ligne | ESPACE : Lancer la balle | R : Recommencer',
+    disabled: true
   },
 };
 
