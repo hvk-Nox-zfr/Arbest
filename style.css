@@ -49,6 +49,7 @@ body {
   background-size: 50px 50px;
   transform: rotateX(60deg);
   animation: gridMove 20s linear infinite;
+  will-change: transform;
 }
 
 @keyframes gridMove {
@@ -59,24 +60,23 @@ body {
 .glow-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(120px);
-  opacity: 0.18;
+  opacity: 0.22;
 }
 
 .orb-1 {
-  width: 500px;
-  height: 500px;
-  background: var(--neon-purple);
-  top: -100px;
-  left: -100px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, var(--neon-purple) 0%, transparent 65%);
+  top: -250px;
+  left: -250px;
 }
 
 .orb-2 {
-  width: 600px;
-  height: 600px;
-  background: var(--neon-cyan);
-  bottom: -150px;
-  right: -150px;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, var(--neon-cyan) 0%, transparent 65%);
+  bottom: -250px;
+  right: -250px;
 }
 
 /* Overlay CRT */
@@ -96,9 +96,8 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 2rem;
-  background: rgba(8, 8, 20, 0.8);
+  background: rgba(8, 8, 20, 0.95);
   border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(16px);
   position: sticky;
   top: 0;
   z-index: 1000;
@@ -368,8 +367,8 @@ main {
   padding: 1.8rem;
   position: relative;
   cursor: pointer;
-  transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  backdrop-filter: blur(10px);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s, box-shadow 0.3s;
+  contain: layout paint;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -543,11 +542,10 @@ canvas {
 .overlay {
   position: absolute;
   inset: 0;
-  background: rgba(4, 4, 12, 0.92);
+  background: rgba(4, 4, 12, 0.94);
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(8px);
   z-index: 10;
 }
 
@@ -632,7 +630,6 @@ canvas {
   background-color: #ffffff;
   box-shadow: -10px -10px 0 #00f3ff, 10px 10px 0 #ff0055, 18px 18px 0 rgba(0, 0, 0, 0.9);
   transition: transform 0.25s cubic-bezier(0.8, 0, 0.2, 1), opacity 0.2s ease;
-  will-change: transform, opacity;
 }
 
 .glitch-cube-3d.disappear {
@@ -692,17 +689,30 @@ canvas {
   .game-header-bar { flex-direction: column; gap: 0.8rem; }
 }
 
-/* Halo lumineux qui suit la souris en arrière-plan */
+/* Halo lumineux qui suit la souris (déplacé via transform par le JS : pas de recalcul de mise en page) */
 .cursor-orb {
   position: fixed;
+  top: 0;
+  left: 0;
   width: 450px;
   height: 450px;
-  background: var(--neon-cyan);
+  background: radial-gradient(circle, rgba(0, 243, 255, 0.35) 0%, transparent 68%);
   border-radius: 50%;
-  filter: blur(130px);
-  opacity: 0.18;
+  opacity: 0.5;
   pointer-events: none;
-  transform: translate(-50%, -50%);
-  transition: transform 0.08s ease-out;
+  will-change: transform;
   z-index: -1;
+}
+
+@media (hover: none) {
+  .cursor-orb { display: none; }
+}
+
+/* Pendant une partie : fond figé et halo coupé = plus de ressources pour le jeu */
+body.in-game .grid-line { animation: none; will-change: auto; }
+body.in-game .cursor-orb { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .grid-line { animation: none; }
+  .view.active { animation: none; }
 }

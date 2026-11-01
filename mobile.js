@@ -531,5 +531,5 @@ html.gm-lock,body.gm-lock{overflow:hidden!important;overscroll-behavior:none}
   else if (mqLand.addListener) mqLand.addListener(onMq);
   window.addEventListener('resize', evaluate);
   window.addEventListener('orientationchange', () => setTimeout(evaluate, 150));
-  setInterval(evaluate, 500);   // détecte aussi la fermeture de l'écran de jeu
+  setInterval(function () { if (S.active || S.stage) evaluate(); }, 500);   // détecte la fermeture de l'écran de jeu (inactif au hub)
 })();

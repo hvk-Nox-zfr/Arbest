@@ -1,5 +1,162 @@
+/* ============================================================
+   GAME RUNTIME — isolation et nettoyage automatique des jeux
+   (doit rester tout en haut : charge avant les scripts de jeux)
+
+   Pendant qu'un jeu est ouvert, on "marque" tout ce qu'il démarre :
+   requestAnimationFrame, setTimeout/setInterval, écouteurs sur
+   window/document/body/canvas, contextes WebGL, sons et <audio>.
+   À la fermeture, TOUT est coupé d'un coup : un jeu fermé ne peut
+   plus tourner en fond ni "se relancer" dans le jeu suivant.
+   ============================================================ */
+const GameRuntime = (function () {
+  const nAdd = EventTarget.prototype.addEventListener;
+  const nRemove = EventTarget.prototype.removeEventListener;
+  const nRAF = window.requestAnimationFrame.bind(window);
+  const nCAF = window.cancelAnimationFrame.bind(window);
+  const nST = window.setTimeout.bind(window);
+  const nCT = window.clearTimeout.bind(window);
+  const nSI = window.setInterval.bind(window);
+  const nCI = window.clearInterval.bind(window);
+  const nGetContext = HTMLCanvasElement.prototype.getContext;
+  const nPlay = HTMLMediaElement.prototype.play;
+
+  let tracking = false;
+  let session = 0;
+  let phase = 'run';          // 'load' = exécution du script du jeu, 'run' = pendant la partie
+  let curScript = null;
+  let staticIds = null;
+
+  const rafs = new Set();
+  const timers = new Map();   // id -> 't' | 'i'
+  const listeners = [];       // écouteurs ajoutés par le jeu
+  const loadStore = new Map(); // script -> Set(écouteurs posés au chargement du script)
+  const glList = [];
+  const audios = [];
+  const medias = new Set();
+
+  function trackable(t) {
+    if (t === window || t === document || t === document.body || t === document.documentElement) return true;
+    return !!(staticIds && t instanceof Element && t.id && staticIds.has(t.id));
+  }
+
+  // --- requestAnimationFrame
+  window.requestAnimationFrame = function (cb) {
+    if (!tracking || typeof cb !== 'function') return nRAF(cb);
+    const s = session;
+    const id = nRAF(function (t) {
+      rafs.delete(id);
+      if (s !== session) return;      // boucle d'un ancien jeu : on la laisse mourir
+      cb(t);
+    });
+    rafs.add(id);
+    return id;
+  };
+  window.cancelAnimationFrame = function (id) { rafs.delete(id); nCAF(id); };
+
+  // --- timers
+  window.setTimeout = function (fn, delay, ...args) {
+    if (!tracking || typeof fn !== 'function') return nST(fn, delay, ...args);
+    const s = session;
+    const id = nST(function () {
+      timers.delete(id);
+      if (s !== session) return;
+      fn.apply(this, args);
+    }, delay);
+    timers.set(id, 't');
+    return id;
+  };
+  window.setInterval = function (fn, delay, ...args) {
+    if (!tracking || typeof fn !== 'function') return nSI(fn, delay, ...args);
+    const s = session;
+    const id = nSI(function () {
+      if (s !== session) { nCI(id); timers.delete(id); return; }
+      fn.apply(this, args);
+    }, delay);
+    timers.set(id, 'i');
+    return id;
+  };
+  window.clearTimeout = function (id) { timers.delete(id); nCT(id); };
+  window.clearInterval = function (id) { timers.delete(id); nCI(id); };
+
+  // --- écouteurs d'événements
+  EventTarget.prototype.addEventListener = function (type, fn, opts) {
+    const t = this || window;
+    if (tracking && fn && trackable(t)) {
+      const rec = { t, type, fn, opts, phase, script: curScript };
+      listeners.push(rec);
+      if (phase === 'load' && curScript) {
+        if (!loadStore.has(curScript)) loadStore.set(curScript, new Set());
+        loadStore.get(curScript).add(rec);
+      }
+    }
+    return nAdd.call(t, type, fn, opts);
+  };
+
+  // --- WebGL (évite l'accumulation de contextes -> lags / écran noir)
+  HTMLCanvasElement.prototype.getContext = function (type) {
+    const ctx = nGetContext.apply(this, arguments);
+    if (tracking && ctx && /webgl/i.test(String(type)) && glList.indexOf(ctx) === -1) glList.push(ctx);
+    return ctx;
+  };
+
+  // --- audio : contextes créés par les jeux + <audio>/<video>
+  ['AudioContext', 'webkitAudioContext'].forEach(function (name) {
+    const Orig = window[name];
+    if (!Orig) return;
+    const Wrapped = function () {
+      const c = new (Function.prototype.bind.apply(Orig, [null].concat([].slice.call(arguments))))();
+      if (tracking) { c.__game = curScript; audios.push(c); }
+      return c;
+    };
+    Wrapped.prototype = Orig.prototype;
+    window[name] = Wrapped;
+  });
+  HTMLMediaElement.prototype.play = function () {
+    if (tracking) medias.add(this);
+    return nPlay.apply(this, arguments);
+  };
+
+  // --- API
+  return {
+    begin(script) {
+      if (!staticIds) staticIds = new Set(Array.from(document.querySelectorAll('[id]')).map(e => e.id));
+      curScript = script || null;
+      tracking = true;
+      audios.forEach(c => { if (c.__game === curScript && c.state === 'suspended') { try { c.resume(); } catch (e) {} } });
+    },
+    setPhase(p) { phase = p; },
+    // Rejoue les écouteurs posés une seule fois au chargement du script (script déjà en cache)
+    replay(script) {
+      const set = loadStore.get(script);
+      if (!set) return;
+      set.forEach(rec => {
+        if (rec.t instanceof Node && rec.t !== document && rec.t !== document.body && rec.t !== document.documentElement && !rec.t.isConnected) return;
+        nAdd.call(rec.t, rec.type, rec.fn, rec.opts);
+        listeners.push(rec);
+      });
+    },
+    isStale(token, current) { return token !== current; },
+    stopAll() {
+      tracking = false;
+      session++;                                   // invalide toutes les boucles/timers en attente
+      rafs.forEach(id => nCAF(id)); rafs.clear();
+      timers.forEach((kind, id) => { kind === 'i' ? nCI(id) : nCT(id); }); timers.clear();
+      listeners.splice(0).forEach(rec => { try { nRemove.call(rec.t, rec.type, rec.fn, rec.opts); } catch (e) {} });
+      glList.splice(0).forEach(gl => {
+        try { const ext = gl.getExtension('WEBGL_lose_context'); if (ext) ext.loseContext(); } catch (e) {}
+      });
+      audios.forEach(c => { try { if (c.state === 'running') c.suspend(); } catch (e) {} });
+      medias.forEach(m => { try { m.pause(); } catch (e) {} }); medias.clear();
+      try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) {}
+    }
+  };
+})();
+
 let currentGameId = null;
 let currentGameLoop = null;
+let openToken = 0;          // invalide les ouvertures de jeu devenues obsolètes (clic rapide, retour hub...)
+let canvasUsed = false;      // le canvas a déjà servi à un jeu
+let lastGameWas3D = false;  // le dernier jeu utilisait WebGL
 let soundEnabled = true;
 let currentCategoryFilter = 'all';
 const loadedScripts = new Set();
@@ -100,11 +257,11 @@ const GAMES_REGISTRY = {
     title: 'MANECROUTE',
     badge: 'EN DEV',
     category: '3d',
-    desc: 'En cours de développement — Arrive bientôt !',
+    desc: 'Mine, construis et fabrique dans un monde 3D !',
     script: 'js/games/cybercraft.js',
     initFn: 'startCybercraftGame',
-    controls: '💡 Bientôt disponible',
-    disabled: true,
+    controls: '💡 ZQSD / joystick : bouger · Clic gauche : casser · Clic droit : poser · E : menu & crafts',
+    disabled: false,
     needs3D: true
   },
   chess: {
@@ -230,44 +387,57 @@ const GAMES_REGISTRY = {
   },
 };
 
-// Synthétiseur audio
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// ============================================================
+// AUDIO (créé à la demande : pas d'avertissement navigateur au chargement)
+// ============================================================
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
 function playSound(freq, duration = 0.1, type = 'sine') {
   if (!window.soundEnabled) return;
   try {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(ctx.destination);
     osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    osc.stop(ctx.currentTime + duration);
   } catch (e) {}
 }
 
 ['pointerdown', 'touchend', 'keydown'].forEach(ev =>
-  window.addEventListener(ev, () => { if (audioCtx.state === 'suspended') audioCtx.resume(); }, { passive: true })
+  window.addEventListener(ev, () => { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, { passive: true })
 );
 
-// 1. GÉNÉRATION DU HUB AVEC FILTRAGE
+// ============================================================
+// 1. HUB
+// ============================================================
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function renderHubGrid() {
   const grid = document.getElementById('game-grid');
   if (!grid) return;
 
-  const searchQuery = (document.getElementById('game-search')?.value || '').toLowerCase();
+  const searchQuery = (document.getElementById('game-search')?.value || '').toLowerCase().trim();
 
   grid.innerHTML = Object.entries(GAMES_REGISTRY)
     .filter(([_, game]) => {
       const matchCategory = currentCategoryFilter === 'all' || game.category === currentCategoryFilter;
-      const matchSearch = game.title.toLowerCase().includes(searchQuery) || game.desc.toLowerCase().includes(searchQuery);
+      const matchSearch = !searchQuery || game.title.toLowerCase().includes(searchQuery) || game.desc.toLowerCase().includes(searchQuery);
       return matchCategory && matchSearch;
     })
     .map(([id, game]) => {
-      const hs = localStorage.getItem(`hs_${id}`) || 0;
+      const hs = parseInt(localStorage.getItem(`hs_${id}`), 10) || 0;
       const isDisabled = game.disabled || false;
       const btnText = isDisabled ? 'EN DEV' : 'JOUER';
       const cardClass = isDisabled ? 'game-card disabled' : 'game-card';
@@ -294,76 +464,84 @@ function setFilter(cat, btn) {
   renderHubGrid();
 }
 
+// Recherche avec anti-rebond : on ne reconstruit pas la grille à chaque lettre
+let _filterTimer = null;
 function filterGames() {
-  renderHubGrid();
+  clearTimeout(_filterTimer);
+  _filterTimer = setTimeout(renderHubGrid, 150);
 }
 
-// 2. CHARGEUR DYNAMIQUE
-function loadGameScript(scriptUrl) {
-  return new Promise((resolve, reject) => {
-    if (loadedScripts.has(scriptUrl)) return resolve();
+// ============================================================
+// 2. CHARGEUR DYNAMIQUE (avec cache des promesses : pas de double chargement)
+// ============================================================
+const _loading = new Map();
+function loadGameScript(scriptUrl, isGameScript) {
+  if (loadedScripts.has(scriptUrl)) return Promise.resolve();
+  if (_loading.has(scriptUrl)) return _loading.get(scriptUrl);
+
+  const p = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = scriptUrl;
-    script.onload = () => { loadedScripts.add(scriptUrl); resolve(); };
-    script.onerror = () => reject(`Erreur de chargement : ${scriptUrl}`);
+    script.onload = () => { loadedScripts.add(scriptUrl); _loading.delete(scriptUrl); if (isGameScript) GameRuntime.setPhase('run'); resolve(); };
+    script.onerror = () => { _loading.delete(scriptUrl); script.remove(); if (isGameScript) GameRuntime.setPhase('run'); reject(`Erreur de chargement : ${scriptUrl}`); };
+    if (isGameScript) GameRuntime.setPhase('load');
     document.body.appendChild(script);
   });
+  _loading.set(scriptUrl, p);
+  return p;
 }
 
-// 3. ARRÊT PROPRE ET RADICAL DE TOUS LES JEUX EN COURS
+// ============================================================
+// 3. ARRÊT PROPRE ET COMPLET DE TOUS LES JEUX
+// ============================================================
+const _HANDLER_PROPS = ['onkeydown', 'onkeyup', 'onkeypress', 'onmousemove', 'onmousedown', 'onmouseup', 'onclick',
+  'oncontextmenu', 'onwheel', 'ontouchstart', 'ontouchmove', 'ontouchend', 'ontouchcancel',
+  'onpointerdown', 'onpointermove', 'onpointerup'];
+
 function stopAllGames() {
-  // Annule la boucle principale active
-  if (currentGameLoop) {
-    cancelAnimationFrame(currentGameLoop);
-    currentGameLoop = null;
-  }
+  // 1) Fonctions de nettoyage propres à chaque jeu (avant de couper les timers)
+  const known = ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup', '_beamCleanup', '_physicsCleanup'];
+  const found = new Set(known);
+  try { Object.keys(window).forEach(k => { if (/^_{1,2}\w*(Cleanup|Stop)$/.test(k)) found.add(k); }); } catch (e) {}
+  found.forEach(k => {
+    if (typeof window[k] === 'function') { try { window[k](); } catch (e) {} }
+  });
 
-  // Nettoyage de toutes les boucles connues des différents jeux
+  if (currentGameLoop) { cancelAnimationFrame(currentGameLoop); currentGameLoop = null; }
   if (window.cybercraftLoopId) cancelAnimationFrame(window.cybercraftLoopId);
-  if (typeof window.__motoStop === 'function') window.__motoStop();
-  if (typeof window.__wormStop === 'function') window.__wormStop();
 
-  // Sécurité : Stoppe tous les timers / intervalles potentiels en cours (jusqu'à ID 9999)
-  for (let i = 1; i < 9999; i++) {
-    window.clearInterval(i);
-    window.clearTimeout(i);
-  }
+  // 2) Coupe TOUT ce que le jeu a démarré (boucles, timers, écouteurs, WebGL, sons)
+  GameRuntime.stopAll();
 
-  // Réinitialisation totale des écouteurs globaux
-  window.onkeydown = null;
-  window.onkeyup = null;
-  window.onmousemove = null;
-  window.onmousedown = null;
-  window.onmouseup = null;
+  // 3) Gestionnaires "onxxx" posés directement
+  [window, document, document.body, document.getElementById('game-canvas'), document.getElementById('memory-board')]
+    .forEach(t => { if (t) _HANDLER_PROPS.forEach(p => { try { t[p] = null; } catch (e) {} }); });
 
-  // Appel des fonctions de nettoyage spécifiques exposées par certains jeux
-  ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup', '_beamCleanup', '_physicsCleanup'].forEach(k => {
-  if (typeof window[k] === 'function') {
-    try { window[k](); } catch (e) {}
-  }
-});
+  const board = document.getElementById('memory-board');
+  if (board) board.innerHTML = '';
+
+  // Interfaces de jeu laissées dans la page (ex. Manecroute : HUD, menu paramètres / crafts)
+  document.querySelectorAll('#mc-hud-container, #mc-pause-menu, #mc-touch-ui').forEach(el => el.remove());
 
   if (window.GameMobile) GameMobile.reset();
   if (window.MobileKit) MobileKit.teardown();
-
-  // Effet visuel immédiat : on nettoie le canvas pour éviter qu'une image figée reste affichée
-  const canvas = document.getElementById('game-canvas');
-  if (canvas) {
-    const ctx = canvas.getContext('2d');
-    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
 }
 
-// 4. OUVERTURE D'UN JEU (avec réinitialisation propre du canvas)
+// ============================================================
+// 4. OUVERTURE / FERMETURE D'UN JEU
+// ============================================================
 async function openGame(gameId) {
   const gameConfig = GAMES_REGISTRY[gameId];
   if (!gameConfig || gameConfig.disabled) return;
 
-  // 1. On stoppe tout d'abord proprement le jeu précédent
+  const token = ++openToken;   // si l'utilisateur change de jeu / revient au hub pendant le chargement, ce token devient obsolète
+
   stopAllGames();
 
   document.getElementById('hub-view').classList.remove('active');
   document.getElementById('game-view').classList.add('active');
+  document.body.classList.add('in-game');   // met en pause les animations de fond (moins de lag)
+  window.scrollTo(0, 0);
 
   currentGameId = gameId;
   document.getElementById('game-overlay').classList.add('hidden');
@@ -372,10 +550,18 @@ async function openGame(gameId) {
   document.getElementById('game-badge-current').innerText = gameConfig.badge;
   document.getElementById('controls-hint').innerText = gameConfig.controls;
 
-  const canvas = document.getElementById('game-canvas');
+  let canvas = document.getElementById('game-canvas');
+  // Un canvas n'accepte qu'un seul type de contexte (2D ou WebGL) : on en met un neuf
+  // quand on passe vers ou depuis un jeu 3D.
+  if (canvasUsed && (gameConfig.needs3D || lastGameWas3D)) {
+    const fresh = canvas.cloneNode(false);
+    canvas.parentNode.replaceChild(fresh, canvas);
+    canvas = fresh;
+  }
+  canvasUsed = true;
+  lastGameWas3D = !!gameConfig.needs3D;
   const memoryBoard = document.getElementById('memory-board');
 
-  // Remet les dimensions de base du canvas
   canvas.width = 600;
   canvas.height = 400;
 
@@ -388,30 +574,41 @@ async function openGame(gameId) {
   }
 
   try {
-    await loadGameScript(MOBILE_SCRIPT).catch(() => {});
+    if (!window.GameMobile) await loadGameScript(MOBILE_SCRIPT).catch(() => {});
+    if (token !== openToken) return;
+
     if (gameConfig.needs3D && typeof THREE === 'undefined') await loadGameScript(THREE_URL);
-    
-    // Charge ou réexécute le script du jeu demandé
-    await loadGameScript(gameConfig.script);
-    
-    // Lance l'initialisation du jeu frais
+    if (token !== openToken) return;
+
+    // À partir d'ici, tout ce que fait le jeu est suivi pour pouvoir être coupé proprement
+    GameRuntime.begin(gameConfig.script);
+    await loadGameScript(gameConfig.script, true);
+    if (token !== openToken) return;   // l'utilisateur est parti pendant le chargement : on ne lance rien
+
+    GameRuntime.replay(gameConfig.script);   // jeux déjà chargés : on remet leurs écouteurs
     if (typeof window[gameConfig.initFn] === 'function') {
       window[gameConfig.initFn]();
     }
   } catch (err) {
-    console.error("Erreur au lancement du jeu :", err);
+    console.error('Erreur au lancement du jeu :', err);
   }
 }
 
 function closeGame() {
+  openToken++;                 // annule toute ouverture de jeu encore en cours de chargement
   stopAllGames();
+  currentGameId = null;
+  try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {}); } catch (e) {}
+  document.body.classList.remove('in-game');
+  document.getElementById('game-overlay').classList.add('hidden');
   document.getElementById('game-view').classList.remove('active');
   document.getElementById('hub-view').classList.add('active');
   updateHighScoresDisplay();
 }
 
 function updateHighScore(gameId, score) {
-  const currentBest = localStorage.getItem(`hs_${gameId}`) || 0;
+  if (!gameId) return;
+  const currentBest = parseInt(localStorage.getItem(`hs_${gameId}`), 10) || 0;
   if (score > currentBest) {
     localStorage.setItem(`hs_${gameId}`, score);
   }
@@ -421,27 +618,33 @@ function updateHighScore(gameId, score) {
 function updateHighScoresDisplay() {
   let total = 0;
   Object.keys(GAMES_REGISTRY).forEach(id => {
-    const hs = localStorage.getItem(`hs_${id}`) || 0;
+    const hs = parseInt(localStorage.getItem(`hs_${id}`), 10) || 0;
     const elem = document.getElementById(`hs-${id}`);
     if (elem) elem.innerText = hs;
-    total += parseInt(hs);
+    total += hs;
   });
   const totalElem = document.getElementById('total-score');
   if (totalElem) totalElem.innerText = total;
 }
 
 function triggerGameOver(score) {
+  // Un jeu déjà fermé ne doit ni afficher l'écran de fin ni toucher aux scores
+  if (!currentGameId || !document.getElementById('game-view').classList.contains('active')) return;
   playSound(120, 0.5, 'sawtooth');
   updateHighScore(currentGameId, score);
   document.getElementById('final-score').innerText = score;
   document.getElementById('game-overlay').classList.remove('hidden');
 }
 
-// Événements
+// ============================================================
+// SON (un seul gestionnaire)
+// ============================================================
+window.soundEnabled = true;
 document.getElementById('sound-toggle')?.addEventListener('click', () => {
-  soundEnabled = !soundEnabled;
-  document.getElementById('sound-icon').innerText = soundEnabled ? '🔊' : '🔇';
-  document.getElementById('sound-toggle').innerText = soundEnabled ? '🔊 SON: ON' : '🔇 SON: OFF';
+  window.soundEnabled = !window.soundEnabled;
+  soundEnabled = window.soundEnabled;
+  document.getElementById('sound-toggle').innerHTML =
+    `<span id="sound-icon">${soundEnabled ? '🔊' : '🔇'}</span> SON: ${soundEnabled ? 'ON' : 'OFF'}`;
 });
 
 document.getElementById('btn-restart')?.addEventListener('click', () => {
@@ -453,50 +656,44 @@ window.onload = () => {
   updateHighScoresDisplay();
 };
 
-// Loader Cubes Glitch Animation
+// ============================================================
+// Loader Cubes Glitch (allégé : moins de cubes, un seul timer)
+// ============================================================
 (function () {
   function initGlitchLoader() {
     const loader = document.getElementById('glitch-cubes-loader');
     if (!loader) return;
 
-    const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
+    const step = window.innerWidth < 768 ? 70 : 90;
     const cubes = [];
     const fragment = document.createDocumentFragment();
 
-    for (let y = -50; y < screenHeight + 50; y += 60) {
-      for (let x = -50; x < screenWidth + 50; x += 60) {
-        const cubeSize = 35 + Math.floor(Math.random() * 40);
+    for (let y = -50; y < window.innerHeight + 50; y += step) {
+      for (let x = -50; x < window.innerWidth + 50; x += step) {
+        const cubeSize = 50 + Math.floor(Math.random() * 45);
         const cube = document.createElement('div');
-        cube.classList.add('glitch-cube-3d');
-
-        cube.style.width = `${cubeSize}px`;
-        cube.style.height = `${cubeSize}px`;
-        cube.style.left = `${x}px`;
-        cube.style.top = `${y}px`;
-
+        cube.className = 'glitch-cube-3d';
+        cube.style.cssText = `width:${cubeSize}px;height:${cubeSize}px;left:${x}px;top:${y}px`;
         fragment.appendChild(cube);
-        cubes.push({ el: cube, y });
+        cubes.push(cube);
       }
     }
-
     loader.appendChild(fragment);
 
     setTimeout(() => {
-      cubes.forEach((item, index) => {
-        setTimeout(() => {
-          item.el.classList.add('disappear');
-        }, index * 2);
-      });
+      // une seule passe : l'ordre est donné par un délai CSS, pas par des centaines de setTimeout
+      cubes.forEach((el, i) => { el.style.transitionDelay = `${Math.min(i * 2, 450)}ms`; el.classList.add('disappear'); });
       setTimeout(() => loader.remove(), 1000);
-    }, 800);
+    }, 700);
   }
 
   if (document.readyState === 'complete') initGlitchLoader();
   else document.addEventListener('DOMContentLoaded', initGlitchLoader);
 })();
 
+// ============================================================
 // Camouflage Stealth System (Mode Panique)
+// ============================================================
 (function initStealthSystem() {
   const ORIGINAL_TITLE = 'Arbest';
 
@@ -506,36 +703,24 @@ window.onload = () => {
     }
   });
 
-  window.addEventListener('blur', () => {
-    document.title = 'Google Docs — Document sans titre';
-  });
-
-  window.addEventListener('focus', () => {
-    document.title = ORIGINAL_TITLE;
-  });
+  window.addEventListener('blur', () => { document.title = 'Google Docs — Document sans titre'; });
+  window.addEventListener('focus', () => { document.title = ORIGINAL_TITLE; });
 })();
 
 // ============================================================
-// GESTION DU SON ET DU SUIVI SOURIS
+// Halo qui suit la souris (limité à 1 mise à jour par image, via transform = pas de recalcul de mise en page)
 // ============================================================
-window.soundEnabled = true;
-
-document.addEventListener('DOMContentLoaded', () => {
-  const soundToggle = document.getElementById('sound-toggle');
-  if (soundToggle) {
-    soundToggle.addEventListener('click', () => {
-      window.soundEnabled = !window.soundEnabled;
-      soundEnabled = window.soundEnabled;
-      soundToggle.innerHTML = `<span id="sound-icon">${soundEnabled ? '🔊' : '🔇'}</span> SON: ${soundEnabled ? 'ON' : 'OFF'}`;
+(function () {
+  const glow = document.getElementById('cursor-glow');
+  if (!glow || (window.matchMedia && window.matchMedia('(hover: none)').matches)) return;
+  let x = 0, y = 0, queued = false;
+  window.addEventListener('mousemove', (e) => {
+    x = e.clientX; y = e.clientY;
+    if (queued || document.body.classList.contains('in-game')) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      glow.style.transform = `translate3d(${x - 225}px, ${y - 225}px, 0)`;
+      queued = false;
     });
-  }
-});
-
-// Suivi de la souris par le halo lumineux en arrière-plan
-window.addEventListener('mousemove', (e) => {
-  const cursorGlow = document.getElementById('cursor-glow');
-  if (cursorGlow) {
-    cursorGlow.style.left = `${e.clientX}px`;
-    cursorGlow.style.top = `${e.clientY}px`;
-  }
-});
+  }, { passive: true });
+})();
