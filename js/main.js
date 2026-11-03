@@ -262,7 +262,8 @@ const GAMES_REGISTRY = {
     initFn: 'startCybercraftGame',
     controls: '💡 ZQSD / joystick : bouger · Clic gauche : casser · Clic droit : poser · E : menu & crafts',
     disabled: false,
-    needs3D: true
+    needs3D: true,
+    isNew: true
   },
   chess: {
     title: 'ECHEQUE',
@@ -385,6 +386,17 @@ const GAMES_REGISTRY = {
     controls: '💡 Clic GAUCHE : Tracer une ligne | ESPACE : Lancer la balle | R : Recommencer',
     disabled: true
   },
+    ecoletycoon: {
+    title: 'ÉCOLE TYCOON',
+    badge: 'OPEN WORLD 3D',
+    category: 'simulation',
+    desc: 'Explore une école en 3D, fais-toi des amis, joue au basket et vis ta vie scolaire avec des IA qui ont leur personnalité et leur mémoire !',
+    script: 'js/games/ecole-tycoon.js',
+    initFn: 'startEcoleTycoonGame',
+    controls: '💡 ZQSD/WASD : bouger | Souris droite : caméra | Maj : courir | E : interagir | Espace : utiliser un objet / sauter',
+    needs3D: true,
+    disabled: true
+  },
 };
 
 // ============================================================
@@ -443,8 +455,12 @@ function renderHubGrid() {
       const cardClass = isDisabled ? 'game-card disabled' : 'game-card';
       const clickHandler = isDisabled ? '' : `onclick="openGame('${id}')"`;
 
+      // Affiche la pastille 'NOUVEAU' si l'option est activée dans le registre
+      const newBadgeHTML = game.isNew ? '<div class="card-new-badge">NOUVEAU</div>' : '';
+
       return `
         <div class="${cardClass}" ${clickHandler}>
+          ${newBadgeHTML}
           <div class="card-badge">${game.badge}</div>
           <h3>${game.title}</h3>
           <p>${game.desc}</p>

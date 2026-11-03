@@ -1,10 +1,12 @@
 // ============================================================
-// CYBERCRAFT 3D v3
+// CYBERCRAFT 3D v4
 // - MONDE OUVERT INFINI : chunks générés et affichés autour du joueur
 // - Optimisé : maillage par chunks, faces cachées supprimées, budget de temps par image,
 //   chargement progressif, qualité automatique si ça lag
 // - Craft à la façon Minecraft : grille 2x2 (touche E) et table de craft (grille 3x3),
 //   four avec combustible, livre de recettes cliquable
+// - Vie, faim, nourriture, créatures (cochon, vache, mouton, poule, zombie la nuit)
+// - Écrans séparés : Pause, Inventaire & Crafts (simple ou grille), Paramètres, plein écran
 // - Menu : commandes personnalisables, audio, graphismes, options
 // - Sauvegarde automatique (graine + modifications) dans le navigateur
 // ============================================================
@@ -408,7 +410,7 @@ const BLOCK_TYPES = {
 };
 
 const MC_PLACEABLE = [1, 2, 3, 4, 5, 10, 11, 12, 13, 15, 16];
-let mcHotbar = [1, 2, 3, 4, 5, 0, 0, 0, 0];   // 9 cases personnalisables (0 = vide)
+let mcHotbar = ['1', '2', '3', '4', '5', '', '', '', ''];   // 9 cases : blocs, outils ou nourriture ('' = vide)
 
 const MC_ITEMS = {
   STICK: { n: 'Bâton', i: '🥢' },
@@ -418,7 +420,21 @@ const MC_ITEMS = {
   DIAMOND: { n: 'Diamant', i: '💎' },
   ANCIENT_DEBRIS: { n: 'Débris antiques', i: '🟫' },
   NETHERITE_SCRAP: { n: 'Fragment de nétherite', i: '🔸' },
-  NETHERITE_INGOT: { n: 'Lingot de nétherite', i: '🟪' }
+  NETHERITE_INGOT: { n: 'Lingot de nétherite', i: '🟪' },
+  APPLE: { n: 'Pomme', i: '🍎' },
+  BEEF: { n: 'Bœuf cru', i: '🥩' },
+  STEAK: { n: 'Steak', i: '🍖' },
+  PORK: { n: 'Porc cru', i: '🥩' },
+  COOKED_PORK: { n: 'Côtelette cuite', i: '🍖' },
+  CHICKEN: { n: 'Poulet cru', i: '🍗' },
+  COOKED_CHICKEN: { n: 'Poulet cuit', i: '🍗' },
+  MUTTON: { n: 'Mouton cru', i: '🥩' },
+  COOKED_MUTTON: { n: 'Mouton cuit', i: '🍖' },
+  ROTTEN: { n: 'Chair putréfiée', i: '🟢' }
+};
+const MC_FOOD = {
+  APPLE: { f: 4, s: 2.4 }, BEEF: { f: 3, s: 1.8 }, STEAK: { f: 8, s: 12.8 }, PORK: { f: 3, s: 1.8 }, COOKED_PORK: { f: 8, s: 12.8 },
+  CHICKEN: { f: 2, s: 1.2 }, COOKED_CHICKEN: { f: 6, s: 7.2 }, MUTTON: { f: 2, s: 1.2 }, COOKED_MUTTON: { f: 6, s: 9.6 }, ROTTEN: { f: 4, s: 0.8 }
 };
 
 const MC_TIERS = [
@@ -431,7 +447,8 @@ const MC_TIERS = [
 const MC_TOOLS = [
   { id: 'PICKAXE', n: 'Pioche', i: '⛏️', mats: 3 },
   { id: 'AXE', n: 'Hache', i: '🪓', mats: 3 },
-  { id: 'SHOVEL', n: 'Pelle', i: '🥄', mats: 1 }
+  { id: 'SHOVEL', n: 'Pelle', i: '🥄', mats: 1 },
+  { id: 'SWORD', n: 'Épée', i: '🗡️', mats: 2 }
 ];
 
 // ---------- Recettes : on les fabrique en posant les objets sur une grille ----------
@@ -440,6 +457,7 @@ const MC_RECIPES = [];
   const add = (rec) => {
     if (rec.shape) { rec.h = rec.shape.length; rec.w = rec.shape[0].length; rec.big = rec.h > 2 || rec.w > 2; }
     else rec.big = rec.shapeless.length > 4;
+    rec.cat = rec.tool ? 'Outils' : (BLOCK_TYPES[rec.out.k] ? 'Blocs' : 'Autre');
     MC_RECIPES.push(rec);
   };
   add({ id: 'planks', name: 'Planches', shapeless: ['4'], out: { k: '10', n: 4 } });
@@ -456,7 +474,7 @@ const MC_RECIPES = [];
         const M = t.mat, S = 'STICK';
         const shape = tl.id === 'PICKAXE' ? [[M, M, M], [null, S, null], [null, S, null]]
           : tl.id === 'AXE' ? [[M, M], [M, S], [null, S]]
-            : [[M], [S], [S]];
+            : tl.id === 'SHOVEL' ? [[M], [S], [S]] : [[M], [M], [S]];
         add({ id: key, name, shape, out: { k: key, n: 1 }, tool: tl.id, tier: ti + 1 });
       } else {
         add({ id: key, name, shapeless: ['DIAMOND_' + tl.id, 'NETHERITE_INGOT'], out: { k: key, n: 1 }, tool: tl.id, tier: 5 });
@@ -468,7 +486,7 @@ const MC_RECIPES = [];
 const MC_TIER_COL = { WOOD: '#c08a4a', STONE: '#b8b8b8', IRON: '#ffffff', DIAMOND: '#4df0ff', NETHERITE: '#b070ff' };
 
 // Four : ce qui cuit, et ce qui brûle (secondes de chauffe)
-const MC_SMELT = { FER_ORE: 'IRON_INGOT', ANCIENT_DEBRIS: 'NETHERITE_SCRAP', '12': '13', '4': 'CHARBON' };
+const MC_SMELT = { FER_ORE: 'IRON_INGOT', ANCIENT_DEBRIS: 'NETHERITE_SCRAP', '12': '13', '4': 'CHARBON', BEEF: 'STEAK', PORK: 'COOKED_PORK', CHICKEN: 'COOKED_CHICKEN', MUTTON: 'COOKED_MUTTON' };
 const MC_FUEL = { CHARBON: 40, '4': 12, '10': 6, STICK: 3 };
 const MC_SMELT_TIME = 5;
 let mcFurnace = { inp: null, fuel: null, out: null, burn: 0, burnMax: 0, prog: 0 };
@@ -479,7 +497,8 @@ function mcResetInventory() {
   mcInventory = {
     '1': 64, '2': 64, '3': 0, '4': 0, '5': 0, '10': 0, '11': 0, '12': 0, '13': 0, '15': 0, '16': 0,
     STICK: 0, CHARBON: 0, FER_ORE: 0, IRON_INGOT: 0, DIAMOND: 0, ANCIENT_DEBRIS: 0,
-    NETHERITE_SCRAP: 0, NETHERITE_INGOT: 0
+    NETHERITE_SCRAP: 0, NETHERITE_INGOT: 0, APPLE: 0, BEEF: 0, STEAK: 0, PORK: 0, COOKED_PORK: 0,
+    CHICKEN: 0, COOKED_CHICKEN: 0, MUTTON: 0, COOKED_MUTTON: 0, ROTTEN: 0
   };
   MC_TIERS.forEach(t => MC_TOOLS.forEach(tl => { mcInventory[t.id + '_' + tl.id] = 0; }));
 }
@@ -506,10 +525,9 @@ function mcItemName(k) {
 // Donne un objet au joueur (et l'ajoute à la barre d'objets si c'est un bloc posable)
 function mcGive(k, n) {
   mcInventory[k] = (mcInventory[k] || 0) + n;
-  const id = parseInt(k, 10);
-  if (BLOCK_TYPES[k] && MC_PLACEABLE.indexOf(id) >= 0 && mcHotbar.indexOf(id) < 0) {
-    const free = mcHotbar.indexOf(0);
-    if (free >= 0) mcHotbar[free] = id;
+  if (mcHotbarOK(k) && mcHotbar.indexOf(k) < 0) {
+    const free = mcHotbar.indexOf('');
+    if (free >= 0) mcHotbar[free] = k;
   }
 }
 
@@ -659,6 +677,565 @@ function mcFurnaceTick(dt) {
 }
 
 // ============================================================
+// VIE, FAIM, OBJET EN MAIN, PLEIN ÉCRAN
+// ============================================================
+let mcHealth = 20, mcFood = 20, mcSat = 5, mcExhaust = 0, mcRegenT = 0, mcStarveT = 0;
+let mcInvuln = 0, mcHurtT = 0, mcDead = false, mcAirMaxY = 0, mcInAir = false;
+let mcHudSig = '';
+let mcScreen = 'none';          // écran ouvert : 'pause' | 'inv' | 'settings'
+let mcWaitChunks = false;
+let mcContainerEl = null;
+const mcKnock = { x: 0, z: 0 };
+const mcStatIcons = { h: {}, f: {} };
+
+function mcResetStats() {
+  mcHealth = 20; mcFood = 20; mcSat = 5; mcExhaust = 0; mcRegenT = 0; mcStarveT = 0;
+  mcInvuln = 0; mcHurtT = 0; mcDead = false; mcAirMaxY = 0; mcInAir = false; mcHudSig = '';
+}
+
+// Icônes pixel-art des coeurs et des cuisses de poulet (plein / moitié / vide)
+function mcMakeStatIcons() {
+  const heart = ['.XX...XX.', 'XXXX.XXXX', 'XXXXXXXXX', 'XXXXXXXXX', '.XXXXXXX.', '..XXXXX..', '...XXX...', '....X....'];
+  const food = ['......XXX', '.....XXXX', '....XXXXX', '...XXXXXX', '..XXXXXX.', '.BXXXXX..', 'BB.XXX...', 'B........'];
+  const make = (rows, kind, fillCol, hiCol, emptyCol, boneCol) => {
+    const out = {};
+    ['f', 'h', 'e'].forEach(state => {
+      const c = document.createElement('canvas');
+      c.width = 11; c.height = 11;
+      const ctx = c.getContext('2d');
+      const cells = [];
+      rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (r[x] !== '.') cells.push([x, y, r[x]]); });
+      const has = {};
+      cells.forEach(([x, y]) => { has[(x + 1) + ',' + (y + 1)] = true; });
+      ctx.fillStyle = '#1b0b0b';
+      cells.forEach(([x, y]) => {
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+          const k = (x + 1 + dx) + ',' + (y + 1 + dy);
+          if (!has[k]) ctx.fillRect(x + 1 + dx, y + 1 + dy, 1, 1);
+        });
+      });
+      cells.forEach(([x, y, ch]) => {
+        const full = state === 'f' || (state === 'h' && x <= 4);
+        if (ch === 'B') ctx.fillStyle = full ? boneCol : '#5a5a5a';
+        else ctx.fillStyle = full ? fillCol : emptyCol;
+        ctx.fillRect(x + 1, y + 1, 1, 1);
+      });
+      if (state !== 'e') {
+        ctx.fillStyle = hiCol;
+        if (kind === 'h') { ctx.fillRect(2, 2, 1, 1); ctx.fillRect(3, 2, 1, 1); } else { ctx.fillRect(8, 2, 1, 1); ctx.fillRect(7, 3, 1, 1); }
+      }
+      out[state] = c.toDataURL();
+    });
+    return out;
+  };
+  mcStatIcons.h = make(heart, 'h', '#e8212c', '#ff9aa0', '#3a1518', '#fff');
+  mcStatIcons.f = make(food, 'f', '#c0702e', '#f0b070', '#3b2416', '#f0e6d2');
+}
+
+function mcUpdateStatsHud() {
+  const box = document.getElementById('mc-stats');
+  if (!box) return;
+  const on = !!mcSettings.survival;
+  const sig = on + '|' + mcHealth + '|' + mcFood;
+  if (sig === mcHudSig) return;
+  mcHudSig = sig;
+  box.style.display = on ? 'flex' : 'none';
+  if (!on) return;
+  for (let i = 0; i < 10; i++) {
+    const h = document.getElementById('mc-h-' + i), f = document.getElementById('mc-f-' + i);
+    if (h) {
+      const st = mcHealth >= 2 * i + 2 ? 'f' : (mcHealth === 2 * i + 1 ? 'h' : 'e');
+      if (h.dataset.s !== st) { h.dataset.s = st; h.src = mcStatIcons.h[st]; }
+    }
+    if (f) {
+      const st = mcFood >= 2 * i + 2 ? 'f' : (mcFood === 2 * i + 1 ? 'h' : 'e');
+      if (f.dataset.s !== st) { f.dataset.s = st; f.src = mcStatIcons.f[st]; }
+    }
+  }
+}
+
+function mcDamage(n, fromX, fromZ) {
+  if (!mcSettings.survival || mcDead || mcInvuln > 0 || !mcReady) return;
+  mcHealth = Math.max(0, mcHealth - n);
+  mcInvuln = 0.6; mcHurtT = 0.5;
+  mcPlayTone(180, 0.18, 'sawtooth', 0.25, 90);
+  mcNoiseBurst({ freq: 400, dur: 0.12, gain: 0.3 });
+  if (fromX !== undefined) {
+    const dx = mcPlayer.pos.x - fromX, dz = mcPlayer.pos.z - fromZ, d = Math.hypot(dx, dz) || 1;
+    mcKnock.x = dx / d * 5; mcKnock.z = dz / d * 5;
+  }
+  mcHudSig = '';
+  if (mcHealth <= 0) mcDie();
+}
+
+function mcDie() {
+  mcDead = true; mcMining = false;
+  if (document.exitPointerLock) document.exitPointerLock();
+  mcIsPaused = true;
+  const menu = document.getElementById('mc-pause-menu');
+  if (menu) menu.style.display = 'none';
+  const d = document.getElementById('mc-death');
+  if (d) d.style.display = 'flex';
+  mcPlayTone(120, 0.7, 'sawtooth', 0.3, 40);
+}
+
+function mcRespawn(canvas) {
+  mcResetStats();
+  mcKnock.x = 0; mcKnock.z = 0;
+  const d = document.getElementById('mc-death');
+  if (d) d.style.display = 'none';
+  if (!mcChunkMap.get(mcCK(0, 0)) || !mcChunkMap.get(mcCK(0, 0)).data) mcGenChunk(0, 0);
+  const sp = mcSpawnPos();
+  mcPlayer.pos.set(sp.x, sp.y, sp.z);
+  mcPlayer.velocity.set(0, 0, 0);
+  mcCenterCx = 1e9;
+  mcWaitChunks = true;
+  mcHudSig = '';
+  mcUpdateStatsHud();
+  if (mcTouchMode) mcSetPaused(false);
+  else mcLock(canvas);
+}
+
+// Chaque seconde : faim, régénération, famine
+function mcSurvivalTick(dt, dist, sprinting, jumped) {
+  if (!mcSettings.survival || mcDead) return;
+  mcInvuln = Math.max(0, mcInvuln - dt);
+  mcExhaust += dist * (sprinting ? 0.1 : 0.01) + (jumped ? (sprinting ? 0.2 : 0.05) : 0);
+  while (mcExhaust >= 4) {
+    mcExhaust -= 4;
+    if (mcSat > 0) mcSat = Math.max(0, mcSat - 1);
+    else mcFood = Math.max(0, mcFood - 1);
+    mcHudSig = '';
+  }
+  if (mcFood >= 18 && mcHealth < 20) {
+    mcRegenT += dt;
+    if (mcRegenT >= 3.5) { mcRegenT = 0; mcHealth = Math.min(20, mcHealth + 1); mcExhaust += 0.6; mcHudSig = ''; }
+  } else if (mcFood <= 0) {
+    mcStarveT += dt;
+    if (mcStarveT >= 4) { mcStarveT = 0; if (mcHealth > 2) mcDamage(1); }
+  } else mcRegenT = 0;
+}
+
+function mcEat(key) {
+  const fd = MC_FOOD[key];
+  if (!fd || (mcInventory[key] || 0) <= 0) return false;
+  if (!mcSettings.survival) { mcToast('La faim est désactivée (Options).'); return true; }
+  if (mcFood >= 20) { mcToast("Tu n'as pas faim !"); return true; }
+  mcInventory[key]--;
+  mcFood = Math.min(20, mcFood + fd.f);
+  mcSat = Math.min(mcFood, mcSat + fd.s);
+  mcHudSig = '';
+  mcNoiseBurst({ freq: 900, q: 0.8, dur: 0.1, gain: 0.35 });
+  setTimeout(() => mcNoiseBurst({ freq: 700, q: 0.8, dur: 0.1, gain: 0.35 }), 140);
+  animateHandSwing();
+  updateInventoryUI();
+  return true;
+}
+
+// ---------- Objet tenu en main ----------
+const MC_TOOL_RE = /^(WOOD|STONE|IRON|DIAMOND|NETHERITE)_(PICKAXE|AXE|SHOVEL|SWORD)$/;
+function mcHotbarOK(k) {
+  if (!k) return false;
+  if (BLOCK_TYPES[k] && MC_PLACEABLE.indexOf(parseInt(k, 10)) >= 0) return true;
+  return MC_TOOL_RE.test(k) || !!MC_FOOD[k];
+}
+function mcHeldInfo() {
+  const k = mcHotbar[mcSelectedIndex];
+  if (!k || !((mcInventory[k] || 0) > 0)) return null;
+  const m = MC_TOOL_RE.exec(k);
+  if (m) return { key: k, kind: 'tool', tool: m[2], tier: MC_TIERS.findIndex(t => t.id === m[1]) + 1 };
+  if (BLOCK_TYPES[k]) return { key: k, kind: 'block' };
+  if (MC_FOOD[k]) return { key: k, kind: 'food' };
+  return { key: k, kind: 'item' };
+}
+// Niveau de l'outil utilisé pour miner : l'outil en main (ou le meilleur du sac si « outil automatique »)
+function mcMineTier(tool) {
+  const h = mcHeldInfo();
+  if (h && h.kind === 'tool' && h.tool === tool) return h.tier;
+  return mcSettings.autoTool ? mcToolTier(tool) : 0;
+}
+function mcHeldDamage() {
+  const h = mcHeldInfo();
+  if (!h || h.kind !== 'tool') return 1;
+  const t = h.tier;
+  return h.tool === 'SWORD' ? 3 + t : h.tool === 'AXE' ? 3 + 0.7 * t : h.tool === 'PICKAXE' ? 2 + 0.5 * t : 1.5 + 0.5 * t;
+}
+
+const MC_ITEM_COL = { APPLE: '#d83a2a', BEEF: '#c4504a', STEAK: '#7a3a22', PORK: '#e8a0a0', COOKED_PORK: '#b8703a', CHICKEN: '#f0c8a0', COOKED_CHICKEN: '#c8873a', MUTTON: '#b84a4a', COOKED_MUTTON: '#8a4a2a', ROTTEN: '#6a8a4a' };
+const MC_TIER_HEX = { WOOD: 0xa8793a, STONE: 0x909090, IRON: 0xe6e6e6, DIAMOND: 0x4df0ff, NETHERITE: 0x4a3a58 };
+
+function mcDisposeObj(o) {
+  if (!o) return;
+  if (o.traverse) o.traverse(c => {
+    if (c.geometry && c.geometry.dispose) c.geometry.dispose();
+    if (c.material && c.material.dispose) c.material.dispose();
+  });
+}
+// Petit modèle 3D d'un outil ou d'un aliment, tenu en main
+function mcBuildHeldModel(h) {
+  const g = new THREE.Group();
+  const box = (sx, sy, sz, x, y, z, col) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), new THREE.MeshLambertMaterial({ color: col }));
+    m.position.set(x, y, z);
+    g.add(m);
+  };
+  if (h.kind === 'tool') {
+    const col = MC_TIER_HEX[MC_TIERS[h.tier - 1].id];
+    const wood = 0x8a5a2a;
+    if (h.tool === 'SWORD') {
+      box(0.06, 0.12, 0.06, 0, -0.18, 0, wood); box(0.22, 0.05, 0.06, 0, -0.1, 0, 0x5a4a3a); box(0.07, 0.5, 0.03, 0, 0.17, 0, col);
+    } else {
+      box(0.06, 0.55, 0.06, 0, 0, 0, wood);
+      if (h.tool === 'PICKAXE') { box(0.5, 0.09, 0.08, 0, 0.27, 0, col); box(0.07, 0.14, 0.08, 0.27, 0.22, 0, col); box(0.07, 0.14, 0.08, -0.27, 0.22, 0, col); }
+      else if (h.tool === 'AXE') { box(0.24, 0.26, 0.07, 0.1, 0.2, 0, col); }
+      else box(0.15, 0.22, 0.05, 0, 0.3, 0, col);
+    }
+    g.scale.set(0.85, 0.85, 0.85);
+    g.position.set(0.42, -0.28, -0.6);
+    g.rotation.set(0.35, 0.5, -0.5);
+  } else {
+    box(0.2, 0.2, 0.2, 0, 0, 0, parseInt((MC_ITEM_COL[h.key] || '#9a9a9a').slice(1), 16));
+    g.position.set(0.4, -0.3, -0.6);
+    g.rotation.set(0.3, 0.6, 0.2);
+  }
+  return g;
+}
+
+function mcItemEmoji(k) {
+  if (MC_ITEMS[k]) return MC_ITEMS[k].i;
+  const p = String(k).split('_');
+  const tl = MC_TOOLS.find(x => x.id === p[1]);
+  return tl ? tl.i : '❔';
+}
+
+// ---------- Plein écran ----------
+function mcFsActive() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function mcFsAvailable() {
+  const el = mcContainerEl || document.documentElement;
+  return !!(el && (el.requestFullscreen || el.webkitRequestFullscreen));
+}
+function mcToggleFullscreen() {
+  const el = mcContainerEl || document.documentElement;
+  try {
+    if (mcFsActive()) {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if (ex) ex.call(document);
+    } else {
+      const f = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (!f) { mcToast('Plein écran indisponible sur cet appareil.'); return; }
+      const r = f.call(el);
+      if (r && r.catch) r.catch(() => mcToast('Le navigateur a refusé le plein écran.'));
+    }
+  } catch (e) { mcToast('Plein écran indisponible.'); }
+  setTimeout(mcResize, 200);
+}
+
+
+// ============================================================
+// CRÉATURES : cochon, vache, mouton, poule + zombie la nuit
+// ============================================================
+const MC_MOB_TYPES = {
+  PIG: { name: 'Cochon', hp: 10, r: 0.4, h: 0.9, speed: 1.1, drop: ['PORK', 1, 3], col: [0.95, 0.65, 0.65], hostile: false, snd: 'pig' },
+  COW: { name: 'Vache', hp: 10, r: 0.45, h: 1.4, speed: 1.0, drop: ['BEEF', 1, 3], col: [0.3, 0.2, 0.15], hostile: false, snd: 'cow' },
+  SHEEP: { name: 'Mouton', hp: 8, r: 0.4, h: 1.3, speed: 1.1, drop: ['MUTTON', 1, 2], col: [0.95, 0.95, 0.95], hostile: false, snd: 'sheep' },
+  CHICKEN: { name: 'Poule', hp: 4, r: 0.2, h: 0.8, speed: 1.0, drop: ['CHICKEN', 1, 1], col: [1, 1, 1], hostile: false, snd: 'chicken' },
+  ZOMBIE: { name: 'Zombie', hp: 20, r: 0.3, h: 1.8, speed: 2.5, drop: ['ROTTEN', 0, 2], col: [0.36, 0.6, 0.24], hostile: true, snd: 'zombie' }
+};
+const mcMobs = [];
+const mcMobGeo = {};
+let mcMobSpawnT = 0, mcMobPrefill = true, mcAtkCd = 0, mcTargetMob = null, mcMobSndT = 6;
+
+// Construit un modèle à partir de boîtes colorées (couleurs sommets, ombrage par face)
+function mcBoxesToGeo(boxes) {
+  const pos = [], col = [], idx = [];
+  boxes.forEach(b => {
+    const rgb = mcHex(b.c);
+    const hs = [b.s[0] / 2, b.s[1] / 2, b.s[2] / 2];
+    MC_FACES.forEach(f => {
+      const base = pos.length / 3;
+      for (let i = 0; i < 4; i++) {
+        const su = MC_CORNERS[i][0], sv = MC_CORNERS[i][1];
+        for (let a = 0; a < 3; a++) pos.push(b.p[a] + hs[a] * (f.n[a] + su * f.u[a] + sv * f.v[a]));
+        col.push(rgb[0] / 255 * f.shade, rgb[1] / 255 * f.shade, rgb[2] / 255 * f.shade);
+      }
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    });
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
+  g.setIndex(new THREE.BufferAttribute(new Uint16Array(idx), 1));
+  return g;
+}
+const bx = (p, s, c) => ({ p, s, c });
+
+// Modèles : corps + jambes (chaque jambe pivote autour de sa hanche)
+function mcMobModel(type) {
+  if (mcMobGeo[type]) return mcMobGeo[type];
+  let body = [], legBox = null, legs = [];
+  const eyes = (y, z, dx, sz) => [bx([-dx, y, z], [sz, sz, 0.02], '#141414'), bx([dx, y, z], [sz, sz, 0.02], '#141414')];
+  const quad = (hipY, dx, dz, boxLegBox) => { legs = [[-dx, hipY, -dz, 0], [dx, hipY, -dz, 1], [-dx, hipY, dz, 1], [dx, hipY, dz, 0]]; legBox = boxLegBox; };
+  if (type === 'PIG') {
+    body = [bx([0, 0.55, 0], [0.6, 0.5, 0.9], '#f0a8a8'), bx([0, 0.62, -0.6], [0.5, 0.45, 0.45], '#f2adad'), bx([0, 0.55, -0.85], [0.24, 0.17, 0.1], '#e88a8a')].concat(eyes(0.68, -0.826, 0.14, 0.07));
+    quad(0.3, 0.17, 0.3, [bx([0, -0.15, 0], [0.18, 0.3, 0.18], '#e89898')]);
+  } else if (type === 'COW') {
+    body = [bx([0, 0.9, 0.05], [0.7, 0.65, 1.1], '#4a3426'), bx([-0.01, 0.97, -0.1], [0.72, 0.32, 0.4], '#ececec'), bx([0.01, 0.85, 0.35], [0.72, 0.3, 0.3], '#ececec'),
+      bx([0, 1.0, -0.7], [0.5, 0.5, 0.45], '#4a3426'), bx([0, 0.88, -0.95], [0.34, 0.2, 0.08], '#d9c3b0'),
+      bx([-0.27, 1.28, -0.7], [0.06, 0.14, 0.06], '#e8e0c8'), bx([0.27, 1.28, -0.7], [0.06, 0.14, 0.06], '#e8e0c8')].concat(eyes(1.06, -0.926, 0.16, 0.07));
+    quad(0.57, 0.22, 0.4, [bx([0, -0.285, 0], [0.2, 0.57, 0.2], '#3d2b20')]);
+  } else if (type === 'SHEEP') {
+    body = [bx([0, 0.85, 0], [0.75, 0.65, 0.95], '#f2f2f2'), bx([0, 0.95, -0.62], [0.4, 0.4, 0.4], '#d8c8b0'), bx([0, 1.2, -0.58], [0.42, 0.12, 0.42], '#f2f2f2')].concat(eyes(1.0, -0.822, 0.1, 0.06));
+    quad(0.52, 0.2, 0.3, [bx([0, -0.26, 0], [0.15, 0.52, 0.15], '#c9b79c')]);
+  } else if (type === 'CHICKEN') {
+    body = [bx([0, 0.42, 0], [0.3, 0.3, 0.42], '#f4f4f4'), bx([0, 0.68, -0.2], [0.2, 0.24, 0.2], '#f4f4f4'), bx([0, 0.65, -0.33], [0.1, 0.06, 0.1], '#e8a020'),
+      bx([0, 0.58, -0.31], [0.06, 0.08, 0.05], '#d02020'), bx([-0.17, 0.44, 0], [0.05, 0.2, 0.3], '#e4e4e4'), bx([0.17, 0.44, 0], [0.05, 0.2, 0.3], '#e4e4e4'),
+      bx([0, 0.52, 0.24], [0.1, 0.16, 0.1], '#e0e0e0')].concat(eyes(0.7, -0.301, 0.09, 0.04));
+    legs = [[-0.08, 0.3, 0.02, 0], [0.08, 0.3, 0.02, 1]];
+    legBox = [bx([0, -0.15, 0], [0.05, 0.3, 0.05], '#e8a020')];
+  } else {   // ZOMBIE
+    body = [bx([0, 1.05, 0], [0.5, 0.7, 0.25], '#2f7a8c'), bx([0, 1.6, 0], [0.5, 0.5, 0.5], '#5c9a3c'),
+      bx([-0.36, 1.25, -0.31], [0.2, 0.2, 0.62], '#5c9a3c'), bx([0.36, 1.25, -0.31], [0.2, 0.2, 0.62], '#5c9a3c'),
+      bx([-0.36, 1.25, -0.05], [0.21, 0.21, 0.14], '#2f7a8c'), bx([0.36, 1.25, -0.05], [0.21, 0.21, 0.14], '#2f7a8c'),
+      bx([0, 1.5, -0.26], [0.3, 0.05, 0.02], '#2a3a1a')].concat(eyes(1.64, -0.256, 0.12, 0.09));
+    legs = [[-0.13, 0.7, 0, 0], [0.13, 0.7, 0, 1]];
+    legBox = [bx([0, -0.35, 0], [0.24, 0.7, 0.24], '#3a3f8f')];
+  }
+  mcMobGeo[type] = { body: mcBoxesToGeo(body), leg: mcBoxesToGeo(legBox), legs };
+  return mcMobGeo[type];
+}
+
+function mcMobDestroy(m) {
+  if (m.group.parent) m.group.parent.remove(m.group);
+  m.mat.dispose();
+}
+function mcClearMobs() {
+  mcMobs.forEach(mcMobDestroy);
+  mcMobs.length = 0;
+}
+
+function mcCreateMob(type, x, y, z) {
+  const def = MC_MOB_TYPES[type], model = mcMobModel(type);
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const group = new THREE.Group();
+  group.add(new THREE.Mesh(model.body, mat));
+  const legs = model.legs.map(l => {
+    const m = new THREE.Mesh(model.leg, mat);
+    m.position.set(l[0], l[1], l[2]);
+    group.add(m);
+    return { mesh: m, phase: l[3] };
+  });
+  group.position.set(x, y, z);
+  mcScene.add(group);
+  const yaw = Math.random() * Math.PI * 2;
+  const m = { type, def, group, mat, legs, x, y, z, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, yaw, tgtYaw: yaw, onGround: false,
+    hp: def.hp, hurt: 0, wanderT: Math.random() * 3, moving: false, flee: 0, phase: Math.random() * 6, atkCd: 0, dead: false, deadT: 0, age: 0 };
+  mcMobs.push(m);
+  return m;
+}
+
+// Collision d'une boîte dont (x, y, z) = pieds
+function mcAabbHits(x, y, z, r, h) {
+  const e = 1e-6;
+  const x0 = mcBi(x - r), x1 = mcBi(x + r - e), y0 = mcBi(y), y1 = mcBi(y + h - e), z0 = mcBi(z - r), z1 = mcBi(z + r - e);
+  for (let a = x0; a <= x1; a++) for (let b = y0; b <= y1; b++) for (let c = z0; c <= z1; c++) if (mcSolidAt(a, b, c)) return true;
+  return false;
+}
+
+function mcTrySpawnMob(near) {
+  const p = mcPlayer.pos;
+  let passive = 0, hostile = 0;
+  mcMobs.forEach(m => { if (m.def.hostile) hostile++; else passive++; });
+  const night = mcDaylight < 0.55;
+  const wantHostile = mcSettings.hostile && night && hostile < 4 && Math.random() < 0.6;
+  const cap = mcTouchMode ? 8 : 12;
+  if (!wantHostile && passive >= cap) return false;
+  if (wantHostile && hostile >= 4) return false;
+  const ang = Math.random() * Math.PI * 2;
+  const dist = near ? 8 + Math.random() * 22 : 20 + Math.random() * 18;
+  const wx = Math.floor(p.x + Math.cos(ang) * dist), wz = Math.floor(p.z + Math.sin(ang) * dist);
+  const ch = mcChunkMap.get(mcCK(wx >> 4, wz >> 4));
+  if (!ch || !ch.data || !ch.meshed) return false;
+  const col = ((wz & 15) << 4) | (wx & 15);
+  const top = ch.top[col];
+  const b = ch.data[(top << 8) | col];
+  if (mcGet(wx, top + 1, wz) !== 0 || mcGet(wx, top + 2, wz) !== 0) return false;
+  if (wantHostile) {
+    if (b === 5 || Math.hypot(wx - p.x, wz - p.z) < 14) return false;
+    if (mcAabbHits(wx, top + 0.5, wz, MC_MOB_TYPES.ZOMBIE.r, MC_MOB_TYPES.ZOMBIE.h)) return false;
+    mcCreateMob('ZOMBIE', wx, top + 0.5, wz);
+    return true;
+  }
+  if (b !== 1) return false;
+  const types = ['PIG', 'COW', 'SHEEP', 'CHICKEN'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  const n = 1 + Math.floor(Math.random() * 3);
+  const md = MC_MOB_TYPES[type];
+  for (let i = 0; i < n && passive + i < cap; i++) {
+    const ox = wx + (Math.random() - 0.5) * 3, oz = wz + (Math.random() - 0.5) * 3;
+    const t2 = mcTopAt(Math.floor(ox), Math.floor(oz));
+    if (mcGet(Math.floor(ox), t2, Math.floor(oz)) !== 1) continue;
+    if (mcAabbHits(ox, t2 + 0.5, oz, md.r, md.h)) continue;
+    mcCreateMob(type, ox, t2 + 0.5, oz);
+  }
+  return true;
+}
+
+function mcMobSound(m, dist) {
+  const v = Math.max(0, 1 - dist / 26);
+  if (v <= 0) return;
+  const s = m.def.snd;
+  if (s === 'cow') mcPlayTone(125, 0.55, 'sawtooth', 0.12 * v, 85);
+  else if (s === 'pig') { mcPlayTone(320, 0.14, 'square', 0.07 * v, 220); setTimeout(() => mcPlayTone(280, 0.12, 'square', 0.06 * v, 200), 150); }
+  else if (s === 'sheep') mcPlayTone(430, 0.5, 'sawtooth', 0.09 * v, 360);
+  else if (s === 'chicken') { mcPlayTone(750, 0.07, 'square', 0.05 * v, 900); setTimeout(() => mcPlayTone(800, 0.07, 'square', 0.05 * v, 950), 90); }
+  else mcPlayTone(95, 0.6, 'sawtooth', 0.12 * v, 55);
+}
+
+function mcUpdateMobs(dt) {
+  if (!mcSettings.mobs) { if (mcMobs.length) mcClearMobs(); return; }
+  const p = mcPlayer.pos;
+  if (mcMobPrefill) { mcMobPrefill = false; for (let i = 0; i < 150 && mcMobs.length < 8; i++) mcTrySpawnMob(true); }
+  mcMobSpawnT -= dt;
+  if (mcMobSpawnT <= 0) { mcMobSpawnT = 1.5; mcTrySpawnMob(false); }
+  mcMobSndT -= dt;
+
+  for (let i = mcMobs.length - 1; i >= 0; i--) {
+    const m = mcMobs[i], def = m.def;
+    const pdx = p.x - m.x, pdz = p.z - m.z, pd = Math.hypot(pdx, pdz);
+    m.age += dt;
+    if (pd > 80 || (def.hostile && (mcDaylight > 0.8 || !mcSettings.hostile) && Math.random() < dt * 0.3) || m.y < -20) {
+      mcMobDestroy(m); mcMobs.splice(i, 1); continue;
+    }
+    if (m.dead) {
+      m.deadT -= dt;
+      m.group.rotation.z = Math.min(1, (0.45 - m.deadT) / 0.3) * Math.PI / 2;
+      if (m.deadT <= 0) { mcMobDestroy(m); mcMobs.splice(i, 1); }
+      continue;
+    }
+    m.hurt = Math.max(0, m.hurt - dt);
+    m.atkCd = Math.max(0, m.atkCd - dt);
+
+    // IA
+    let speed = def.speed, moving = false;
+    if (def.hostile && pd < 22 && !mcDead) {
+      m.tgtYaw = Math.atan2(-pdx, -pdz);
+      moving = pd > 1.1; speed = def.speed;
+      if (pd < 1.5 && Math.abs((p.y - PLAYER_HEIGHT) - m.y) < 1.8 && m.atkCd <= 0) {
+        m.atkCd = 1.2;
+        mcDamage(3, m.x, m.z);
+      }
+    } else if (m.flee > 0) {
+      m.flee -= dt;
+      m.tgtYaw = Math.atan2(pdx, pdz);   // direction opposée au joueur
+      moving = true; speed = def.speed * 2.3;
+    } else {
+      m.wanderT -= dt;
+      if (m.wanderT <= 0) {
+        m.wanderT = 2 + Math.random() * 4;
+        m.moving = Math.random() < 0.55;
+        if (m.moving) m.tgtYaw = Math.random() * Math.PI * 2;
+      }
+      moving = m.moving; speed = def.speed * 0.7;
+    }
+    let dy = m.tgtYaw - m.yaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    m.yaw += dy * Math.min(1, dt * 6);
+    const fx = -Math.sin(m.yaw), fz = -Math.cos(m.yaw);
+    m.vx = moving ? fx * speed : 0;
+    m.vz = moving ? fz * speed : 0;
+    m.kx *= Math.max(0, 1 - dt * 6); m.kz *= Math.max(0, 1 - dt * 6);
+
+    // physique
+    m.vy = Math.max(-40, m.vy - 28 * dt);
+    const mx = (m.vx + m.kx) * dt, mz = (m.vz + m.kz) * dt;
+    let blocked = false;
+    if (mx) { if (!mcAabbHits(m.x + mx, m.y, m.z, def.r, def.h)) m.x += mx; else blocked = true; }
+    if (mz) { if (!mcAabbHits(m.x, m.y, m.z + mz, def.r, def.h)) m.z += mz; else blocked = true; }
+    const steps = Math.max(1, Math.ceil(Math.abs(m.vy * dt) / 0.25));
+    const sy = m.vy * dt / steps;
+    m.onGround = false;
+    for (let s = 0; s < steps; s++) {
+      const ny = m.y + sy;
+      if (!mcAabbHits(m.x, ny, m.z, def.r, def.h)) { m.y = ny; continue; }
+      if (sy < 0) { m.y = mcBi(ny) + 0.5 + 1e-4; m.onGround = true; }
+      else m.y = mcBi(ny + def.h - 1e-6) - 0.5 - def.h - 1e-4;
+      m.vy = 0;
+      break;
+    }
+    if (blocked && m.onGround && moving) m.vy = 8.6;   // saute par-dessus une marche
+
+    // animation
+    const sp = Math.hypot(m.vx, m.vz);
+    if (sp > 0.05) m.phase += sp * dt * 5;
+    const amp = Math.min(1, sp / 1.2) * 0.7;
+    m.legs.forEach(l => { l.mesh.rotation.x = Math.sin(m.phase + l.phase * Math.PI) * amp; });
+    m.group.position.set(m.x, m.y, m.z);
+    m.group.rotation.y = m.yaw;
+    m.group.visible = pd < mcSettings.renderDist * 16;
+    const b = Math.max(0.35, mcDaylight) * (mcSettings.brightness / 100);
+    if (m.hurt > 0) m.mat.color.setRGB(Math.min(1.4, b * 1.6), b * 0.45, b * 0.45);
+    else m.mat.color.setRGB(b, b, b);
+
+    // bruits d'ambiance
+    if (mcMobSndT <= 0 && pd < 24 && Math.random() < 0.15) { mcMobSndT = 5 + Math.random() * 8; mcMobSound(m, pd); }
+  }
+}
+
+// Rayon du regard contre les boîtes des créatures
+function mcMobRay(maxD) {
+  const p = mcPlayer.pos, cp = Math.cos(mcPlayer.pitch);
+  const d = [-Math.sin(mcPlayer.yaw) * cp, Math.sin(mcPlayer.pitch), -Math.cos(mcPlayer.yaw) * cp];
+  const o = [p.x, p.y, p.z];
+  let best = null, bestT = maxD;
+  for (const m of mcMobs) {
+    if (m.dead) continue;
+    const mn = [m.x - m.def.r, m.y, m.z - m.def.r], mx = [m.x + m.def.r, m.y + m.def.h, m.z + m.def.r];
+    let t0 = 0, t1 = bestT, ok = true;
+    for (let a = 0; a < 3 && ok; a++) {
+      if (Math.abs(d[a]) < 1e-9) { if (o[a] < mn[a] || o[a] > mx[a]) ok = false; }
+      else {
+        let ta = (mn[a] - o[a]) / d[a], tb = (mx[a] - o[a]) / d[a];
+        if (ta > tb) { const tmp = ta; ta = tb; tb = tmp; }
+        t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+        if (t0 > t1) ok = false;
+      }
+    }
+    if (ok && t0 < bestT) { best = m; bestT = t0; }
+  }
+  return best ? { mob: best, dist: bestT } : null;
+}
+
+function mcAttackMob(m) {
+  const dmg = mcHeldDamage();
+  m.hp -= dmg; m.hurt = 0.3;
+  const dx = m.x - mcPlayer.pos.x, dz = m.z - mcPlayer.pos.z, d = Math.hypot(dx, dz) || 1;
+  m.kx = dx / d * 6; m.kz = dz / d * 6; m.vy = 4.5;
+  if (!m.def.hostile) m.flee = 4;
+  mcNoiseBurst({ freq: 500, q: 0.8, dur: 0.1, gain: 0.35 });
+  mcPlayTone(m.def.hostile ? 90 : 260, 0.12, 'square', 0.1, 120);
+  mcExhaust += 0.1;
+  if (m.hp <= 0) mcKillMob(m);
+}
+
+function mcKillMob(m) {
+  m.dead = true; m.deadT = 0.45;
+  mcSpawnParticles(m.x, m.y + m.def.h / 2, m.z, m.def.col);
+  const [k, mn, mxn] = m.def.drop;
+  const n = mn + Math.floor(Math.random() * (mxn - mn + 1));
+  if (n > 0) { mcGive(k, n); mcToast('+' + n + ' ' + mcItemName(k)); updateInventoryUI(); }
+  mcPlayTone(200, 0.3, 'sawtooth', 0.15, 60);
+}
+
+
+// ============================================================
+// ÉCRANS : Pause · Inventaire & Crafts · Paramètres (séparés)
+// ============================================================
+let mcCanvasEl = null;
+let mcRecipeFilter = 'all';
+
+
+// ============================================================
 // PARAMÈTRES & TOUCHES
 // ============================================================
 const MC_ACTIONS = [
@@ -670,7 +1247,8 @@ const MC_ACTIONS = [
   { id: 'sprint', l: 'Courir' },
   { id: 'menu', l: 'Menu / Crafts' },
   { id: 'mine', l: 'Casser (clavier)' },
-  { id: 'place', l: 'Poser (clavier)' }
+  { id: 'place', l: 'Poser (clavier)' },
+  { id: 'fullscreen', l: 'Plein écran' }
 ];
 
 function mcDefaultKeys() {
@@ -684,7 +1262,8 @@ function mcDefaultKeys() {
     sprint: ['shift', ''],
     menu: ['e', ''],
     mine: ['x', ''],
-    place: ['c', '']
+    place: ['c', ''],
+    fullscreen: ['f', '']
   };
 }
 
@@ -694,7 +1273,8 @@ const MC_DEFAULTS = {
   smoothTextures: false, ao: true, fog: true, clouds: true, dayNight: true,
   particles: true, bobbing: true, showHand: true, showFps: false,
   volMaster: 80, volSfx: 100, volMusic: 35, stepSounds: true,
-  autoJump: false, touchScale: 100, autosave: true
+  autoJump: false, touchScale: 100, autosave: true,
+  survival: true, mobs: true, hostile: true, autoTool: false, craftView: 'simple'
 };
 let mcSettings = Object.assign({}, MC_DEFAULTS, { keys: mcDefaultKeys() });
 
@@ -722,6 +1302,10 @@ const MC_UI = {
     { k: 'showFps', t: 'check', l: 'Afficher FPS et coordonnées' }
   ],
   options: [
+    { k: 'survival', t: 'check', l: 'Vie et faim (dégâts, nourriture)' },
+    { k: 'mobs', t: 'check', l: 'Animaux (cochon, vache, mouton, poule)' },
+    { k: 'hostile', t: 'check', l: 'Monstres la nuit (zombies)' },
+    { k: 'autoTool', t: 'check', l: 'Outil automatique (sans l\'équiper)' },
     { k: 'sens', t: 'range', l: 'Sensibilité de la souris', min: 1, max: 100, s: 1, f: v => v },
     { k: 'touchSens', t: 'range', l: 'Sensibilité tactile', min: 40, max: 250, s: 5, f: v => v + ' %' },
     { k: 'invertY', t: 'check', l: 'Inverser l’axe vertical' },
@@ -1007,7 +1591,7 @@ function mcSaveGame(force) {
     localStorage.setItem(MC_SAVE_KEY, JSON.stringify({
       v: 3, seed: mcSeed, edits: ed, inv: mcInventory, hot: mcHotbar, furn: mcFurnace,
       pos: [mcPlayer.pos.x, mcPlayer.pos.y, mcPlayer.pos.z],
-      yaw: mcPlayer.yaw, pitch: mcPlayer.pitch, time: mcTime, slot: mcSelectedIndex
+      yaw: mcPlayer.yaw, pitch: mcPlayer.pitch, time: mcTime, slot: mcSelectedIndex, hp: mcHealth, food: mcFood, sat: mcSat
     }));
   } catch (e) { /* ignore */ }
 }
@@ -1308,15 +1892,19 @@ function mcPhysics(dt, ax, az, sprint, jump) {
     mz = (-nx * sin + nz * cos) * mag;
   }
   const speed = sprint ? MC_RUN : MC_WALK;
+  let jumped = false;
 
   if (jump && p.onGround) {
     p.velocity.y = MC_JUMP;
     p.onGround = false;
+    jumped = true;
     mcPlayTone(220, 0.1, 'sine', 0.08, 330);
   }
   p.velocity.y = Math.max(-50, p.velocity.y - MC_GRAVITY * dt);
 
-  const dx = mx * speed * dt, dz = mz * speed * dt, dy = p.velocity.y * dt;
+  const dx = (mx * speed + mcKnock.x) * dt, dz = (mz * speed + mcKnock.z) * dt, dy = p.velocity.y * dt;
+  const kd = Math.max(0, 1 - dt * 5);
+  mcKnock.x *= kd; mcKnock.z *= kd;
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) / 0.2));
   const sx = dx / steps, sy = dy / steps, sz = dz / steps;
   let blocked = false;
@@ -1352,9 +1940,10 @@ function mcPhysics(dt, ax, az, sprint, jump) {
     if (!mcBoxHits(pos.x + mx * 0.4, pos.y + 1.05, pos.z + mz * 0.4)) {
       p.velocity.y = MC_JUMP;
       p.onGround = false;
+      jumped = true;
     }
   }
-  return { moving: mag > 0, speed: Math.hypot(mx, mz) * speed };
+  return { moving: mag > 0, speed: Math.hypot(mx, mz) * speed, jumped };
 }
 
 function mcGroundSound() {
@@ -1517,7 +2106,7 @@ function mcInitParticles() {
 }
 function mcSpawnParticles(x, y, z, tile) {
   if (!mcSettings.particles) return;
-  const c = mcTileAvg[tile] || [0.5, 0.5, 0.5];
+  const c = Array.isArray(tile) ? tile : (mcTileAvg[tile] || [0.5, 0.5, 0.5]);
   let n = 0;
   for (const p of mcParticles) {
     if (p.life > 0) continue;
@@ -1658,17 +2247,19 @@ function createPlayerHand() {
 }
 function mcRefreshHeld() {
   if (!mcHandGroup) return;
-  const id = mcHotbar[mcSelectedIndex];
-  if (mcHeldBlock) { mcHandGroup.remove(mcHeldBlock); mcHeldBlock.geometry.dispose(); mcHeldBlock = null; }
-  const has = !!id && (mcInventory[id] || 0) > 0;
-  if (has) {
-    mcHeldBlock = new THREE.Mesh(mcBlockGeometry(id), mcMatHand);
+  if (mcHeldBlock) { mcHandGroup.remove(mcHeldBlock); mcDisposeObj(mcHeldBlock); mcHeldBlock = null; }
+  const h = mcHeldInfo();
+  if (h && h.kind === 'block') {
+    mcHeldBlock = new THREE.Mesh(mcBlockGeometry(h.key), mcMatHand);
     mcHeldBlock.scale.set(0.24, 0.24, 0.24);
     mcHeldBlock.position.set(0.4, -0.3, -0.62);
     mcHeldBlock.rotation.set(0.25, 0.7, 0);
     mcHandGroup.add(mcHeldBlock);
+  } else if (h) {
+    mcHeldBlock = mcBuildHeldModel(h);
+    mcHandGroup.add(mcHeldBlock);
   }
-  mcHandArm.visible = !has;
+  mcHandArm.visible = !(h && h.kind === 'block');
 }
 
 // ---------- Ouverture de l'inventaire / table / four ----------
@@ -1710,9 +2301,9 @@ function mcToast(msg) {
 function mcShowSlotName() {
   const el = document.getElementById('mc-slotname');
   if (!el) return;
-  const id = mcHotbar[mcSelectedIndex];
-  el.textContent = id ? BLOCK_TYPES[id].name : '';
-  el.style.opacity = id ? '1' : '0';
+  const k = mcHotbar[mcSelectedIndex];
+  el.textContent = k ? mcItemName(k) : '';
+  el.style.opacity = k ? '1' : '0';
   clearTimeout(mcSlotNameTimer);
   mcSlotNameTimer = setTimeout(() => { el.style.opacity = '0'; }, 1300);
 }
@@ -1802,6 +2393,37 @@ function setupCybercraftUI(container, canvas) {
       .mc-mini{display:grid;gap:1px}
       .mc-mc{width:22px;height:22px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:14px}
       .mc-mc img{width:18px;height:18px;image-rendering:pixelated}
+      #mc-stats{position:absolute;bottom:calc(var(--mcslot) + 26px);left:50%;transform:translateX(-50%);display:flex;justify-content:space-between;width:calc(var(--mcslot) * 9 + 44px);pointer-events:none}
+      .mc-statrow{display:flex;gap:1px}
+      .mc-statrow.rev{flex-direction:row-reverse}
+      .mc-statrow img{width:calc(var(--mcslot) * 0.4);height:calc(var(--mcslot) * 0.4);max-width:20px;max-height:20px;image-rendering:pixelated}
+      #mc-hurt{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 35%,rgba(210,0,0,.9) 100%)}
+      #mc-fsbtn{position:absolute;top:8px;right:10px;width:36px;height:36px;border-radius:8px;border:2px solid rgba(0,243,255,.6);background:rgba(5,5,16,.55);color:#00f3ff;font-size:18px;cursor:pointer;pointer-events:auto;z-index:15}
+      #mc-death{position:absolute;inset:0;background:rgba(80,0,0,.72);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:50;pointer-events:auto;color:#fff}
+      .mc-slot .e{position:absolute;font-size:calc(var(--mcslot) * 0.55);pointer-events:none;display:none;line-height:1}
+      #mc-slotname{bottom:calc(var(--mcslot) + 48px) !important}
+      .mc-headbtns{display:flex;gap:6px;flex-wrap:wrap}
+      .mc-btn.active{background:rgba(0,243,255,.25);border-color:#00f3ff}
+      .mc-btn.go{background:#00f3ff;color:#001018;font-weight:700;border:none}
+      .mc-btn:disabled{opacity:.45;cursor:default}
+      .mc-menu{display:flex;flex-direction:column;gap:8px;max-width:340px;width:100%;margin:6px auto}
+      .mc-menu .mc-btn{padding:12px 16px;font-size:15px;text-align:center}
+      .mc-box{background:rgba(255,255,255,.05);border-radius:8px;padding:12px}
+      .mc-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+      .mc-fbtn{cursor:pointer;background:rgba(255,255,255,.07);color:#cfe;border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:4px 12px;font-size:12px}
+      .mc-fbtn.active{background:#00f3ff;color:#001018;border-color:#00f3ff}
+      .mc-rlist{display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto}
+      .mc-rc{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:7px 9px}
+      .mc-rc.ok{border-color:#00f3ff}
+      .mc-rc.owned{opacity:.55}
+      .mc-rcmain{flex:1;min-width:0;font-size:13px}
+      .mc-tag{font-size:10px;background:#5a3a10;color:#ffcc66;border-radius:8px;padding:1px 6px;margin-left:4px}
+      .mc-needs{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+      .mc-need{display:inline-flex;align-items:center;gap:3px;font-size:11px;border-radius:6px;padding:1px 5px 1px 1px;background:rgba(0,0,0,.35)}
+      .mc-need i{font-style:normal}
+      .mc-need.ok i{color:#7dff9c}
+      .mc-need.no i{color:#ff7a7a}
+      .mc-us.static{cursor:default;border-color:#3a4666}
       #mc-touch-ui{position:absolute;inset:0;pointer-events:none;touch-action:none}
       #mc-joy,#mc-btns{bottom:92px}
       @media (min-width:640px){#mc-joy,#mc-btns{bottom:18px}}
@@ -1816,25 +2438,22 @@ function setupCybercraftUI(container, canvas) {
         <div class="mc-slot" id="mc-slot-${i}">
           <span class="k">${i + 1}</span>
           <img id="mc-img-${i}" src="${mcIcons[id] || ''}" alt="">
+          <span class="e" id="mc-emo-${i}"></span>
           <span class="c" id="mc-count-${i}">0</span>
         </div>`).join('')}
     </div>
 
-    <div id="mc-pause-menu">
-      <div class="mc-panel">
-        <div class="mc-head">
-          <h2>CYBERCRAFT</h2>
-          <button class="mc-btn main" id="mc-btn-resume">▶ REPRENDRE</button>
-        </div>
-        <div id="mc-tabs">
-          <button class="mc-btn" data-tab="inv">🎒 Inventaire &amp; Crafts</button>
-          <button class="mc-btn" data-tab="controls">🎮 Commandes</button>
-          <button class="mc-btn" data-tab="audio">🔊 Audio</button>
-          <button class="mc-btn" data-tab="graphics">🖥 Graphismes</button>
-          <button class="mc-btn" data-tab="options">⚙ Options</button>
-        </div>
-        <div id="mc-tab-body"></div>
-      </div>
+    <div id="mc-stats">
+      <div class="mc-statrow">${Array.from({ length: 10 }, (_, i) => `<img id="mc-h-${i}" alt="">`).join('')}</div>
+      <div class="mc-statrow rev">${Array.from({ length: 10 }, (_, i) => `<img id="mc-f-${i}" alt="">`).join('')}</div>
+    </div>
+    <div id="mc-hurt"></div>
+    <button id="mc-fsbtn" title="Plein écran">⛶</button>
+    <div id="mc-pause-menu"><div class="mc-panel" id="mc-screen"></div></div>
+    <div id="mc-death">
+      <div style="font-size:30px;font-weight:800;letter-spacing:2px;color:#ff4d4d">TU ES MORT</div>
+      <div class="mc-note">Ton inventaire est conservé.</div>
+      <button class="mc-btn main" id="mc-respawn">↻ Réapparaître</button>
     </div>
 
     <div id="mc-loading">
@@ -1854,20 +2473,15 @@ function setupCybercraftUI(container, canvas) {
     });
   });
 
-  hud.querySelectorAll('#mc-tabs [data-tab]').forEach(b => {
-    b.addEventListener('click', () => { mcPlayClick(); mcShowTab(b.dataset.tab); });
-  });
-
-  document.getElementById('mc-btn-resume').addEventListener('click', () => {
-    mcAudioEnsure();
-    if (!mcReady) return;
-    if (mcTouchMode) mcSetPaused(false);
-    else mcLock(canvas);
-  });
+  document.getElementById('mc-respawn').addEventListener('click', () => mcRespawn(canvas));
+  const fsb = document.getElementById('mc-fsbtn');
+  fsb.addEventListener('click', (e) => { e.stopPropagation(); mcToggleFullscreen(); });
+  fsb.addEventListener('pointerdown', (e) => e.stopPropagation());
+  if (!mcFsAvailable()) fsb.style.display = 'none';
 
   if (mcTouchMode) setupCybercraftTouchUI(hud);
-  mcShowTab(mcTab);
-  updateInventoryUI();
+  mcShowScreen('pause');
+  updateHotbarUI();
   mcApplyTouchScale();
 }
 
@@ -1878,7 +2492,7 @@ function mcLock(canvas) {
   } catch (e) { /* ignore */ }
 }
 
-function mcSetPaused(p, tab) {
+function mcSetPaused(p, screen) {
   mcIsPaused = p;
   const menu = document.getElementById('mc-pause-menu');
   if (menu) menu.style.display = p ? 'flex' : 'none';
@@ -1888,10 +2502,11 @@ function mcSetPaused(p, tab) {
     for (const k in mcKeys) mcKeys[k] = false;
     if (mcCrackMesh) mcCrackMesh.visible = false;
     mcCapture = null;
-    mcConfirmReset = false;
-    mcShowTab(tab || mcTab);
+    mcShowScreen(screen || ((mcScreen === 'inv' || mcScreen === 'settings') ? mcScreen : 'pause'));
     mcSaveGame();
   } else {
+    mcScreen = 'none';
+    mcConfirmReset = false;
     mcReturnGrid();
     mcCursor = null;
     updateHotbarUI();
@@ -1933,68 +2548,233 @@ function mcMini(k) {
 }
 
 function mcHtmlInventory() {
-  const mode = mcCraftMode;
-  let craft = '';
+  const mode = mcCraftMode, view = mcSettings.craftView === 'grid' ? 'grid' : 'simple';
+  const title = mode === 'furnace' ? '🔥 Four' : (mode === 'table' ? '🔨 Table de craft' : '🧰 Fabrication');
+  let head = '<div class="mc-head"><h2>' + title + '</h2><div class="mc-headbtns">';
+  if (mode !== 'furnace') {
+    head += '<button class="mc-btn' + (view === 'simple' ? ' active' : '') + '" data-view="simple">📖 Simple</button>' +
+      '<button class="mc-btn' + (view === 'grid' ? ' active' : '') + '" data-view="grid">🧩 Grille</button>';
+  }
+  head += '<button class="mc-btn main" data-go="resume">✕ Fermer</button></div></div>';
+
+  let main = '';
   if (mode === 'furnace') {
     const f = mcFurnace;
     const pb = f.burnMax ? Math.round(f.burn / f.burnMax * 100) : 0;
     const pp = Math.round(f.prog / MC_SMELT_TIME * 100);
     const slot = (attr, c, hint) => '<button class="mc-us' + (mcCursor ? ' tgt' : '') + '" ' + attr + '>' + (c ? mcItemHtml(c.k, c.n) : '<span class="mc-hint">' + hint + '</span>') + '</button>';
-    craft = '<h4 style="margin:0 0 8px;color:#ff7a2a">🔥 FOUR</h4><div class="mc-craftrow">' +
+    main = '<div class="mc-craftrow">' +
       '<div class="mc-col2">' + slot('data-fslot="inp"', f.inp, 'À cuire') +
       '<div class="mc-flame"><div id="mc-flame-fill" style="height:' + pb + '%"></div></div>' +
       slot('data-fslot="fuel"', f.fuel, 'Fuel') + '</div>' +
       '<div class="mc-arrow">➜<div class="mc-prog"><div id="mc-prog-fill" style="width:' + pp + '%"></div></div></div>' +
       '<button class="mc-us res" data-fout="1">' + (f.out ? mcItemHtml(f.out.k, f.out.n) : '') + '</button></div>' +
-      '<p class="mc-note">Combustibles : charbon, bois, planches, bâtons. Se cuisent : minerai de fer, débris antiques, sable (→ verre), bois (→ charbon de bois). Le four continue de cuire même menu fermé.</p>';
-  } else {
+      '<p class="mc-note"><b>Touche un objet de ton sac</b> pour le mettre dans le four (il choisit tout seul : à cuire ou combustible). Cuisent : minerai de fer, débris, sable (verre), bois (charbon de bois) et toute la viande crue. Combustibles : charbon, bois, planches, bâtons. Le four continue de cuire menu fermé.</p>';
+  } else if (view === 'grid') {
     const N = mcGridSize;
     const cells = mcGrid.map((c, i) => '<button class="mc-us' + (mcCursor ? ' tgt' : '') + '" data-cell="' + i + '">' + (c ? mcItemHtml(c.k, c.n) : '') + '</button>').join('');
     const res = mcGridResult();
-    craft = '<h4 style="margin:0 0 8px;color:#00f3ff">' + (mode === 'table' ? '🔨 TABLE DE CRAFT ' + N + '×' + N : '🧰 FABRICATION 2×2') + '</h4>' +
-      '<div class="mc-craftrow"><div class="mc-ugrid" style="grid-template-columns:repeat(' + N + ',46px)">' + cells + '</div>' +
+    main = '<div class="mc-craftrow"><div class="mc-ugrid" style="grid-template-columns:repeat(' + N + ',46px)">' + cells + '</div>' +
       '<div class="mc-arrow">➜</div>' +
       '<button class="mc-us res" data-result="1" title="' + (res ? res.name : '') + '">' + (res ? mcItemHtml(res.out.k, res.out.n) : '') + '</button>' +
       '<div class="mc-col2"><button class="mc-btn" data-act="craftall">Tout fabriquer</button><button class="mc-btn" data-act="clear">Vider la grille</button></div></div>' +
-      '<p class="mc-note">' + (mcCursor ? 'Objet en main : <b>' + mcItemName(mcCursor) + '</b> — touche une case pour le poser.' : '1) Touche un objet de ton inventaire · 2) touche une case de la grille · 3) touche le résultat pour le prendre.') +
-      (mode === 'inv' ? ' Pose une <b>table de craft</b> et fais un clic droit dessus pour une grille ' + MC_TABLE_SIZE + '×' + MC_TABLE_SIZE + ' (pioches, haches, pelles, four).' : '') + '</p>';
+      '<p class="mc-note">' + (mcCursor ? 'Objet en main : <b>' + mcItemName(mcCursor) + '</b> — touche une case pour le poser.' : '① Touche un objet du sac · ② touche une case de la grille · ③ touche le résultat pour le prendre. La forme compte (ex. 2 planches l\'une sur l\'autre = bâtons).') + '</p>';
+  } else {
+    const filters = [['all', 'Tout'], ['ok', 'Faisables'], ['Outils', 'Outils'], ['Blocs', 'Blocs'], ['Autre', 'Autre']];
+    const chips = filters.map(f => '<button class="mc-fbtn' + (mcRecipeFilter === f[0] ? ' active' : '') + '" data-filter="' + f[0] + '">' + f[1] + '</button>').join('');
+    const order = { ok: 0, missing: 1, table: 2, owned: 3 };
+    const list = MC_RECIPES.map(r => ({ r, st: mcRecipeStatus(r) }))
+      .filter(x => mcRecipeFilter === 'all' || (mcRecipeFilter === 'ok' ? x.st === 'ok' : x.r.cat === mcRecipeFilter))
+      .sort((a, b) => order[a.st] - order[b.st]);
+    const label = { ok: 'Fabriquer', missing: 'Il manque', table: '🔨 Table', owned: '✔ Possédé' };
+    const cards = list.map(({ r, st }) => {
+      const need = mcRecipeNeeds(r);
+      const needs = Object.keys(need).map(k => {
+        const have = mcInventory[k] || 0;
+        return '<span class="mc-need ' + (have >= need[k] ? 'ok' : 'no') + '" title="' + mcItemName(k) + '">' + mcMini(k) + '<i>' + Math.min(have, 99) + '/' + need[k] + '</i></span>';
+      }).join('');
+      return '<div class="mc-rc ' + st + '"><div class="mc-us static">' + mcItemHtml(r.out.k, r.out.n) + '</div>' +
+        '<div class="mc-rcmain"><b>' + r.name + '</b>' + (st === 'table' ? ' <span class="mc-tag">table requise</span>' : '') + '<div class="mc-needs">' + needs + '</div></div>' +
+        '<button class="mc-btn' + (st === 'ok' ? ' go' : '') + '" data-craft="' + r.id + '"' + (st === 'ok' ? '' : ' disabled') + '>' + label[st] + '</button></div>';
+    }).join('');
+    main = '<p class="mc-note" style="margin:0 0 8px">' + (mode === 'table' ? '🔨 Table de craft : toutes les recettes sont disponibles.' : '🧰 À la main : recettes simples. Pose une <b>table de craft</b> (4 planches) puis fais un clic droit dessus pour les outils et le four.') + '</p>' +
+      '<div class="mc-filters">' + chips + '</div><div class="mc-rlist">' + (cards || '<span class="mc-note">Aucune recette ici.</span>') + '</div>';
   }
 
-  const hot = mcHotbar.map((id, i) => '<button class="mc-us' + (i === mcSelectedIndex ? ' sel' : '') + '" data-hot="' + i + '" title="Case ' + (i + 1) + '">' +
-    (id ? '<span style="opacity:' + ((mcInventory[id] || 0) > 0 ? 1 : 0.4) + '">' + mcItemHtml(String(id), mcInventory[id] || 0) + '</span>' : '') + '</button>').join('');
+  const hot = mcHotbar.map((k, i) => '<button class="mc-us' + (i === mcSelectedIndex ? ' sel' : '') + '" data-hot="' + i + '" title="Case ' + (i + 1) + '">' +
+    (k ? '<span style="opacity:' + ((mcInventory[k] || 0) > 0 ? 1 : 0.4) + '">' + mcItemHtml(k, MC_TOOL_RE.test(k) ? 0 : (mcInventory[k] || 0)) + '</span>' : '') + '</button>').join('');
   const pal = Object.keys(mcInventory).filter(k => mcInventory[k] > 0).map(k =>
     '<button class="mc-us' + (mcCursor === k ? ' sel' : '') + '" data-pal="' + k + '" title="' + mcItemName(k) + '">' + mcItemHtml(k, mcInventory[k]) + '</button>').join('');
+  const stat = mcSettings.survival ? '<span class="mc-note" style="float:right">❤ ' + Math.ceil(mcHealth / 2) + '/10 · 🍗 ' + Math.ceil(mcFood / 2) + '/10</span>' : '';
 
-  let book = '';
-  if (mode !== 'furnace') {
-    book = '<h4 style="margin:14px 0 6px;color:#ffcc00">LIVRE DE RECETTES <span class="mc-note">(touche une recette pour remplir la grille)</span></h4><div class="mc-book">' +
-      MC_RECIPES.map(r => {
-        const locked = r.big && mcGridSize < 3;
-        let pat;
-        if (r.shapeless) pat = '<div class="mc-mini" style="grid-template-columns:repeat(' + Math.min(4, r.shapeless.length) + ',22px)">' + r.shapeless.map(mcMini).join('') + '</div>';
-        else pat = '<div class="mc-mini" style="grid-template-columns:repeat(' + r.w + ',22px)">' + r.shape.map(row => row.map(mcMini).join('')).join('') + '</div>';
-        return '<button class="mc-recipe' + (locked ? ' no' : '') + '" data-recipe="' + r.id + '">' + pat + '<span>➜</span>' + mcMini(r.out.k) +
-          '<span><b>' + (r.out.n > 1 ? r.out.n + '× ' : '') + r.name + '</b>' + (locked ? '<br><small>🔨 Table requise</small>' : '') + '</span></button>';
-      }).join('') + '</div>';
+  return head + '<div class="mc-box">' + main + '</div>' +
+    '<div class="mc-box"><h4 style="margin:0 0 6px;color:#9dffb0">BARRE D\'OBJETS ' + stat + '</h4><div class="mc-palette">' + hot + '</div>' +
+    '<h4 style="margin:12px 0 6px;color:#ffcc00">SAC</h4><div class="mc-palette">' + (pal || '<span class="mc-note">Vide</span>') + '</div>' +
+    '<p class="mc-note" style="margin:8px 0 0">' + (mode === 'furnace' ? 'Touche un objet pour l\'envoyer au four.' : 'Pour ranger un objet (bloc, <b>outil</b>, nourriture) dans la barre : touche-le dans le sac, puis touche une case de la barre.') + '</p></div>';
+}
+
+function mcRecipeNeeds(r) {
+  const need = {};
+  if (r.shapeless) r.shapeless.forEach(k => { need[k] = (need[k] || 0) + 1; });
+  else r.shape.forEach(row => row.forEach(k => { if (k) need[k] = (need[k] || 0) + 1; }));
+  return need;
+}
+// 'ok' | 'missing' | 'table' | 'owned'
+
+function mcRecipeStatus(r) {
+  if (r.tool && mcToolTier(r.tool) >= r.tier) return 'owned';
+  if (r.big && mcGridSize < 3) return 'table';
+  const need = mcRecipeNeeds(r);
+  for (const k in need) if ((mcInventory[k] || 0) < need[k]) return 'missing';
+  return 'ok';
+}
+
+function mcCraftDirect(id) {
+  const r = MC_RECIPES.find(x => x.id === id);
+  if (!r) return;
+  const st = mcRecipeStatus(r);
+  if (st === 'owned') { mcToast('Tu as déjà cet outil (ou mieux) !'); return; }
+  if (st === 'table') { mcToast('Il faut une table de craft : pose-en une et fais un clic droit dessus.'); return; }
+  if (st === 'missing') { mcToast('Il te manque des ressources.'); return; }
+  const need = mcRecipeNeeds(r);
+  Object.keys(need).forEach(k => { mcInventory[k] -= need[k]; });
+  mcGive(r.out.k, r.out.n);
+  mcPlayCraft();
+  mcToast('Fabriqué : ' + (r.out.n > 1 ? r.out.n + '× ' : '') + r.name);
+  updateInventoryUI();
+}
+// Four : toucher un objet du sac l'envoie au bon emplacement
+
+function mcSendToFurnace(k) {
+  const f = mcFurnace;
+  const slot = (MC_SMELT[k] && (!f.inp || f.inp.k === k)) ? 'inp' : (MC_FUEL[k] ? 'fuel' : null);
+  if (!slot) { mcToast(MC_SMELT[k] ? 'Le four cuit déjà autre chose : vide-le d\'abord.' : 'Ça ne se cuit pas et ne brûle pas.'); return; }
+  if (f[slot] && f[slot].k !== k) { mcGive(f[slot].k, f[slot].n); f[slot] = null; }
+  if (f[slot]) f[slot].n++; else f[slot] = { k, n: 1 };
+  mcInventory[k]--;
+}
+
+function mcHtmlPause() {
+  const k = (a) => mcSettings.keys[a].filter(Boolean).map(mcKeyLabel).join(' / ');
+  const help = mcTouchMode
+    ? 'Joystick : bouger · Glisser : regarder · ⛏ casser / frapper (maintenir) · ▣ poser, manger, utiliser une table ou un four · ⤒ sauter · 🏃 courir · 🎒 inventaire'
+    : k('forward') + ' ' + k('left') + ' ' + k('back') + ' ' + k('right') + ' : bouger · ' + k('jump') + ' : sauter · ' + k('sprint') + ' : courir · Clic gauche : casser / frapper · Clic droit : poser, manger, utiliser · Molette ou 1-9 : objet · ' + k('menu') + ' : inventaire · ' + k('fullscreen') + ' : plein écran';
+  return '<div class="mc-head"><h2>CYBERCRAFT <span class="mc-note">— Pause</span></h2></div>' +
+    '<div class="mc-menu">' +
+    '<button class="mc-btn main" data-go="resume">▶ Reprendre</button>' +
+    '<button class="mc-btn" data-go="inv">🎒 Inventaire &amp; Crafts</button>' +
+    '<button class="mc-btn" data-go="settings">⚙ Paramètres</button>' +
+    (mcFsAvailable() ? '<button class="mc-btn" data-go="fs">⛶ Plein écran</button>' : '') +
+    '<button class="mc-btn" data-go="save">💾 Sauvegarder</button>' +
+    '<button class="mc-btn danger" data-go="new">' + (mcConfirmReset ? '⚠ Confirmer : tout effacer ?' : '🗑 Nouveau monde') + '</button>' +
+    '</div><p class="mc-note">' + help + '</p>';
+}
+
+function mcHtmlSettingsScreen() {
+  if (!['controls', 'audio', 'graphics', 'options'].includes(mcTab)) mcTab = 'controls';
+  const tabs = [['controls', '🎮 Commandes'], ['audio', '🔊 Audio'], ['graphics', '🖥 Graphismes'], ['options', '⚙ Jeu']];
+  return '<div class="mc-head"><h2>⚙ Paramètres</h2><div class="mc-headbtns"><button class="mc-btn" data-go="pause">← Retour</button><button class="mc-btn main" data-go="resume">▶ Reprendre</button></div></div>' +
+    '<div id="mc-tabs">' + tabs.map(t => '<button class="mc-btn' + (mcTab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>').join('') + '</div>' +
+    '<div class="mc-box" id="mc-tab-body">' + (mcTab === 'controls' ? mcHtmlControls() : mcHtmlSettings(mcTab)) + '</div>';
+}
+
+function mcShowScreen(name) {
+  mcScreen = name;
+  const el = document.getElementById('mc-screen');
+  if (!el) return;
+  if (name === 'pause') el.innerHTML = mcHtmlPause();
+  else if (name === 'inv') el.innerHTML = mcHtmlInventory();
+  else el.innerHTML = mcHtmlSettingsScreen();
+  mcWireScreen(el);
+}
+
+function mcGo(a) {
+  switch (a) {
+    case 'resume':
+      mcAudioEnsure();
+      if (!mcReady) return;
+      if (mcTouchMode) mcSetPaused(false); else mcLock(mcCanvasEl);
+      break;
+    case 'pause': mcShowScreen('pause'); break;
+    case 'inv': mcOpenInventory('inv'); break;
+    case 'settings': mcShowScreen('settings'); break;
+    case 'fs': mcToggleFullscreen(); break;
+    case 'save': mcSaveGame(true); mcToast('Monde sauvegardé 💾'); break;
+    case 'new':
+      if (!mcConfirmReset) { mcConfirmReset = true; mcShowScreen('pause'); return; }
+      try { localStorage.removeItem(MC_SAVE_KEY); } catch (e) { /* ignore */ }
+      mcConfirmReset = false;
+      startCybercraftGame(true);
+      break;
   }
+}
 
-  return craft + '<h4 style="margin:14px 0 6px;color:#9dffb0">BARRE D\'OBJETS <span class="mc-note">(touche un objet puis une case pour l\'y mettre)</span></h4><div class="mc-palette">' + hot + '</div>' +
-    '<h4 style="margin:14px 0 6px;color:#ffcc00">INVENTAIRE</h4><div class="mc-palette">' + (pal || '<span class="mc-note">Vide</span>') + '</div>' + book;
+function mcWireScreen(root) {
+  root.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => { mcPlayClick(); mcGo(el.dataset.go); }));
+  root.querySelectorAll('[data-tab]').forEach(el => el.addEventListener('click', () => { mcPlayClick(); mcShowTab(el.dataset.tab); }));
+  // réglages
+  root.querySelectorAll('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
+      const def = MC_DEFS[k];
+      if (el.type === 'checkbox') mcSettings[k] = el.checked;
+      else {
+        mcSettings[k] = parseFloat(el.value);
+        const lab = document.getElementById('mc-val-' + k);
+        if (lab && def) lab.textContent = def.f(mcSettings[k]);
+      }
+      mcApplySettings(k);
+      mcSaveSettings();
+    });
+  });
+  // commandes
+  root.querySelectorAll('[data-bind]').forEach(el => {
+    el.addEventListener('click', () => {
+      const [action, slot] = el.dataset.bind.split(':');
+      mcCapture = { action, slot: parseInt(slot, 10) };
+      root.querySelectorAll('.mc-key').forEach(b => b.classList.remove('wait'));
+      el.classList.add('wait');
+      el.textContent = 'Appuie…';
+    });
+  });
+  const reset = root.querySelector('#mc-keys-reset');
+  if (reset) reset.addEventListener('click', () => { mcSettings.keys = mcDefaultKeys(); mcSaveSettings(); mcShowTab('controls'); });
+
+  // inventaire & crafts
+  const rerender = () => updateInventoryUI();
+  root.querySelectorAll('[data-view]').forEach(el => el.addEventListener('click', () => {
+    mcReturnGrid(); mcSettings.craftView = el.dataset.view; mcSaveSettings(); mcCursor = null; mcPlayClick(); rerender();
+  }));
+  root.querySelectorAll('[data-filter]').forEach(el => el.addEventListener('click', () => { mcRecipeFilter = el.dataset.filter; mcPlayClick(); rerender(); }));
+  root.querySelectorAll('[data-craft]').forEach(el => el.addEventListener('click', () => { mcCraftDirect(el.dataset.craft); }));
+  root.querySelectorAll('[data-pal]').forEach(el => el.addEventListener('click', () => {
+    const k = el.dataset.pal;
+    if (mcCraftMode === 'furnace') mcSendToFurnace(k);
+    else mcCursor = mcCursor === k ? null : k;
+    mcPlayClick(); rerender();
+  }));
+  root.querySelectorAll('[data-cell]').forEach(el => el.addEventListener('click', () => { mcPutCell(parseInt(el.dataset.cell, 10)); mcPlayClick(); rerender(); }));
+  root.querySelectorAll('[data-result]').forEach(el => el.addEventListener('click', () => { mcTakeResult(); rerender(); }));
+  root.querySelectorAll('[data-act]').forEach(el => el.addEventListener('click', () => {
+    if (el.dataset.act === 'craftall') mcTakeAll(); else mcReturnGrid();
+    rerender();
+  }));
+  root.querySelectorAll('[data-hot]').forEach(el => el.addEventListener('click', () => {
+    const i = parseInt(el.dataset.hot, 10);
+    if (mcCursor) {
+      if (mcHotbarOK(mcCursor)) { mcHotbar[i] = mcCursor; mcSelectedIndex = i; mcCursor = null; }
+      else mcToast('Cet objet ne se range pas dans la barre.');
+    } else mcSelectedIndex = i;
+    mcPlayClick(); rerender(); mcRefreshHeld();
+  }));
+  root.querySelectorAll('[data-fslot]').forEach(el => el.addEventListener('click', () => { mcPutFurnace(el.dataset.fslot); mcPlayClick(); rerender(); }));
+  root.querySelectorAll('[data-fout]').forEach(el => el.addEventListener('click', () => { mcTakeFurnaceOut(); rerender(); }));
 }
 
 // ----- Onglets du menu -----
 function mcShowTab(tab) {
-  if (tab === 'game' || tab === 'craft') tab = 'inv';
   mcTab = tab;
-  document.querySelectorAll('#mc-tabs [data-tab]').forEach(b => {
-    b.classList.toggle('active', b.dataset.tab === tab);
-  });
-  const body = document.getElementById('mc-tab-body');
-  if (!body) return;
-  if (tab === 'inv') body.innerHTML = mcHtmlInventory();
-  else if (tab === 'controls') body.innerHTML = mcHtmlControls();
-  else body.innerHTML = mcHtmlSettings(tab);
-  mcWireTab(body, tab);
+  mcShowScreen('settings');
 }
 
 function mcHtmlControls() {
@@ -2019,89 +2799,7 @@ function mcHtmlSettings(group) {
   const list = group === 'options' && !mcTouchMode ? defs.filter(d => d.k !== 'touchSens' && d.k !== 'touchScale') : defs;
   let html = list.map(mcSettingRow).join('');
   if (group === 'graphics') html += '<p class="mc-note">Le monde est infini : il se charge autour de toi. Baisse la distance d\'affichage (et la résolution) si ça saccade. Le jeu le fait aussi tout seul en cas de lag.</p>';
-  if (group === 'options') {
-    const k = (a) => mcSettings.keys[a].filter(Boolean).map(mcKeyLabel).join(' / ');
-    const help = mcTouchMode
-      ? 'Joystick : bouger · Glisser : regarder · ⛏ casser (maintenir) · ▣ poser / utiliser une table ou un four · ⤒ sauter · 🏃 courir · ☰ inventaire'
-      : k('forward') + ' ' + k('left') + ' ' + k('back') + ' ' + k('right') + ' : bouger · ' + k('jump') + ' : sauter · ' + k('sprint') + ' : courir · Clic gauche : casser · Clic droit : poser / utiliser table ou four · Molette ou 1-9 : objet · ' + k('menu') + ' : inventaire';
-    html += '<p class="mc-note" style="margin-top:12px">' + help + '</p>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="mc-btn" id="mc-save-now">💾 Sauvegarder</button>' +
-      '<button class="mc-btn danger" id="mc-new-world">' + (mcConfirmReset ? '⚠ Confirmer : tout effacer ?' : '🗑 Nouveau monde') + '</button></div>';
-  }
   return html;
-}
-
-function mcWireTab(body, tab) {
-  body.querySelectorAll('[data-k]').forEach(el => {
-    const k = el.dataset.k;
-    el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', () => {
-      const def = MC_DEFS[k];
-      if (el.type === 'checkbox') mcSettings[k] = el.checked;
-      else {
-        mcSettings[k] = parseFloat(el.value);
-        const lab = document.getElementById('mc-val-' + k);
-        if (lab && def) lab.textContent = def.f(mcSettings[k]);
-      }
-      mcApplySettings(k);
-      mcSaveSettings();
-    });
-  });
-  const rerender = () => updateInventoryUI();
-  body.querySelectorAll('[data-pal]').forEach(el => el.addEventListener('click', () => {
-    mcCursor = mcCursor === el.dataset.pal ? null : el.dataset.pal;
-    mcPlayClick(); rerender();
-  }));
-  body.querySelectorAll('[data-cell]').forEach(el => el.addEventListener('click', () => {
-    mcPutCell(parseInt(el.dataset.cell, 10)); mcPlayClick(); rerender();
-  }));
-  body.querySelectorAll('[data-result]').forEach(el => el.addEventListener('click', () => { mcTakeResult(); rerender(); }));
-  body.querySelectorAll('[data-act]').forEach(el => el.addEventListener('click', () => {
-    if (el.dataset.act === 'craftall') mcTakeAll(); else mcReturnGrid();
-    rerender();
-  }));
-  body.querySelectorAll('[data-hot]').forEach(el => el.addEventListener('click', () => {
-    const i = parseInt(el.dataset.hot, 10);
-    if (mcCursor) {
-      const id = parseInt(mcCursor, 10);
-      if (BLOCK_TYPES[mcCursor] && MC_PLACEABLE.indexOf(id) >= 0) {
-        mcHotbar[i] = id;
-        mcSelectedIndex = i;
-      } else mcToast('Seuls les blocs se mettent dans la barre d\'objets.');
-    } else mcSelectedIndex = i;
-    mcPlayClick(); rerender(); mcRefreshHeld();
-  }));
-  body.querySelectorAll('[data-recipe]').forEach(el => el.addEventListener('click', () => {
-    mcAutoFill(el.dataset.recipe); mcPlayClick(); rerender();
-  }));
-  body.querySelectorAll('[data-fslot]').forEach(el => el.addEventListener('click', () => {
-    mcPutFurnace(el.dataset.fslot); mcPlayClick(); rerender();
-  }));
-  body.querySelectorAll('[data-fout]').forEach(el => el.addEventListener('click', () => { mcTakeFurnaceOut(); rerender(); }));
-
-  body.querySelectorAll('[data-bind]').forEach(el => {
-    el.addEventListener('click', () => {
-      const [action, slot] = el.dataset.bind.split(':');
-      mcCapture = { action, slot: parseInt(slot, 10) };
-      body.querySelectorAll('.mc-key').forEach(b => b.classList.remove('wait'));
-      el.classList.add('wait');
-      el.textContent = 'Appuie…';
-    });
-  });
-  const reset = body.querySelector('#mc-keys-reset');
-  if (reset) reset.addEventListener('click', () => {
-    mcSettings.keys = mcDefaultKeys();
-    mcSaveSettings();
-    mcShowTab('controls');
-  });
-  const save = body.querySelector('#mc-save-now');
-  if (save) save.addEventListener('click', () => { mcSaveGame(true); mcToast('Monde sauvegardé 💾'); });
-  const nw = body.querySelector('#mc-new-world');
-  if (nw) nw.addEventListener('click', () => {
-    if (!mcConfirmReset) { mcConfirmReset = true; mcShowTab('options'); return; }
-    try { localStorage.removeItem(MC_SAVE_KEY); } catch (e) { /* ignore */ }
-    mcConfirmReset = false;
-    startCybercraftGame(true);
-  });
 }
 
 function mcAssignKey(action, slot, key) {
@@ -2169,6 +2867,7 @@ function setupCybercraftTouchUI(hud) {
       <div id="mc-btn-run"   style="position:absolute;right:98px;bottom:84px;width:50px;height:50px;font-size:20px;${circle}">🏃</div>
     </div>
     <div id="mc-btn-menu" style="position:absolute;left:14px;top:14px;width:44px;height:44px;font-size:22px;border-radius:10px;background:rgba(5,5,16,0.55);border:2px solid rgba(0,243,255,0.6);color:#00f3ff;display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;">☰</div>
+    <div id="mc-btn-inv" style="position:absolute;left:66px;top:14px;width:44px;height:44px;font-size:22px;border-radius:10px;background:rgba(5,5,16,0.55);border:2px solid rgba(0,243,255,0.6);display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;">🎒</div>
   `;
   hud.appendChild(wrap);
 
@@ -2234,28 +2933,40 @@ function setupCybercraftTouchUI(hud) {
     mcTouch.run = !mcTouch.run;
     wrap.querySelector('#mc-btn-run').style.background = mcTouch.run ? 'rgba(0,243,255,0.5)' : 'rgba(5,5,16,0.55)';
   });
-  bind('#mc-btn-menu', () => mcOpenInventory('inv'));
+  bind('#mc-btn-menu', () => mcSetPaused(true, 'pause'));
+  bind('#mc-btn-inv', () => mcOpenInventory('inv'));
 }
 
 function updateInventoryUI() {
   updateHotbarUI();
-  if (mcIsPaused && mcTab === 'inv' && document.getElementById('mc-tab-body') && !mcCapture) mcShowTab('inv');
+  if (mcIsPaused && mcScreen === 'inv' && document.getElementById('mc-screen') && !mcCapture) mcShowScreen('inv');
   mcRefreshHeld();
 }
 function updateHotbarUI() {
-  mcHotbar.forEach((id, i) => {
+  mcHotbar.forEach((k, i) => {
     const c = document.getElementById('mc-count-' + i);
     const s = document.getElementById('mc-slot-' + i);
     const img = document.getElementById('mc-img-' + i);
-    const n = id ? (mcInventory[id] || 0) : 0;
-    if (c) c.textContent = id ? n : '';
+    const emo = document.getElementById('mc-emo-' + i);
+    const n = k ? (mcInventory[k] || 0) : 0;
+    const tool = k && MC_TOOL_RE.test(k);
+    if (c) c.textContent = (k && !tool) ? n : '';
+    const isBlock = !!(k && mcIcons[k]);
     if (img) {
-      if (img.dataset.id !== String(id)) { img.dataset.id = String(id); img.src = id ? (mcIcons[id] || '') : ''; }
-      img.style.visibility = id ? 'visible' : 'hidden';
+      const want = isBlock ? k : '';
+      if (img.dataset.id !== want) { img.dataset.id = want; img.src = isBlock ? mcIcons[k] : ''; }
+      img.style.display = isBlock ? 'block' : 'none';
+    }
+    if (emo) {
+      if (k && !isBlock) {
+        emo.textContent = mcItemEmoji(k);
+        emo.style.display = 'block';
+        emo.style.textShadow = tool ? '0 0 6px ' + (MC_TIER_COL[k.split('_')[0]] || '#fff') + ',0 0 2px #000' : '0 0 2px #000';
+      } else emo.style.display = 'none';
     }
     if (s) {
       s.classList.toggle('sel', i === mcSelectedIndex);
-      s.style.opacity = (n > 0 || !id) ? '1' : '0.45';
+      s.style.opacity = (n > 0 || !k) ? '1' : '0.45';
     }
   });
 }
@@ -2266,11 +2977,13 @@ function updateHotbarUI() {
 function mcPlaceBlock() {
   if (!mcReady || mcIsPaused) return;
   const t = mcCastFromCamera();
+  if (t && t.type === 15) { mcOpenInventory('table'); return; }
+  if (t && t.type === 16) { mcOpenInventory('furnace'); return; }
+  const key = mcHotbar[mcSelectedIndex];
+  if (key && MC_FOOD[key]) { mcEat(key); return; }
   if (!t) return;
-  if (t.type === 15) { mcOpenInventory('table'); return; }
-  if (t.type === 16) { mcOpenInventory('furnace'); return; }
-  const id = mcHotbar[mcSelectedIndex];
-  if (!id || !((mcInventory[id] || 0) > 0)) return;
+  const id = key ? parseInt(key, 10) : 0;
+  if (!id || !BLOCK_TYPES[key] || !((mcInventory[key] || 0) > 0)) return;
   const px = t.x + t.nx, py = t.y + t.ny, pz = t.z + t.nz;
   if (py < 0 || py >= MC_WORLD_H || mcGet(px, py, pz) !== 0) return;
   const p = mcPlayer.pos, r = PLAYER_RADIUS;
@@ -2279,7 +2992,7 @@ function mcPlaceBlock() {
     p.y - PLAYER_HEIGHT < py + 0.5 && p.y + PLAYER_HEAD > py - 0.5;
   if (overlap) return;
   if (!mcSetBlock(px, py, pz, id)) return;
-  mcInventory[id]--;
+  mcInventory[key]--;
   mcPlayBlockSound(BLOCK_TYPES[id].sound, 'place');
   animateHandSwing();
   updateInventoryUI();
@@ -2291,6 +3004,8 @@ function mcBreakBlock(t) {
   mcPlayBlockSound(def.sound, 'break');
   mcSetBlock(t.x, t.y, t.z, 0);
   if (def.drop) mcGive(def.drop, 1);
+  if (t.type === 5 && Math.random() < 0.07) { mcGive('APPLE', 1); mcToast('+1 Pomme 🍎'); }
+  mcExhaust += 0.025;
   mcMiningProgress = 0;
   mcTargetKey = null;
   if (mcCrackMesh) mcCrackMesh.visible = false;
@@ -2320,15 +3035,15 @@ function mcUpdateMining(dt, wantMine) {
     if (mcDeniedT <= 0) { mcToast('Ce bloc est incassable !'); mcDeniedT = 1.2; }
     return;
   }
-  if (mcToolTier('PICKAXE') < def.minLevel) {
+  if (mcMineTier('PICKAXE') < def.minLevel) {
     if (mcDeniedT <= 0) {
-      mcToast('Il faut une pioche en ' + MC_TIERS[def.minLevel - 1].n + ' (ou mieux) pour miner : ' + def.name);
+      mcToast(mcToolTier('PICKAXE') >= def.minLevel ? 'Équipe ta pioche : touche-la dans la barre d\'objets (ou active « Outil automatique »).' : 'Il faut une pioche en ' + MC_TIERS[def.minLevel - 1].n + ' (ou mieux) pour miner : ' + def.name);
       mcDeniedT = 1.5;
     }
     mcCrackMesh.visible = false;
     return;
   }
-  const tier = def.tool ? mcToolTier(def.tool) : 0;
+  const tier = def.tool ? mcMineTier(def.tool) : 0;
   const mult = tier > 0 ? MC_TIERS[tier - 1].mult : 1;
   mcMiningProgress += (1.2 * mult / def.hardness) * dt;
 
@@ -2404,11 +3119,14 @@ function startCybercraftGame(fresh) {
   mcTouch.x = 0; mcTouch.y = 0; mcTouch.jump = false; mcTouch.run = false;
   for (const k in mcKeys) mcKeys[k] = false;
   mcCapture = null;
-  mcTab = 'inv';
+  mcTab = 'controls';
   mcSwingT = 0;
   mcCursor = null;
   mcInitGrid('inv');
   mcResetFurnace();
+  mcResetStats(); mcMobs.length = 0; mcScreen = 'none'; mcWaitChunks = false; mcKnock.x = 0; mcKnock.z = 0;
+  mcAtkCd = 0; mcMobSpawnT = 0; mcMobPrefill = true; mcTargetMob = null; mcMobSndT = 6;
+  mcCanvasEl = canvas; mcContainerEl = container;
 
   mcTouchMode = !!(window.GameMobile
     ? GameMobile.isTouch
@@ -2423,7 +3141,7 @@ function startCybercraftGame(fresh) {
   // Sauvegarde éventuelle
   mcEdits.clear();
   mcResetInventory();
-  mcHotbar = [1, 2, 3, 4, 5, 0, 0, 0, 0];
+  mcHotbar = ['1', '2', '3', '4', '5', '', '', '', ''];
   mcSelectedIndex = 0;
   mcTime = 0.22;
   const save = fresh ? null : mcLoadGame();
@@ -2435,7 +3153,8 @@ function startCybercraftGame(fresh) {
       mcEdits.set(mcCK(e[0], e[1]), m);
     });
     Object.keys(save.inv || {}).forEach(k => { if (k in mcInventory) mcInventory[k] = save.inv[k] | 0; });
-    if (Array.isArray(save.hot) && save.hot.length === 9) mcHotbar = save.hot.map(v => (BLOCK_TYPES[v] && MC_PLACEABLE.indexOf(v) >= 0) ? v : 0);
+    if (Array.isArray(save.hot) && save.hot.length === 9) mcHotbar = save.hot.map(v => { const s = v ? String(v) : ''; return mcHotbarOK(s) ? s : ''; });
+    if (typeof save.hp === 'number' && save.hp > 0) { mcHealth = Math.min(20, save.hp); mcFood = Math.min(20, save.food | 0); mcSat = Math.min(20, save.sat || 0); }
     if (save.furn && typeof save.furn === 'object') mcFurnace = Object.assign(mcFurnace, save.furn);
     mcTime = typeof save.time === 'number' ? save.time : 0.22;
     mcSelectedIndex = Math.max(0, Math.min(8, save.slot | 0));
@@ -2472,6 +3191,7 @@ function startCybercraftGame(fresh) {
   mcMatHand = new THREE.MeshBasicMaterial({ map: mcAtlasTex, vertexColors: true, alphaTest: 0.5, fog: false });
   mcMakeCrackTextures();
   mcIcons = {};
+  mcMakeStatIcons();
   MC_PLACEABLE.forEach(id => { mcIcons[id] = mcMakeCubeIcon(BLOCK_TYPES[id].tiles[0], BLOCK_TYPES[id].tiles[1]); });
 
   mcOutlineMesh = new THREE.LineSegments(
@@ -2527,10 +3247,10 @@ function startCybercraftGame(fresh) {
     if (!mcTouchMode) mcToast('Clique sur REPRENDRE pour jouer');
   };
   // Prêt quand les 5x5 chunks autour du joueur sont affichés
-  const startReady = () => {
+  const startReady = (rad) => {
     const pcx = startCx(), pcz = startCz();
     let have = 0;
-    for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+    for (let dz = -rad; dz <= rad; dz++) for (let dx = -rad; dx <= rad; dx++) {
       const c = mcChunkMap.get(mcCK(pcx + dx, pcz + dz));
       if (c && c.meshed) have++;
     }
@@ -2566,6 +3286,7 @@ function startCybercraftGame(fresh) {
     });
     on(document, 'pointerlockchange', () => {
       if (!mcReady) return;
+      if (mcDead) return;
       mcSetPaused(document.pointerLockElement !== canvas);
     });
     on(canvas, 'wheel', (e) => {
@@ -2614,8 +3335,11 @@ function startCybercraftGame(fresh) {
     mcAudioEnsure();
     const k = e.key.toLowerCase();
     const inField = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+    if (!inField && k && !e.repeat && mcSettings.keys.fullscreen.includes(k)) { e.preventDefault(); mcToggleFullscreen(); return; }
     if (mcIsPaused) {
-      if (!inField && !mcTouchMode && mcReady && k && mcSettings.keys.menu.includes(k)) { e.preventDefault(); mcLock(canvas); }
+      if (mcDead || inField || !mcReady) return;
+      if (k && !mcTouchMode && mcSettings.keys.menu.includes(k) && (mcScreen === 'inv' || mcScreen === 'pause')) { e.preventDefault(); mcLock(canvas); }
+      else if (k === 'escape' && (mcScreen === 'inv' || mcScreen === 'settings')) mcShowScreen('pause');
       return;
     }
     mcKeys[k] = true;
@@ -2630,16 +3354,19 @@ function startCybercraftGame(fresh) {
   on(window, 'pointerdown', () => mcAudioEnsure());
   on(canvas, 'contextmenu', e => e.preventDefault());
   on(window, 'resize', mcResize);
+  on(document, 'fullscreenchange', () => setTimeout(mcResize, 150));
+  on(document, 'webkitfullscreenchange', () => setTimeout(mcResize, 150));
   on(window, 'pagehide', () => mcSaveGame());
 
   // Boucle d'animation
   let last = performance.now();
   let fpsT = 0, fpsN = 0, fpsShown = 60;
-  let lowFpsCount = 0, lastTargetType = -1, furnUiT = 0, furnSig = '';
+  let lowFpsCount = 0, lastLabel = '', furnUiT = 0, furnSig = '', lastHurt = -1;
   let fovCur = mcSettings.fov;
   let autoQNotified = false;
   const elTarget = document.getElementById('mc-target');
   const elFps = document.getElementById('mc-fps');
+  const elHurt = document.getElementById('mc-hurt');
 
   function animate(now) {
     if (runId !== mcRunId) return;
@@ -2651,29 +3378,41 @@ function startCybercraftGame(fresh) {
     if (mcStarted) {
       const pcx = startCx(), pcz = startCz();
       if (pcx !== mcCenterCx || pcz !== mcCenterCz) { mcCenterCx = pcx; mcCenterCz = pcz; mcPlanStreaming(pcx, pcz); }
-      mcStreamStep(mcReady ? 5 : 40);
+      mcStreamStep((mcReady && !mcWaitChunks) ? 5 : 40);
       if (!mcReady) {
-        const have = startReady();
+        const have = startReady(2);
         const f = loadFill();
         if (f) f.style.width = Math.round(have / 25 * 100) + '%';
         if (have >= 25) finishLoading();
-      }
+      } else if (mcWaitChunks && startReady(1) >= 9) mcWaitChunks = false;
     }
 
     let moving = false, spd = 0;
     if (mcReady) mcFurnaceTick(dt);
-    if (mcReady && !mcIsPaused) {
+    const playing = mcReady && !mcIsPaused && !mcWaitChunks && !mcDead;
+
+    if (playing) {
       let ax = 0, az = 0;
       if (mcDown('forward')) az -= 1;
       if (mcDown('back')) az += 1;
       if (mcDown('left')) ax -= 1;
       if (mcDown('right')) ax += 1;
       if (mcTouchMode) { ax += mcTouch.x; az += mcTouch.y; }
-      const sprint = mcDown('sprint') || mcTouch.run;
+      const sprint = (mcDown('sprint') || mcTouch.run) && (!mcSettings.survival || mcFood > 6);
       const jump = mcDown('jump') || mcTouch.jump;
       const wasGround = mcPlayer.onGround;
       const r = mcPhysics(dt, ax, az, sprint, jump);
       moving = r.moving; spd = r.speed;
+
+      // Dégâts de chute
+      if (!mcPlayer.onGround) {
+        if (!mcInAir) { mcInAir = true; mcAirMaxY = mcPlayer.pos.y; } else mcAirMaxY = Math.max(mcAirMaxY, mcPlayer.pos.y);
+      } else if (mcInAir) {
+        mcInAir = false;
+        const fall = mcAirMaxY - mcPlayer.pos.y;
+        if (fall > 3.3) mcDamage(Math.floor(fall - 3));
+      }
+      mcSurvivalTick(dt, r.speed * dt, sprint && moving, r.jumped);
 
       // Bruits de pas
       if (moving && mcPlayer.onGround && wasGround) {
@@ -2687,6 +3426,7 @@ function startCybercraftGame(fresh) {
         const top = mcTopAt(mcBi(mcPlayer.pos.x), mcBi(mcPlayer.pos.z));
         mcPlayer.pos.y = top + 0.5 + PLAYER_HEIGHT + 2;
         mcPlayer.velocity.set(0, 0, 0);
+        mcInAir = false;
       }
 
       // FOV dynamique en sprint
@@ -2697,18 +3437,27 @@ function startCybercraftGame(fresh) {
       mcCamera.position.copy(mcPlayer.pos);
       mcCamera.rotation.set(mcPlayer.pitch, mcPlayer.yaw, 0);
 
-      // Visée et minage
+      // Visée : créature ou bloc
       mcTarget = mcCastFromCamera();
-      mcDeniedT -= dt;
-      mcUpdateMining(dt, mcMining || mcDown('mine'));
+      const mh = mcMobRay(MC_REACH - 0.9);
+      mcTargetMob = (mh && (!mcTarget || mh.dist < mcTarget.dist)) ? mh.mob : null;
+      mcDeniedT -= dt; mcAtkCd -= dt;
+      const wantMine = mcMining || mcDown('mine');
+      if (mcTargetMob && wantMine) {
+        if (mcAtkCd <= 0) { mcAttackMob(mcTargetMob); mcAtkCd = 0.45; animateHandSwing(); }
+        mcUpdateMining(dt, false);
+      } else mcUpdateMining(dt, wantMine);
 
-      const ty = mcTarget ? mcTarget.type : 0;
-      if (elTarget && ty !== lastTargetType) {
-        lastTargetType = ty;
-        if (ty) { elTarget.textContent = BLOCK_TYPES[ty].name + ((ty === 15 || ty === 16) ? ' — clic droit pour utiliser' : ''); elTarget.style.display = 'block'; }
-        else elTarget.style.display = 'none';
+      let label = '';
+      if (mcTargetMob) label = mcTargetMob.def.name + ' · ' + Math.ceil(mcTargetMob.hp) + '/' + mcTargetMob.def.hp;
+      else if (mcTarget) label = BLOCK_TYPES[mcTarget.type].name + ((mcTarget.type === 15 || mcTarget.type === 16) ? ' — clic droit pour utiliser' : '');
+      if (elTarget && label !== lastLabel) {
+        lastLabel = label;
+        elTarget.textContent = label;
+        elTarget.style.display = label ? 'block' : 'none';
       }
 
+      mcUpdateMobs(dt);
       mcUpdateParticles(dt);
       mcSaveT += dt;
       if (mcSaveT > 25) { mcSaveT = 0; mcSaveGame(); }
@@ -2719,13 +3468,13 @@ function startCybercraftGame(fresh) {
       mcOutlineMesh.visible = false;
 
       // Four ouvert : met à jour les barres de progression sans casser les clics
-      if (mcTab === 'inv' && mcCraftMode === 'furnace' && !mcCapture) {
+      if (mcIsPaused && mcScreen === 'inv' && mcCraftMode === 'furnace' && !mcCapture) {
         furnUiT += dt;
         if (furnUiT > 0.25) {
           furnUiT = 0;
           const f = mcFurnace;
           const sig = JSON.stringify([f.inp, f.fuel, f.out]);
-          if (sig !== furnSig) { furnSig = sig; mcShowTab('inv'); }
+          if (sig !== furnSig) { furnSig = sig; mcShowScreen('inv'); }
           else {
             const ff = document.getElementById('mc-flame-fill'), pf = document.getElementById('mc-prog-fill');
             if (ff) ff.style.height = (f.burnMax ? Math.round(f.burn / f.burnMax * 100) : 0) + '%';
@@ -2735,9 +3484,14 @@ function startCybercraftGame(fresh) {
       }
     }
 
+    if (!mcSettings.mobs && mcMobs.length) mcClearMobs();
     if (mcReady) {
       mcUpdateHand(dt, moving, spd);
       mcUpdateSky(dt);
+      mcUpdateStatsHud();
+      if (mcHurtT > 0) mcHurtT = Math.max(0, mcHurtT - dt);
+      const hv = Math.round(mcHurtT / 0.5 * 100);
+      if (hv !== lastHurt && elHurt) { lastHurt = hv; elHurt.style.opacity = (hv / 100 * 0.55).toFixed(2); }
     }
 
     // FPS, coordonnées et qualité automatique
@@ -2746,9 +3500,9 @@ function startCybercraftGame(fresh) {
       fpsShown = Math.round(fpsN / fpsT);
       fpsT = 0; fpsN = 0;
       if (mcSettings.showFps && elFps) {
-        elFps.textContent = fpsShown + ' FPS · ' + mcChunkMap.size + ' chunks\nXYZ ' + mcPlayer.pos.x.toFixed(1) + ' ' + (mcPlayer.pos.y - PLAYER_HEIGHT).toFixed(1) + ' ' + mcPlayer.pos.z.toFixed(1) + '\nHeure ' + Math.floor(((mcTime * 24 + 6) % 24)) + 'h';
+        elFps.textContent = fpsShown + ' FPS · ' + mcChunkMap.size + ' chunks · ' + mcMobs.length + ' créatures\nXYZ ' + mcPlayer.pos.x.toFixed(1) + ' ' + (mcPlayer.pos.y - PLAYER_HEIGHT).toFixed(1) + ' ' + mcPlayer.pos.z.toFixed(1) + '\nHeure ' + Math.floor(((mcTime * 24 + 6) % 24)) + 'h';
       }
-      if (mcSettings.autoQuality && mcReady && !mcIsPaused) {
+      if (mcSettings.autoQuality && playing) {
         lowFpsCount = fpsShown < 32 ? lowFpsCount + 1 : 0;
         if (lowFpsCount >= 6) {
           lowFpsCount = 0;
@@ -2773,29 +3527,6 @@ function startCybercraftGame(fresh) {
   mcResize();
   if (window.GameMobile) GameMobile.start('cybercraft', { fluid: true, noScore: true, hint: true });
 }
-
-// Fermeture propre : appelée par main.js (stopAllGames) quand on quitte le jeu
-window._cybercraftCleanup = function () {
-  try { if (mcReady) mcSaveGame(); } catch (e) { /* ignore */ }
-  mcRunId++;                                   // arrête les boucles liées à cette partie
-  mcCleanups.forEach(f => { try { f(); } catch (e) { /* ignore */ } });
-  mcCleanups = [];
-  mcStopMusic();
-  mcReady = false; mcStarted = false; mcIsPaused = true;
-  mcMining = false;
-  for (const k in mcKeys) mcKeys[k] = false;
-  try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) { /* ignore */ }
-  // Interface (HUD, menu pause / paramètres / crafts, commandes tactiles)
-  document.querySelectorAll('#mc-hud-container, #mc-pause-menu, #mc-touch-ui').forEach(el => el.remove());
-  try {
-    mcChunkMap.forEach(ch => {
-      if (ch.solid) ch.solid.geometry.dispose();
-      if (ch.glass) ch.glass.geometry.dispose();
-    });
-    mcChunkMap.clear();
-    if (mcRenderer) mcRenderer.dispose();
-  } catch (e) { /* ignore */ }
-};
 
 // Lancement automatique
 if (typeof startCybercraftGame === 'function') {

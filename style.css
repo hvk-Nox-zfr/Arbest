@@ -716,3 +716,26 @@ body.in-game .cursor-orb { display: none; }
   .grid-line { animation: none; }
   .view.active { animation: none; }
 }
+
+/* Pastille NOUVEAU / NEW sur les cartes de jeux */
+.card-new-badge {
+  position: absolute;
+  top: 1.2rem;
+  left: 1.2rem;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.55rem;
+  font-weight: 800;
+  background: rgba(0, 255, 136, 0.2);
+  border: 1px solid var(--neon-green);
+  color: var(--neon-green);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+  animation: pulseNew 2s infinite;
+}
+
+@keyframes pulseNew {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
