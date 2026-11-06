@@ -406,7 +406,8 @@ const GAMES_REGISTRY = {
     initFn: 'startTowerStackGame',
     controls: 'click : poser un bloc | espace : recommencer',
     needs3D: true,
-    disabled: false
+    disabled: false,
+    isNew: true
   },
 };
 
