@@ -397,6 +397,17 @@ const GAMES_REGISTRY = {
     needs3D: true,
     disabled: true
   },
+  toxerstack: {
+    title: 'Tower Stack',
+    badge: '3D',
+    category: 'record',
+    desc: 'Fait la plus haute tour possible en empilant les blocs avec précision.',
+    script: 'js/games/tower-stack.js',
+    initFn: 'startTowerStackGame',
+    controls: 'click : poser un bloc | espace : recommencer',
+    needs3D: true,
+    disabled: false
+  },
 };
 
 // ============================================================
