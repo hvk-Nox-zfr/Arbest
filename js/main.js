@@ -187,7 +187,8 @@ const GAMES_REGISTRY = {
     initFn: 'startGTAGame',
     controls: '💡 ZQSD : bouger/conduire | Souris : caméra | Clic : tirer | E : monter | Espace : sauter',
     needs3D: true,
-    disabled: false
+    disabled: false,
+    isNew: true
   },
   skyline: {
     title: 'SKYLINE RUSH',

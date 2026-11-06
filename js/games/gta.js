@@ -1922,7 +1922,7 @@ function startGTAGame() {
 
   // ---------- État global ----------
   let aimHold = false, camSO = 0;
-  let state = 'play', stateT = 0, started = false, paused = false, menuOpen = false, running = true, noLock = false;
+  let state = 'play', stateT = 0, started = false, paused = false, menuOpen = false, running = true;
   let heat = 0, stars = 0, unseenT = 0, tod = 0.4, shake = 0, aimT = 0, hornT = 0, lastLook = 0, saveT = 0;
   let camYaw = Math.PI, camPitch = 0.28, camD = 6, camPos = [0, 5, 0], camDir = [0, 0, 1];
   const STAR_T = [0, 10, 30, 60, 100, 150];
@@ -2577,12 +2577,11 @@ function startGTAGame() {
     c.addEventListener('click', closeShop); box.appendChild(c);
   }
   function openShop() {
-    menuOpen = true; if (document.exitPointerLock) document.exitPointerLock();
+    menuOpen = true;
     renderShop(); shopEl.style.display = 'flex';
   }
   function closeShop() {
     menuOpen = false; shopEl.style.display = 'none';
-    if (!isTouch && !noLock && canvas.requestPointerLock) canvas.requestPointerLock();
   }
 
   // ============================================================
@@ -2620,7 +2619,6 @@ function startGTAGame() {
     // ----- à pied -----
     let ix = (keys.right ? 1 : 0) - (keys.left ? 1 : 0) + jx;
     const iy = (keys.up ? 1 : 0) - (keys.down ? 1 : 0) + jy;
-    if (noLock && !isTouch) { camYaw -= ix * 2.2 * dt; ix = 0; }
     const fx = Math.sin(camYaw), fz = Math.cos(camYaw), rx = -Math.cos(camYaw), rz = Math.sin(camYaw);
     const mx = fx * iy + rx * ix, mz = fz * iy + rz * ix, ml = Math.hypot(mx, mz);
     const sprint = keys.sprint || (isTouch && Math.hypot(jx, jy) > 0.92);
@@ -3149,7 +3147,7 @@ function startGTAGame() {
   .g-shopbox button{background:#1f1f44;color:#fff;border:1px solid #ff5533;border-radius:6px;padding:8px 10px;font-size:16px;font-weight:700}
   .g-shopbox button:hover{background:#ff5533}
   .g-shopbox .g-close{border-color:#888}
-  .g-start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,5,20,.84);pointer-events:auto;text-align:center;padding:12px}
+  .g-start{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,5,20,.84);pointer-events:auto;text-align:center;padding:12px}
   .g-start h2{font:400 20px 'Press Start 2P',cursive;color:#00f3ff;margin-bottom:10px;text-shadow:0 0 12px #00f3ff}
   .g-start p{font-size:16px;line-height:1.35;max-width:600px;margin:2px 0;color:#ddd}
   .g-start button{margin-top:14px;padding:10px 22px;font:400 13px 'Press Start 2P',cursive;color:#00f3ff;background:transparent;border:2px solid #00f3ff;border-radius:4px}
@@ -3165,7 +3163,7 @@ function startGTAGame() {
   document.head.appendChild(styleEl);
 
   hud = document.createElement('div'); hud.className = 'gta-hud';
-  const helpDesktop = '<p><b>ZQSD / flèches</b> : bouger ou conduire &nbsp;·&nbsp; <b>Souris</b> : caméra &nbsp;·&nbsp; <b>Clic / X</b> : tirer &nbsp;·&nbsp; <b>Clic droit</b> : viser</p><p><b>E</b> : monter / descendre, braquer, acheter &nbsp;·&nbsp; <b>Maj</b> : courir &nbsp;·&nbsp; <b>Espace</b> : sauter / frein à main</p><p><b>1-4</b> ou <b>R</b> : armes &nbsp;·&nbsp; <b>H</b> : klaxon &nbsp;·&nbsp; <b>Échap</b> : libérer la souris</p>';
+  const helpDesktop = '<p><b>ZQSD / flèches</b> : bouger ou conduire &nbsp;·&nbsp; <b>Déplacer la souris</b> : tourner la caméra (sans cliquer) &nbsp;·&nbsp; <b>Clic / X</b> : tirer &nbsp;·&nbsp; <b>Clic droit</b> : viser</p><p><b>E</b> : monter / descendre, braquer, acheter &nbsp;·&nbsp; <b>Maj</b> : courir &nbsp;·&nbsp; <b>Espace</b> : sauter / frein à main</p><p><b>1-4</b> ou <b>R</b> : armes &nbsp;·&nbsp; <b>H</b> : klaxon &nbsp;·&nbsp; <b>Échap</b> : pause</p>';
   const helpTouch = '<p>Joystick à gauche : bouger / conduire. Glisse à droite : caméra.</p><p>🔫 tirer · E : monter, braquer, acheter · ⤒ sauter / frein · 🔁 arme</p>';
   hud.innerHTML = '<div class="g-vig"></div><canvas class="g-map" width="132" height="132"></canvas>' +
     '<div class="g-money">$<span class="v-money">0</span></div><div class="g-toasts"></div>' +
@@ -3257,7 +3255,6 @@ function startGTAGame() {
   //  ENTRÉES
   // ============================================================
   const KMAP = { z: 'up', w: 'up', arrowup: 'up', s: 'down', arrowdown: 'down', q: 'left', a: 'left', arrowleft: 'left', d: 'right', arrowright: 'right', shift: 'sprint', ' ': 'jump', x: 'fire', h: 'horn' };
-  const isLocked = () => document.pointerLockElement === canvas;
   function onKeyDown(e) {
     if (!running) return;
     const k = e.key.toLowerCase();
@@ -3267,26 +3264,36 @@ function startGTAGame() {
     if (k === 'e' || k === 'f') pressed.act = true;
     if (k === 'r') pressed.wpn = true;
     if (k.length === 1 && k >= '1' && k <= '4') pressed['w' + k] = true;
-    if (k === 'escape' && menuOpen) closeShop();
+    if (k === 'escape') {
+      if (menuOpen) { closeShop(); e.preventDefault(); }
+      else if (started) {
+        paused = !paused;
+        if (paused) { firing = false; aimHold = false; showPause(); }
+        else H.start.style.display = 'none';
+        e.preventDefault();
+      }
+    }
   }
   function onKeyUp(e) { const k = e.key.toLowerCase(); if (KMAP[k]) keys[KMAP[k]] = false; }
-  function onBlur() { for (const k in keys) keys[k] = false; firing = false; }
+  let lastMouseX = null, lastMouseY = null;
+  function onBlur() { for (const k in keys) keys[k] = false; firing = false; lastMouseX = lastMouseY = null; }
+  function onMouseEnter(e) { lastMouseX = e.clientX; lastMouseY = e.clientY; }
+  function onMouseLeave() { lastMouseX = lastMouseY = null; }
+  // La caméra suit directement les déplacements du curseur sur le jeu : aucun clic ni maintien requis.
   function onMouseMove(e) {
-    if (!isLocked() || paused || menuOpen) return;
-    camYaw -= e.movementX * 0.0025; camPitch = clamp(camPitch + e.movementY * 0.0022, -0.2, 1.15); lastLook = now;
+    if (!started || paused || menuOpen || isTouch) return;
+    if (lastMouseX === null || lastMouseY === null) { lastMouseX = e.clientX; lastMouseY = e.clientY; return; }
+    const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
+    lastMouseX = e.clientX; lastMouseY = e.clientY;
+    camYaw -= dx * 0.0025;
+    camPitch = clamp(camPitch + dy * 0.0022, -0.2, 1.15);
+    if (dx || dy) lastLook = now;
   }
   function onMouseDown(e) {
     if (!started || paused || menuOpen) return;
-    if (!isLocked() && !isTouch && !noLock) { if (canvas.requestPointerLock) canvas.requestPointerLock(); return; }
     if (e.button === 0) firing = true; else if (e.button === 2) aimHold = true;
   }
   function onMouseUp(e) { if (e.button === 0) firing = false; if (e.button === 2) aimHold = false; }
-  function onLockChange() {
-    if (!running) return;
-    if (isLocked()) { paused = false; H.start.style.display = 'none'; }
-    else if (started && !menuOpen && !isTouch && !noLock) { paused = true; showPause(); }
-  }
-  function onLockError() { noLock = true; paused = false; H.start.style.display = 'none'; toast('Souris non verrouillable : ← → tournent la caméra', '#ffd23f'); }
   function onWheel(e) { if (started && !paused && !menuOpen && e.deltaY !== 0) cycleWeapon(e.deltaY > 0 ? 1 : -1); }
   let eng = null;
   function engineStart() {
@@ -3308,7 +3315,7 @@ function startGTAGame() {
   function begin() {
     started = true; paused = false; H.start.style.display = 'none';
     engineStart(); rainStart();
-    if (!isTouch && !noLock && canvas.requestPointerLock) { try { canvas.requestPointerLock(); } catch (e) {} }
+    lastMouseX = lastMouseY = null;
   }
   function showPause() {
     H.start.querySelector('h2').textContent = 'PAUSE';
@@ -3338,8 +3345,8 @@ function startGTAGame() {
     }
   }
   window.addEventListener('keydown', onKeyDown); window.addEventListener('keyup', onKeyUp); window.addEventListener('blur', onBlur);
-  document.addEventListener('mousemove', onMouseMove); canvas.addEventListener('mousedown', onMouseDown); canvas.addEventListener('contextmenu', e => e.preventDefault()); window.addEventListener('mouseup', onMouseUp);
-  document.addEventListener('pointerlockchange', onLockChange); document.addEventListener('pointerlockerror', onLockError);
+  canvas.addEventListener('mouseenter', onMouseEnter); canvas.addEventListener('mousemove', onMouseMove); canvas.addEventListener('mouseleave', onMouseLeave);
+  canvas.addEventListener('mousedown', onMouseDown); canvas.addEventListener('contextmenu', e => e.preventDefault()); window.addEventListener('mouseup', onMouseUp);
   document.addEventListener('fullscreenchange', onFullscreen); canvas.addEventListener('wheel', onWheel, { passive: true });
 
   if (isTouch) {
@@ -3435,10 +3442,9 @@ function startGTAGame() {
     saveGame();
     try { if (typeof updateHighScore === 'function') updateHighScore('gta', earned); } catch (e) {}
     window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); window.removeEventListener('blur', onBlur);
-    document.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp);
-    document.removeEventListener('pointerlockchange', onLockChange); document.removeEventListener('pointerlockerror', onLockError);
+    canvas.removeEventListener('mouseenter', onMouseEnter); canvas.removeEventListener('mousemove', onMouseMove); canvas.removeEventListener('mouseleave', onMouseLeave);
+    canvas.removeEventListener('mousedown', onMouseDown); window.removeEventListener('mouseup', onMouseUp);
     document.removeEventListener('fullscreenchange', onFullscreen);
-    try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) {}
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
     try { if (eng) { eng.g.gain.value = 0; eng.o.stop(); eng = null; } } catch (e) {}
     try { if (scanEl) scanEl.style.display = scanPrev; } catch (e) {}
