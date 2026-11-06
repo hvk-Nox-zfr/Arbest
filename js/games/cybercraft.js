@@ -1,10 +1,11 @@
 // ============================================================
-// CYBERCRAFT 3D v4
+// CYBERCRAFT 3D v5
 // - MONDE OUVERT INFINI : chunks générés et affichés autour du joueur
 // - Optimisé : maillage par chunks, faces cachées supprimées, budget de temps par image,
 //   chargement progressif, qualité automatique si ça lag
 // - Craft à la façon Minecraft : grille 2x2 (touche E) et table de craft (grille 3x3),
 //   four avec combustible, livre de recettes cliquable
+// - Biomes (désert, forêt, toundra, montagnes), océans, lacs, rivières, structures (cabane, puits, ruines, tour, pyramide)
 // - Vie, faim, nourriture, créatures (cochon, vache, mouton, poule, zombie la nuit)
 // - Écrans séparés : Pause, Inventaire & Crafts (simple ou grille), Paramètres, plein écran
 // - Menu : commandes personnalisables, audio, graphismes, options
@@ -25,8 +26,8 @@ const MC_WALL = 255;          // sous le monde (y < 0)
 const MC_UNLOADED = 254;      // chunk pas encore généré
 const MC_REACH = 5;
 const MC_DAY_SECONDS = 600;
-const MC_TABLE_SIZE = 3;      // grille de la table de craft : 3 = 3x3 (mets 4, 5 ou 6 pour l'agrandir)
-const MC_SAVE_KEY = 'cybercraft_save_v3';
+const MC_TABLE_SIZE = 3;      // taille par défaut de la grille de la table de craft (réglable de 3 à 6 dans Paramètres > Jeu)
+const MC_SAVE_KEY = 'cybercraft_save_v4';
 const MC_SET_KEY = 'cybercraft_settings_v3';
 
 // ---------- Monde infini, découpé en chunks de 16x16 ----------
@@ -103,7 +104,8 @@ const MC_TILE = 16, MC_COLS = 8, MC_ROWS = 4;
 const MC_T = {
   GRASS_TOP: 0, GRASS_SIDE: 1, DIRT: 2, STONE: 3, LOG_SIDE: 4, LOG_TOP: 5, LEAVES: 6,
   COAL: 7, IRON: 8, DIAMOND: 9, DEBRIS_SIDE: 10, DEBRIS_TOP: 11, PLANKS: 12, BRICKS: 13,
-  SAND: 14, GLASS: 15, BEDROCK: 16, TABLE_TOP: 17, TABLE_SIDE: 18, FURNACE_SIDE: 19, FURNACE_TOP: 20
+  SAND: 14, GLASS: 15, BEDROCK: 16, TABLE_TOP: 17, TABLE_SIDE: 18, FURNACE_SIDE: 19, FURNACE_TOP: 20,
+  WATER: 21, SNOW_TOP: 22, SNOW_SIDE: 23, CACTUS_TOP: 24, CACTUS_SIDE: 25, SANDSTONE: 26
 };
 let mcAtlasCanvas = null, mcAtlasTex = null;
 const mcTileAvg = {};
@@ -300,6 +302,33 @@ function mcDrawTile(tile, rng) {
       for (let y = 5; y <= 10; y++) for (let x = 5; x <= 10; x++) set(x, y, mcHex('#4a4a4a'));
       break;
     }
+    case MC_T.WATER: {
+      fill(mcPal('#2d5fd0', '#2a58c4', '#3366dd', '#2f62d6'));
+      for (let k = 0; k < 10; k++) { const x = Math.floor(rng() * 12), y = Math.floor(rng() * 16); for (let i = 0; i < 4; i++) set(x + i, y, mcHex('#5b8ff0')); }
+      break;
+    }
+    case MC_T.SNOW_TOP: fill(mcPal('#f4f8ff', '#e9f0fa', '#ffffff', '#eef4ff')); break;
+    case MC_T.SNOW_SIDE: {
+      fill(PAL.DIRT);
+      for (let x = 0; x < 16; x++) { const d = 4 + Math.floor(rng() * 3); for (let y = 0; y < d; y++) set(x, y, mcHex(rng() > 0.5 ? '#f4f8ff' : '#e9f0fa')); }
+      break;
+    }
+    case MC_T.CACTUS_TOP: {
+      fill(mcPal('#2f8a3a', '#2a7c34'));
+      for (let i = 2; i < 14; i++) { set(i, 2, mcHex('#1d5a25')); set(i, 13, mcHex('#1d5a25')); set(2, i, mcHex('#1d5a25')); set(13, i, mcHex('#1d5a25')); }
+      break;
+    }
+    case MC_T.CACTUS_SIDE: {
+      for (let x = 0; x < 16; x++) for (let y = 0; y < 16; y++) set(x, y, mcHex((x % 4 === 1 || x % 4 === 2) ? '#37a042' : '#2a7c34'));
+      for (let k = 0; k < 12; k++) set(Math.floor(rng() * 16), Math.floor(rng() * 16), mcHex('#0b3d1a'));
+      for (let y = 0; y < 16; y++) { set(0, y, mcHex('#1d5a25')); set(15, y, mcHex('#1d5a25')); }
+      break;
+    }
+    case MC_T.SANDSTONE: {
+      fill(mcPal('#d8c98a', '#d0c082', '#dccf94', '#cdbd7c'));
+      for (const row of [3, 8, 12]) for (let x = 0; x < 16; x++) set(x, row, mcHex('#bba96a'));
+      break;
+    }
     case MC_T.BEDROCK:
       fill(PAL.BEDROCK);
       blobs(mcPal('#171717', '#555555'), 6);
@@ -404,12 +433,16 @@ const BLOCK_TYPES = {
   11: { name: 'Briques', tiles: [MC_T.BRICKS, MC_T.BRICKS, MC_T.BRICKS], hardness: 2.0, tool: 'PICKAXE', minLevel: 1, drop: '11', sound: 'stone' },
   12: { name: 'Sable', tiles: [MC_T.SAND, MC_T.SAND, MC_T.SAND], hardness: 0.5, tool: 'SHOVEL', minLevel: 0, drop: '12', sound: 'sand' },
   13: { name: 'Verre', tiles: [MC_T.GLASS, MC_T.GLASS, MC_T.GLASS], hardness: 0.3, tool: null, minLevel: 0, drop: '13', sound: 'glass', transparent: true, glass: true },
+  17: { name: 'Eau', tiles: [MC_T.WATER, MC_T.WATER, MC_T.WATER], hardness: Infinity, tool: null, minLevel: 0, drop: null, sound: 'glass', transparent: true, water: true },
+  18: { name: 'Neige', tiles: [MC_T.SNOW_TOP, MC_T.SNOW_SIDE, MC_T.DIRT], hardness: 0.3, tool: 'SHOVEL', minLevel: 0, drop: '18', sound: 'sand' },
+  19: { name: 'Cactus', tiles: [MC_T.CACTUS_TOP, MC_T.CACTUS_SIDE, MC_T.CACTUS_TOP], hardness: 0.6, tool: null, minLevel: 0, drop: '19', sound: 'leaves' },
+  20: { name: 'Grès', tiles: [MC_T.SANDSTONE, MC_T.SANDSTONE, MC_T.SANDSTONE], hardness: 0.8, tool: 'PICKAXE', minLevel: 1, drop: '20', sound: 'stone' },
   15: { name: 'Table de craft', tiles: [MC_T.TABLE_TOP, MC_T.TABLE_SIDE, MC_T.PLANKS], hardness: 1.2, tool: 'AXE', minLevel: 0, drop: '15', sound: 'wood' },
   16: { name: 'Four', tiles: [MC_T.FURNACE_TOP, MC_T.FURNACE_SIDE, MC_T.FURNACE_TOP], hardness: 2.0, tool: 'PICKAXE', minLevel: 1, drop: '16', sound: 'stone' },
   14: { name: 'Roche mère', tiles: [MC_T.BEDROCK, MC_T.BEDROCK, MC_T.BEDROCK], hardness: Infinity, tool: null, minLevel: 0, drop: null, sound: 'stone' }
 };
 
-const MC_PLACEABLE = [1, 2, 3, 4, 5, 10, 11, 12, 13, 15, 16];
+const MC_PLACEABLE = [1, 2, 3, 4, 5, 10, 11, 12, 13, 15, 16, 18, 19, 20];
 let mcHotbar = ['1', '2', '3', '4', '5', '', '', '', ''];   // 9 cases : blocs, outils ou nourriture ('' = vide)
 
 const MC_ITEMS = {
@@ -430,11 +463,16 @@ const MC_ITEMS = {
   COOKED_CHICKEN: { n: 'Poulet cuit', i: '🍗' },
   MUTTON: { n: 'Mouton cru', i: '🥩' },
   COOKED_MUTTON: { n: 'Mouton cuit', i: '🍖' },
-  ROTTEN: { n: 'Chair putréfiée', i: '🟢' }
+  ROTTEN: { n: 'Chair putréfiée', i: '🟢' },
+  FISH: { n: 'Poisson cru', i: '🐟' },
+  COOKED_FISH: { n: 'Poisson cuit', i: '🍣' },
+  RABBIT: { n: 'Lapin cru', i: '🥩' },
+  COOKED_RABBIT: { n: 'Lapin cuit', i: '🍖' }
 };
 const MC_FOOD = {
   APPLE: { f: 4, s: 2.4 }, BEEF: { f: 3, s: 1.8 }, STEAK: { f: 8, s: 12.8 }, PORK: { f: 3, s: 1.8 }, COOKED_PORK: { f: 8, s: 12.8 },
-  CHICKEN: { f: 2, s: 1.2 }, COOKED_CHICKEN: { f: 6, s: 7.2 }, MUTTON: { f: 2, s: 1.2 }, COOKED_MUTTON: { f: 6, s: 9.6 }, ROTTEN: { f: 4, s: 0.8 }
+  CHICKEN: { f: 2, s: 1.2 }, COOKED_CHICKEN: { f: 6, s: 7.2 }, MUTTON: { f: 2, s: 1.2 }, COOKED_MUTTON: { f: 6, s: 9.6 }, ROTTEN: { f: 4, s: 0.8 },
+  FISH: { f: 2, s: 0.4 }, COOKED_FISH: { f: 5, s: 6 }, RABBIT: { f: 3, s: 1.8 }, COOKED_RABBIT: { f: 5, s: 6 }
 };
 
 const MC_TIERS = [
@@ -486,7 +524,7 @@ const MC_RECIPES = [];
 const MC_TIER_COL = { WOOD: '#c08a4a', STONE: '#b8b8b8', IRON: '#ffffff', DIAMOND: '#4df0ff', NETHERITE: '#b070ff' };
 
 // Four : ce qui cuit, et ce qui brûle (secondes de chauffe)
-const MC_SMELT = { FER_ORE: 'IRON_INGOT', ANCIENT_DEBRIS: 'NETHERITE_SCRAP', '12': '13', '4': 'CHARBON', BEEF: 'STEAK', PORK: 'COOKED_PORK', CHICKEN: 'COOKED_CHICKEN', MUTTON: 'COOKED_MUTTON' };
+const MC_SMELT = { FER_ORE: 'IRON_INGOT', ANCIENT_DEBRIS: 'NETHERITE_SCRAP', '12': '13', '4': 'CHARBON', BEEF: 'STEAK', PORK: 'COOKED_PORK', CHICKEN: 'COOKED_CHICKEN', MUTTON: 'COOKED_MUTTON', FISH: 'COOKED_FISH', RABBIT: 'COOKED_RABBIT' };
 const MC_FUEL = { CHARBON: 40, '4': 12, '10': 6, STICK: 3 };
 const MC_SMELT_TIME = 5;
 let mcFurnace = { inp: null, fuel: null, out: null, burn: 0, burnMax: 0, prog: 0 };
@@ -495,10 +533,10 @@ function mcResetFurnace() { mcFurnace = { inp: null, fuel: null, out: null, burn
 let mcInventory = {};
 function mcResetInventory() {
   mcInventory = {
-    '1': 64, '2': 64, '3': 0, '4': 0, '5': 0, '10': 0, '11': 0, '12': 0, '13': 0, '15': 0, '16': 0,
+    '1': 64, '2': 64, '3': 0, '4': 0, '5': 0, '10': 0, '11': 0, '12': 0, '13': 0, '15': 0, '16': 0, '18': 0, '19': 0, '20': 0,
     STICK: 0, CHARBON: 0, FER_ORE: 0, IRON_INGOT: 0, DIAMOND: 0, ANCIENT_DEBRIS: 0,
     NETHERITE_SCRAP: 0, NETHERITE_INGOT: 0, APPLE: 0, BEEF: 0, STEAK: 0, PORK: 0, COOKED_PORK: 0,
-    CHICKEN: 0, COOKED_CHICKEN: 0, MUTTON: 0, COOKED_MUTTON: 0, ROTTEN: 0
+    CHICKEN: 0, COOKED_CHICKEN: 0, MUTTON: 0, COOKED_MUTTON: 0, ROTTEN: 0, FISH: 0, COOKED_FISH: 0, RABBIT: 0, COOKED_RABBIT: 0
   };
   MC_TIERS.forEach(t => MC_TOOLS.forEach(tl => { mcInventory[t.id + '_' + tl.id] = 0; }));
 }
@@ -535,7 +573,7 @@ function mcGive(k, n) {
 let mcGridSize = 2, mcGrid = [], mcCraftMode = 'inv', mcCursor = null;
 function mcInitGrid(mode) {
   mcCraftMode = mode;
-  mcGridSize = mode === 'table' ? MC_TABLE_SIZE : 2;
+  mcGridSize = mode === 'table' ? Math.max(3, Math.min(6, (mcSettings && mcSettings.tableN) | 0 || 3)) : 2;
   mcGrid = new Array(mcGridSize * mcGridSize).fill(null);
 }
 mcInitGrid('inv');
@@ -679,6 +717,7 @@ function mcFurnaceTick(dt) {
 // ============================================================
 // VIE, FAIM, OBJET EN MAIN, PLEIN ÉCRAN
 // ============================================================
+let mcInWater = false, mcHeadUnder = false, mcAir = 20, mcAirT = 0, mcCactusT = 0;
 let mcHealth = 20, mcFood = 20, mcSat = 5, mcExhaust = 0, mcRegenT = 0, mcStarveT = 0;
 let mcInvuln = 0, mcHurtT = 0, mcDead = false, mcAirMaxY = 0, mcInAir = false;
 let mcHudSig = '';
@@ -691,6 +730,7 @@ const mcStatIcons = { h: {}, f: {} };
 function mcResetStats() {
   mcHealth = 20; mcFood = 20; mcSat = 5; mcExhaust = 0; mcRegenT = 0; mcStarveT = 0;
   mcInvuln = 0; mcHurtT = 0; mcDead = false; mcAirMaxY = 0; mcInAir = false; mcHudSig = '';
+  mcAir = 20; mcAirT = 0;
 }
 
 // Icônes pixel-art des coeurs et des cuisses de poulet (plein / moitié / vide)
@@ -722,7 +762,7 @@ function mcMakeStatIcons() {
       });
       if (state !== 'e') {
         ctx.fillStyle = hiCol;
-        if (kind === 'h') { ctx.fillRect(2, 2, 1, 1); ctx.fillRect(3, 2, 1, 1); } else { ctx.fillRect(8, 2, 1, 1); ctx.fillRect(7, 3, 1, 1); }
+        if (kind === 'h' || kind === 'a') { ctx.fillRect(2, 2, 1, 1); ctx.fillRect(3, 2, 1, 1); } else { ctx.fillRect(8, 2, 1, 1); ctx.fillRect(7, 3, 1, 1); }
       }
       out[state] = c.toDataURL();
     });
@@ -730,19 +770,24 @@ function mcMakeStatIcons() {
   };
   mcStatIcons.h = make(heart, 'h', '#e8212c', '#ff9aa0', '#3a1518', '#fff');
   mcStatIcons.f = make(food, 'f', '#c0702e', '#f0b070', '#3b2416', '#f0e6d2');
+  mcStatIcons.a = make(['..XXX..', '.XXXXX.', 'XXXXXXX', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..'], 'a', '#7fd6ff', '#e8f8ff', '#12303f', '#fff');
 }
 
 function mcUpdateStatsHud() {
   const box = document.getElementById('mc-stats');
   if (!box) return;
   const on = !!mcSettings.survival;
-  const sig = on + '|' + mcHealth + '|' + mcFood;
+  const airShow = on && (mcHeadUnder || mcAir < 20);
+  const bub = Math.ceil(mcAir / 2);
+  const sig = on + '|' + mcHealth + '|' + mcFood + '|' + airShow + '|' + bub;
   if (sig === mcHudSig) return;
   mcHudSig = sig;
   box.style.display = on ? 'flex' : 'none';
+  const ar = document.getElementById('mc-airrow');
+  if (ar) ar.style.display = airShow ? 'flex' : 'none';
   if (!on) return;
   for (let i = 0; i < 10; i++) {
-    const h = document.getElementById('mc-h-' + i), f = document.getElementById('mc-f-' + i);
+    const h = document.getElementById('mc-h-' + i), f = document.getElementById('mc-f-' + i), a = document.getElementById('mc-a-' + i);
     if (h) {
       const st = mcHealth >= 2 * i + 2 ? 'f' : (mcHealth === 2 * i + 1 ? 'h' : 'e');
       if (h.dataset.s !== st) { h.dataset.s = st; h.src = mcStatIcons.h[st]; }
@@ -750,6 +795,10 @@ function mcUpdateStatsHud() {
     if (f) {
       const st = mcFood >= 2 * i + 2 ? 'f' : (mcFood === 2 * i + 1 ? 'h' : 'e');
       if (f.dataset.s !== st) { f.dataset.s = st; f.src = mcStatIcons.f[st]; }
+    }
+    if (a && mcStatIcons.a) {
+      const st = i < bub ? 'f' : 'e';
+      if (a.dataset.s !== st) { a.dataset.s = st; a.src = mcStatIcons.a[st]; }
     }
   }
 }
@@ -768,6 +817,19 @@ function mcDamage(n, fromX, fromZ) {
   if (mcHealth <= 0) mcDie();
 }
 
+function mcTouchCactus() {
+  const p = mcPlayer.pos;
+  for (let k = 0; k < 2; k++) {
+    const y = k === 0 ? p.y - PLAYER_HEIGHT + 0.2 : p.y - 0.6;
+    for (let i = -1; i <= 1; i++) {
+      for (let j = -1; j <= 1; j++) {
+        if (mcGet(mcBi(p.x + i * 0.4), mcBi(y), mcBi(p.z + j * 0.4)) === 19) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function mcDie() {
   mcDead = true; mcMining = false;
   if (document.exitPointerLock) document.exitPointerLock();
@@ -784,7 +846,8 @@ function mcRespawn(canvas) {
   mcKnock.x = 0; mcKnock.z = 0;
   const d = document.getElementById('mc-death');
   if (d) d.style.display = 'none';
-  if (!mcChunkMap.get(mcCK(0, 0)) || !mcChunkMap.get(mcCK(0, 0)).data) mcGenChunk(0, 0);
+  const scx = mcSpawnX >> 4, scz = mcSpawnZ >> 4;
+  if (!mcChunkMap.get(mcCK(scx, scz)) || !mcChunkMap.get(mcCK(scx, scz)).data) mcGenChunk(scx, scz);
   const sp = mcSpawnPos();
   mcPlayer.pos.set(sp.x, sp.y, sp.z);
   mcPlayer.velocity.set(0, 0, 0);
@@ -814,6 +877,11 @@ function mcSurvivalTick(dt, dist, sprinting, jumped) {
     mcStarveT += dt;
     if (mcStarveT >= 4) { mcStarveT = 0; if (mcHealth > 2) mcDamage(1); }
   } else mcRegenT = 0;
+  // respiration : 15 secondes d'air, puis on se noie
+  if (mcHeadUnder) {
+    mcAir = Math.max(0, mcAir - dt * (20 / 15));
+    if (mcAir <= 0) { mcAirT += dt; if (mcAirT >= 1) { mcAirT = 0; mcDamage(2); } }
+  } else { mcAir = Math.min(20, mcAir + dt * 40); mcAirT = 0; }
 }
 
 function mcEat(key) {
@@ -861,7 +929,7 @@ function mcHeldDamage() {
   return h.tool === 'SWORD' ? 3 + t : h.tool === 'AXE' ? 3 + 0.7 * t : h.tool === 'PICKAXE' ? 2 + 0.5 * t : 1.5 + 0.5 * t;
 }
 
-const MC_ITEM_COL = { APPLE: '#d83a2a', BEEF: '#c4504a', STEAK: '#7a3a22', PORK: '#e8a0a0', COOKED_PORK: '#b8703a', CHICKEN: '#f0c8a0', COOKED_CHICKEN: '#c8873a', MUTTON: '#b84a4a', COOKED_MUTTON: '#8a4a2a', ROTTEN: '#6a8a4a' };
+const MC_ITEM_COL = { APPLE: '#d83a2a', BEEF: '#c4504a', STEAK: '#7a3a22', PORK: '#e8a0a0', COOKED_PORK: '#b8703a', CHICKEN: '#f0c8a0', COOKED_CHICKEN: '#c8873a', MUTTON: '#b84a4a', COOKED_MUTTON: '#8a4a2a', ROTTEN: '#6a8a4a', FISH: '#7aa0c0', COOKED_FISH: '#c8873a', RABBIT: '#c4504a', COOKED_RABBIT: '#8a4a2a' };
 const MC_TIER_HEX = { WOOD: 0xa8793a, STONE: 0x909090, IRON: 0xe6e6e6, DIAMOND: 0x4df0ff, NETHERITE: 0x4a3a58 };
 
 function mcDisposeObj(o) {
@@ -939,7 +1007,10 @@ const MC_MOB_TYPES = {
   COW: { name: 'Vache', hp: 10, r: 0.45, h: 1.4, speed: 1.0, drop: ['BEEF', 1, 3], col: [0.3, 0.2, 0.15], hostile: false, snd: 'cow' },
   SHEEP: { name: 'Mouton', hp: 8, r: 0.4, h: 1.3, speed: 1.1, drop: ['MUTTON', 1, 2], col: [0.95, 0.95, 0.95], hostile: false, snd: 'sheep' },
   CHICKEN: { name: 'Poule', hp: 4, r: 0.2, h: 0.8, speed: 1.0, drop: ['CHICKEN', 1, 1], col: [1, 1, 1], hostile: false, snd: 'chicken' },
-  ZOMBIE: { name: 'Zombie', hp: 20, r: 0.3, h: 1.8, speed: 2.5, drop: ['ROTTEN', 0, 2], col: [0.36, 0.6, 0.24], hostile: true, snd: 'zombie' }
+  ZOMBIE: { name: 'Zombie', hp: 20, r: 0.3, h: 1.8, speed: 2.5, drop: ['ROTTEN', 0, 2], col: [0.36, 0.6, 0.24], hostile: true, snd: 'zombie', dmg: 3 },
+  SPIDER: { name: 'Araignée', hp: 14, r: 0.4, h: 0.7, speed: 3.2, drop: ['ROTTEN', 0, 1], col: [0.2, 0.17, 0.17], hostile: true, snd: 'spider', dmg: 2 },
+  RABBIT: { name: 'Lapin', hp: 3, r: 0.2, h: 0.5, speed: 1.7, drop: ['RABBIT', 0, 1], col: [0.65, 0.55, 0.42], hostile: false, snd: 'rabbit' },
+  FISH: { name: 'Poisson', hp: 3, r: 0.25, h: 0.3, speed: 1.2, drop: ['FISH', 1, 1], col: [0.88, 0.48, 0.16], hostile: false, swim: true, snd: 'fish' }
 };
 const mcMobs = [];
 const mcMobGeo = {};
@@ -992,6 +1063,20 @@ function mcMobModel(type) {
       bx([0, 0.52, 0.24], [0.1, 0.16, 0.1], '#e0e0e0')].concat(eyes(0.7, -0.301, 0.09, 0.04));
     legs = [[-0.08, 0.3, 0.02, 0], [0.08, 0.3, 0.02, 1]];
     legBox = [bx([0, -0.15, 0], [0.05, 0.3, 0.05], '#e8a020')];
+  } else if (type === 'RABBIT') {
+    body = [bx([0, 0.2, 0], [0.2, 0.2, 0.3], '#a58b6b'), bx([0, 0.3, -0.2], [0.16, 0.16, 0.16], '#b09574'),
+      bx([-0.04, 0.47, -0.2], [0.04, 0.2, 0.04], '#a58b6b'), bx([0.04, 0.47, -0.2], [0.04, 0.2, 0.04], '#a58b6b'),
+      bx([0, 0.22, 0.17], [0.08, 0.08, 0.06], '#f0f0f0')].concat(eyes(0.33, -0.281, 0.05, 0.03));
+    quad(0.12, 0.08, 0.1, [bx([0, -0.06, 0], [0.06, 0.12, 0.06], '#8f765a')]);
+  } else if (type === 'FISH') {
+    body = [bx([0, 0.15, 0], [0.14, 0.18, 0.4], '#e07b2a'), bx([0, 0.15, 0.25], [0.03, 0.22, 0.14], '#c9611c'), bx([0, 0.27, 0], [0.03, 0.08, 0.2], '#c9611c'),
+      bx([-0.075, 0.18, -0.2], [0.02, 0.04, 0.04], '#111111'), bx([0.075, 0.18, -0.2], [0.02, 0.04, 0.04], '#111111')];
+    legs = []; legBox = null;
+  } else if (type === 'SPIDER') {
+    body = [bx([0, 0.35, 0.2], [0.5, 0.3, 0.6], '#3a3030'), bx([0, 0.38, -0.3], [0.32, 0.28, 0.3], '#4a3a3a'),
+      bx([-0.08, 0.42, -0.452], [0.07, 0.05, 0.02], '#e02020'), bx([0.08, 0.42, -0.452], [0.07, 0.05, 0.02], '#e02020')];
+    [-0.1, 0.1, 0.3, 0.5].forEach(z => { body.push(bx([-0.38, 0.3, z], [0.45, 0.05, 0.05], '#2a2222')); body.push(bx([0.38, 0.3, z], [0.45, 0.05, 0.05], '#2a2222')); });
+    quad(0.3, 0.3, 0.2, [bx([0, -0.15, 0], [0.07, 0.3, 0.07], '#2a2222')]);
   } else {   // ZOMBIE
     body = [bx([0, 1.05, 0], [0.5, 0.7, 0.25], '#2f7a8c'), bx([0, 1.6, 0], [0.5, 0.5, 0.5], '#5c9a3c'),
       bx([-0.36, 1.25, -0.31], [0.2, 0.2, 0.62], '#5c9a3c'), bx([0.36, 1.25, -0.31], [0.2, 0.2, 0.62], '#5c9a3c'),
@@ -1000,7 +1085,7 @@ function mcMobModel(type) {
     legs = [[-0.13, 0.7, 0, 0], [0.13, 0.7, 0, 1]];
     legBox = [bx([0, -0.35, 0], [0.24, 0.7, 0.24], '#3a3f8f')];
   }
-  mcMobGeo[type] = { body: mcBoxesToGeo(body), leg: mcBoxesToGeo(legBox), legs };
+  mcMobGeo[type] = { body: mcBoxesToGeo(body), leg: legBox ? mcBoxesToGeo(legBox) : null, legs };
   return mcMobGeo[type];
 }
 
@@ -1028,7 +1113,7 @@ function mcCreateMob(type, x, y, z) {
   mcScene.add(group);
   const yaw = Math.random() * Math.PI * 2;
   const m = { type, def, group, mat, legs, x, y, z, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, yaw, tgtYaw: yaw, onGround: false,
-    hp: def.hp, hurt: 0, wanderT: Math.random() * 3, moving: false, flee: 0, phase: Math.random() * 6, atkCd: 0, dead: false, deadT: 0, age: 0 };
+    hp: def.hp, dy: 0, hurt: 0, wanderT: Math.random() * 3, moving: false, flee: 0, phase: Math.random() * 6, atkCd: 0, dead: false, deadT: 0, age: 0 };
   mcMobs.push(m);
   return m;
 }
@@ -1043,13 +1128,10 @@ function mcAabbHits(x, y, z, r, h) {
 
 function mcTrySpawnMob(near) {
   const p = mcPlayer.pos;
-  let passive = 0, hostile = 0;
-  mcMobs.forEach(m => { if (m.def.hostile) hostile++; else passive++; });
+  let passive = 0, hostile = 0, fish = 0;
+  mcMobs.forEach(m => { if (m.def.hostile) hostile++; else if (m.def.swim) fish++; else passive++; });
   const night = mcDaylight < 0.55;
-  const wantHostile = mcSettings.hostile && night && hostile < 4 && Math.random() < 0.6;
   const cap = mcTouchMode ? 8 : 12;
-  if (!wantHostile && passive >= cap) return false;
-  if (wantHostile && hostile >= 4) return false;
   const ang = Math.random() * Math.PI * 2;
   const dist = near ? 8 + Math.random() * 22 : 20 + Math.random() * 18;
   const wx = Math.floor(p.x + Math.cos(ang) * dist), wz = Math.floor(p.z + Math.sin(ang) * dist);
@@ -1058,22 +1140,34 @@ function mcTrySpawnMob(near) {
   const col = ((wz & 15) << 4) | (wx & 15);
   const top = ch.top[col];
   const b = ch.data[(top << 8) | col];
-  if (mcGet(wx, top + 1, wz) !== 0 || mcGet(wx, top + 2, wz) !== 0) return false;
-  if (wantHostile) {
-    if (b === 5 || Math.hypot(wx - p.x, wz - p.z) < 14) return false;
-    if (mcAabbHits(wx, top + 0.5, wz, MC_MOB_TYPES.ZOMBIE.r, MC_MOB_TYPES.ZOMBIE.h)) return false;
-    mcCreateMob('ZOMBIE', wx, top + 0.5, wz);
+  if (b === MC_WATER) {                                   // poissons dans la mer, les lacs et les rivières
+    if (fish >= 8 || ch.data[((top - 1) << 8) | col] !== MC_WATER) return false;
+    mcCreateMob('FISH', wx, top - 1.15, wz);
     return true;
   }
-  if (b !== 1) return false;
-  const types = ['PIG', 'COW', 'SHEEP', 'CHICKEN'];
-  const type = types[Math.floor(Math.random() * types.length)];
-  const n = 1 + Math.floor(Math.random() * 3);
+  if (mcGet(wx, top + 1, wz) !== 0 || mcGet(wx, top + 2, wz) !== 0) return false;
+  const wantHostile = mcSettings.hostile && night && hostile < 4 && Math.random() < 0.6;
+  if (wantHostile) {
+    if (b === 5 || Math.hypot(wx - p.x, wz - p.z) < 14) return false;
+    const type = Math.random() < 0.65 ? 'ZOMBIE' : 'SPIDER';
+    const md = MC_MOB_TYPES[type];
+    if (mcAabbHits(wx, top + 0.5, wz, md.r, md.h)) return false;
+    mcCreateMob(type, wx, top + 0.5, wz);
+    return true;
+  }
+  if (passive >= cap) return false;
+  mcColumn(wx, wz);
+  const pool = MC_LAND_POOLS[mcColBiome];
+  if (!pool) return false;
+  if (mcColBiome === 4 && Math.random() < 0.6) return false;      // le désert est presque vide
+  const type = pool[Math.floor(Math.random() * pool.length)];
   const md = MC_MOB_TYPES[type];
+  const n = 1 + Math.floor(Math.random() * ((type === 'CHICKEN' || type === 'RABBIT') ? 3 : 2));
   for (let i = 0; i < n && passive + i < cap; i++) {
     const ox = wx + (Math.random() - 0.5) * 3, oz = wz + (Math.random() - 0.5) * 3;
     const t2 = mcTopAt(Math.floor(ox), Math.floor(oz));
-    if (mcGet(Math.floor(ox), t2, Math.floor(oz)) !== 1) continue;
+    const bb = mcGet(Math.floor(ox), t2, Math.floor(oz));
+    if (!(bb === 1 || bb === 18 || (bb === 12 && type === 'RABBIT'))) continue;
     if (mcAabbHits(ox, t2 + 0.5, oz, md.r, md.h)) continue;
     mcCreateMob(type, ox, t2 + 0.5, oz);
   }
@@ -1088,7 +1182,53 @@ function mcMobSound(m, dist) {
   else if (s === 'pig') { mcPlayTone(320, 0.14, 'square', 0.07 * v, 220); setTimeout(() => mcPlayTone(280, 0.12, 'square', 0.06 * v, 200), 150); }
   else if (s === 'sheep') mcPlayTone(430, 0.5, 'sawtooth', 0.09 * v, 360);
   else if (s === 'chicken') { mcPlayTone(750, 0.07, 'square', 0.05 * v, 900); setTimeout(() => mcPlayTone(800, 0.07, 'square', 0.05 * v, 950), 90); }
-  else mcPlayTone(95, 0.6, 'sawtooth', 0.12 * v, 55);
+  else if (s === 'rabbit') mcPlayTone(1200, 0.06, 'sine', 0.05 * v, 1500);
+  else if (s === 'spider') mcNoiseBurst({ freq: 5000, q: 0.5, dur: 0.35, gain: 0.12 * v, type: 'highpass' });
+  else if (s === 'zombie') mcPlayTone(95, 0.6, 'sawtooth', 0.12 * v, 55);
+}
+
+const MC_LAND_POOLS = { 2: ['PIG', 'COW', 'SHEEP', 'CHICKEN', 'RABBIT'], 3: ['PIG', 'COW', 'SHEEP', 'CHICKEN', 'RABBIT'], 4: ['RABBIT'], 5: ['SHEEP', 'RABBIT', 'COW'], 6: ['SHEEP'] };
+
+function mcMobRender(m, pd) {
+  m.group.position.set(m.x, m.y, m.z);
+  m.group.rotation.y = m.yaw;
+  m.group.visible = pd < mcSettings.renderDist * 16;
+  const b = Math.max(0.35, mcDaylight) * (mcSettings.brightness / 100);
+  if (m.hurt > 0) m.mat.color.setRGB(Math.min(1.4, b * 1.6), b * 0.45, b * 0.45);
+  else m.mat.color.setRGB(b, b, b);
+}
+
+// Poissons : nagent dans l'eau, jamais en dehors
+
+function mcUpdateFish(m, dt, pd) {
+  const def = m.def;
+  const water = (x, y, z) => mcGet(mcBi(x), mcBi(y), mcBi(z)) === MC_WATER;
+  const cy = m.y + def.h / 2;
+  if (!water(m.x, cy, m.z)) {
+    m.vy = Math.max(-25, m.vy - 28 * dt);
+    const ny = m.y + m.vy * dt;
+    if (mcAabbHits(m.x, ny, m.z, def.r, def.h)) {
+      m.vy = 0; m.hp -= dt * 2;
+      if (m.hp <= 0 && !m.dead) { m.dead = true; m.deadT = 0.1; }
+    } else m.y = ny;
+  } else {
+    m.vy = 0;
+    m.wanderT -= dt;
+    if (m.wanderT <= 0) { m.wanderT = 1.5 + Math.random() * 3; m.tgtYaw = Math.random() * Math.PI * 2; m.dy = (Math.random() - 0.5) * 0.6; }
+    let speed = def.speed * 0.8;
+    if (m.flee > 0) { m.flee -= dt; m.tgtYaw = Math.atan2(mcPlayer.pos.x - m.x, mcPlayer.pos.z - m.z); speed = def.speed * 2.5; }
+    let dy = m.tgtYaw - m.yaw;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    m.yaw += dy * Math.min(1, dt * 4);
+    const nx = m.x + (-Math.sin(m.yaw) * speed + m.kx) * dt, nz = m.z + (-Math.cos(m.yaw) * speed + m.kz) * dt, ny = cy + m.dy * dt;
+    m.kx *= Math.max(0, 1 - dt * 6); m.kz *= Math.max(0, 1 - dt * 6);
+    if (water(nx, ny, nz) && water(nx, ny + 0.2, nz) && !mcAabbHits(nx, ny - def.h / 2, nz, def.r, def.h)) { m.x = nx; m.z = nz; m.y = ny - def.h / 2; }
+    else { m.tgtYaw += Math.PI * (0.6 + Math.random() * 0.8); m.dy = -m.dy; }
+  }
+  m.phase += dt * 9;
+  mcMobRender(m, pd);
+  m.group.rotation.y = m.yaw + Math.sin(m.phase) * 0.25;
 }
 
 function mcUpdateMobs(dt) {
@@ -1114,6 +1254,7 @@ function mcUpdateMobs(dt) {
     }
     m.hurt = Math.max(0, m.hurt - dt);
     m.atkCd = Math.max(0, m.atkCd - dt);
+    if (def.swim) { mcUpdateFish(m, dt, pd); continue; }
 
     // IA
     let speed = def.speed, moving = false;
@@ -1122,11 +1263,11 @@ function mcUpdateMobs(dt) {
       moving = pd > 1.1; speed = def.speed;
       if (pd < 1.5 && Math.abs((p.y - PLAYER_HEIGHT) - m.y) < 1.8 && m.atkCd <= 0) {
         m.atkCd = 1.2;
-        mcDamage(3, m.x, m.z);
+        mcDamage(def.dmg || 3, m.x, m.z);
       }
     } else if (m.flee > 0) {
       m.flee -= dt;
-      m.tgtYaw = Math.atan2(pdx, pdz);   // direction opposée au joueur
+      m.tgtYaw = Math.atan2(pdx, pdz);
       moving = true; speed = def.speed * 2.3;
     } else {
       m.wanderT -= dt;
@@ -1137,6 +1278,8 @@ function mcUpdateMobs(dt) {
       }
       moving = m.moving; speed = def.speed * 0.7;
     }
+    const inW = mcGet(mcBi(m.x), mcBi(m.y + 0.3), mcBi(m.z)) === MC_WATER;
+    if (inW) speed *= 0.55;
     let dy = m.tgtYaw - m.yaw;
     while (dy > Math.PI) dy -= Math.PI * 2;
     while (dy < -Math.PI) dy += Math.PI * 2;
@@ -1146,8 +1289,9 @@ function mcUpdateMobs(dt) {
     m.vz = moving ? fz * speed : 0;
     m.kx *= Math.max(0, 1 - dt * 6); m.kz *= Math.max(0, 1 - dt * 6);
 
-    // physique
+    // physique (les animaux flottent dans l'eau)
     m.vy = Math.max(-40, m.vy - 28 * dt);
+    if (inW) m.vy = Math.min(1.8, m.vy + 45 * dt);
     const mx = (m.vx + m.kx) * dt, mz = (m.vz + m.kz) * dt;
     let blocked = false;
     if (mx) { if (!mcAabbHits(m.x + mx, m.y, m.z, def.r, def.h)) m.x += mx; else blocked = true; }
@@ -1163,21 +1307,15 @@ function mcUpdateMobs(dt) {
       m.vy = 0;
       break;
     }
-    if (blocked && m.onGround && moving) m.vy = 8.6;   // saute par-dessus une marche
+    if (blocked && (m.onGround || inW) && moving) m.vy = 8.6;   // saute par-dessus une marche
 
     // animation
     const sp = Math.hypot(m.vx, m.vz);
     if (sp > 0.05) m.phase += sp * dt * 5;
     const amp = Math.min(1, sp / 1.2) * 0.7;
     m.legs.forEach(l => { l.mesh.rotation.x = Math.sin(m.phase + l.phase * Math.PI) * amp; });
-    m.group.position.set(m.x, m.y, m.z);
-    m.group.rotation.y = m.yaw;
-    m.group.visible = pd < mcSettings.renderDist * 16;
-    const b = Math.max(0.35, mcDaylight) * (mcSettings.brightness / 100);
-    if (m.hurt > 0) m.mat.color.setRGB(Math.min(1.4, b * 1.6), b * 0.45, b * 0.45);
-    else m.mat.color.setRGB(b, b, b);
+    mcMobRender(m, pd);
 
-    // bruits d'ambiance
     if (mcMobSndT <= 0 && pd < 24 && Math.random() < 0.15) { mcMobSndT = 5 + Math.random() * 8; mcMobSound(m, pd); }
   }
 }
@@ -1233,6 +1371,7 @@ function mcKillMob(m) {
 // ============================================================
 let mcCanvasEl = null;
 let mcRecipeFilter = 'all';
+let mcDrag = null, mcDragEndT = 0, mcBookOpen = false;
 
 
 // ============================================================
@@ -1274,7 +1413,7 @@ const MC_DEFAULTS = {
   particles: true, bobbing: true, showHand: true, showFps: false,
   volMaster: 80, volSfx: 100, volMusic: 35, stepSounds: true,
   autoJump: false, touchScale: 100, autosave: true,
-  survival: true, mobs: true, hostile: true, autoTool: false, craftView: 'simple'
+  survival: true, mobs: true, hostile: true, autoTool: false, craftView: 'simple', tableN: 3
 };
 let mcSettings = Object.assign({}, MC_DEFAULTS, { keys: mcDefaultKeys() });
 
@@ -1302,6 +1441,7 @@ const MC_UI = {
     { k: 'showFps', t: 'check', l: 'Afficher FPS et coordonnées' }
   ],
   options: [
+    { k: 'tableN', t: 'range', l: 'Taille de la grille de la table de craft', min: 3, max: 6, s: 1, f: v => v + '×' + v },
     { k: 'survival', t: 'check', l: 'Vie et faim (dégâts, nourriture)' },
     { k: 'mobs', t: 'check', l: 'Animaux (cochon, vache, mouton, poule)' },
     { k: 'hostile', t: 'check', l: 'Monstres la nuit (zombies)' },
@@ -1382,23 +1522,235 @@ function mcFbm2(x, z, s) {
   return mcNoise2(x, z, s) * 0.55 + mcNoise2(x * 2.1, z * 2.1, s + 11) * 0.3 + mcNoise2(x * 4.3, z * 4.3, s + 23) * 0.15;
 }
 
-// Hauteur du terrain et type de surface d'une colonne (résultat dans mcColH / mcColSand)
-let mcColH = 0, mcColSand = false;
+// ---------- Biomes, eau, rivières, structures ----------
+const MC_SEA = 10;                 // niveau de la mer
+const MC_WATER = 17;               // identifiant du bloc d'eau
+const MC_BIOME_NAME = ['Océan', 'Plage', 'Plaines', 'Forêt', 'Désert', 'Toundra', 'Montagnes'];
+const MC_TREE_P = [0, 0, 0.16, 0.8, 0, 0.3, 0.06];   // chance d'arbre par case de 6x6, selon le biome
+let mcColH = 0, mcColBiome = 2, mcColSurf = 1, mcColSub1 = 2, mcColSub2 = 2;
+let mcSpawnX = 0, mcSpawnZ = 0;
+const mcStructCache = new Map();
+
+// Terrain d'une colonne : hauteur, biome et blocs de surface (résultats dans mcCol*)
+
 function mcColumn(wx, wz) {
   const s = mcSeed & 0xffff;
-  const c = mcFbm2(wx * 0.0065, wz * 0.0065, s);        // grandes formes : montagnes / plaines
+  const c = mcFbm2(wx * 0.0065, wz * 0.0065, s);        // grandes formes : océans, plaines, montagnes
   const d = mcFbm2(wx * 0.035, wz * 0.035, s + 5);      // relief local
-  const h = Math.floor(13 + (c - 0.5) * 42 + (d - 0.5) * 9);
-  mcColH = Math.max(4, Math.min(MC_WORLD_H - 12, h));
-  mcColSand = mcColH <= 8 || mcNoise2(wx * 0.05 + 100, wz * 0.05 + 100, s + 7) > 0.68;
+  let h = 16 + (c - 0.5) * 42 + (d - 0.5) * 9;
+  if (c < 0.36) h -= (0.36 - c) * 40;                      // fonds marins plus profonds
+  const rv = Math.abs(mcNoise2(wx * 0.0075 + 300, wz * 0.0075 + 300, s + 13) - 0.5);
+  if (rv < 0.04 && h > MC_SEA - 3) {                     // rivières : un lit qui remonte en pente douce
+    const f = rv / 0.04, target = MC_SEA - 2;
+    h = target + (h - target) * f * f;
+  }
+  h = Math.max(3, Math.min(MC_WORLD_H - 12, Math.floor(h)));
+  mcColH = h;
+  let b;
+  if (h < MC_SEA) b = 0;
+  else if (h <= MC_SEA + 1) b = 1;
+  else if (h >= 26) b = 6;
+  else {
+    const t = (mcFbm2(wx * 0.004 + 700, wz * 0.004 + 700, s + 31) - 0.5) * 1.7 + 0.5;   // température
+    const m = (mcFbm2(wx * 0.0045 + 900, wz * 0.0045 + 900, s + 47) - 0.5) * 1.7 + 0.5; // humidité
+    b = (t > 0.58 && m < 0.5) ? 4 : (t < 0.33 ? 5 : (m > 0.56 ? 3 : 2));
+  }
+  mcColBiome = b;
+  switch (b) {
+    case 0: case 1: mcColSurf = 12; mcColSub1 = 12; mcColSub2 = 3; break;
+    case 4: mcColSurf = 12; mcColSub1 = 12; mcColSub2 = 20; break;
+    case 5: mcColSurf = 18; mcColSub1 = 2; mcColSub2 = 2; break;
+    case 6: mcColSurf = h >= 31 ? 18 : 3; mcColSub1 = 3; mcColSub2 = 3; break;
+    default: mcColSurf = 1; mcColSub1 = 2; mcColSub2 = 2;
+  }
 }
 
 // Génère un chunk (16x16 colonnes) de façon déterministe à partir de la graine
+function mcBiomeAt(wx, wz) { mcColumn(wx, wz); return mcColBiome; }
+
+// Point d'apparition : la terre ferme la plus proche de (0, 0), hors océan
+
+function mcComputeSpawn() {
+  mcSpawnX = 0; mcSpawnZ = 0;
+  // on préfère un départ en plaines ou en forêt ; sinon n'importe quelle terre ferme
+  for (let pass = 0; pass < 2; pass++) {
+    const maxD = pass === 0 ? 300 : 500;
+    for (let d = 0; d <= maxD; d += 4) {
+      for (let i = -d; i <= d; i += 4) {
+        const cand = d === 0 ? [[0, 0]] : [[i, -d], [i, d], [-d, i], [d, i]];
+        for (let k = 0; k < cand.length; k++) {
+          mcColumn(cand[k][0], cand[k][1]);
+          const okB = pass === 0 ? (mcColBiome === 2 || mcColBiome === 3) : (mcColBiome >= 2 && mcColBiome <= 5);
+          if (okB && mcColH >= MC_SEA + 3) { mcSpawnX = cand[k][0]; mcSpawnZ = cand[k][1]; return; }
+        }
+      }
+    }
+  }
+}
+
+function mcComputeSpawnOld() {
+  for (let d = 0; d <= 400; d += 4) {
+    for (let i = -d; i <= d; i += 4) {
+      const cand = d === 0 ? [[0, 0]] : [[i, -d], [i, d], [-d, i], [d, i]];
+      for (let k = 0; k < cand.length; k++) {
+        mcColumn(cand[k][0], cand[k][1]);
+        if (mcColBiome >= 2 && mcColBiome <= 5 && mcColH >= MC_SEA + 3) { mcSpawnX = cand[k][0]; mcSpawnZ = cand[k][1]; return; }
+      }
+    }
+  }
+}
+
+// ---------- Structures : chance d'apparition par type (poids) et par biome ----------
+// Chaque région de 48x48 blocs a 60 % de chances de contenir une structure ; le type est tiré selon ces poids.
+const MC_STRUCT_REGION = 48;
+const MC_STRUCTS = [
+  { id: 'hut', name: 'Cabane', w: 40, biomes: [2, 3, 5] },
+  { id: 'well', name: 'Puits', w: 25, biomes: [2, 4] },
+  { id: 'ruin', name: 'Ruines', w: 15, biomes: [2, 3, 4, 5, 6] },
+  { id: 'tower', name: 'Tour en ruine', w: 12, biomes: [2, 3, 5, 6] },
+  { id: 'pyramid', name: 'Pyramide du désert', w: 8, biomes: [4] }
+];
+
+function mcStructAt(rx, rz) {
+  const key = rx * 100003 + rz;
+  if (mcStructCache.has(key)) return mcStructCache.get(key);
+  const s = mcSeed & 0xffff;
+  let res = null;
+  if (mcHash(rx, 7, rz, s + 900) < 0.6) {
+    const ax = rx * MC_STRUCT_REGION + 10 + Math.floor(mcHash(rx, 8, rz, s + 901) * 28);
+    const az = rz * MC_STRUCT_REGION + 10 + Math.floor(mcHash(rx, 9, rz, s + 902) * 28);
+    mcColumn(ax, az);
+    const biome = mcColBiome, gy = mcColH;
+    if (biome >= 2 && Math.hypot(ax - mcSpawnX, az - mcSpawnZ) > 14) {
+      const list = MC_STRUCTS.filter(t => t.biomes.indexOf(biome) >= 0);
+      let tot = 0;
+      list.forEach(t => { tot += t.w; });
+      if (tot > 0) {
+        let r = mcHash(rx, 10, rz, s + 903) * tot, type = list[0].id;
+        for (let i = 0; i < list.length; i++) { if (r < list[i].w) { type = list[i].id; break; } r -= list[i].w; }
+        res = { type, ax, az, gy, rx, rz };
+      }
+    }
+  }
+  mcStructCache.set(key, res);
+  return res;
+}
+
+// Construit la partie de la structure qui se trouve dans le chunk (put écrit un bloc, found remplit les fondations)
+
+function mcBuildStruct(st, x0, z0, put, found) {
+  const ax = st.ax, az = st.az, gy = st.gy, type = st.type;
+  const s = mcSeed & 0xffff;
+  const col = (dx, dz, fn) => {
+    const wx = ax + dx, wz = az + dz;
+    if (wx >= x0 && wx < x0 + 16 && wz >= z0 && wz < z0 + 16) fn(wx, wz);
+  };
+  const clearAir = (wx, wz, h) => { for (let y = gy + 1; y <= gy + h; y++) put(wx, y, wz, 0); };
+
+  if (type === 'hut') {                      // cabane en bois avec table de craft et four
+    for (let dx = -3; dx <= 3; dx++) {
+      for (let dz = -3; dz <= 3; dz++) {
+        col(dx, dz, (wx, wz) => {
+          found(wx, wz, gy);
+          clearAir(wx, wz, 7);
+          put(wx, gy, wz, 10);
+          const edge = Math.abs(dx) === 3 || Math.abs(dz) === 3;
+          const corner = Math.abs(dx) === 3 && Math.abs(dz) === 3;
+          if (edge) {
+            for (let y = 1; y <= 3; y++) {
+              let b = corner ? 4 : 10;
+              if (y === 2 && !corner && ((dz === 0 && Math.abs(dx) === 3) || (dx === 0 && dz === -3))) b = 13;
+              if (dx === 0 && dz === 3 && y <= 2) b = 0;
+              put(wx, gy + y, wz, b);
+            }
+          }
+          put(wx, gy + 4, wz, 10);
+          if (Math.abs(dx) <= 2 && Math.abs(dz) <= 2) put(wx, gy + 5, wz, 10);
+        });
+      }
+    }
+    col(-2, -2, (wx, wz) => put(wx, gy + 1, wz, 15));
+    col(2, -2, (wx, wz) => put(wx, gy + 1, wz, 16));
+  } else if (type === 'well') {              // puits : margelle en briques, eau, petit toit
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dz = -2; dz <= 2; dz++) {
+        col(dx, dz, (wx, wz) => {
+          found(wx, wz, gy);
+          clearAir(wx, wz, 6);
+          const ring = Math.abs(dx) === 2 || Math.abs(dz) === 2;
+          if (ring) { put(wx, gy, wz, 11); put(wx, gy + 1, wz, 11); }
+          else { put(wx, gy, wz, MC_WATER); put(wx, gy - 1, wz, MC_WATER); put(wx, gy - 2, wz, 3); }
+          if (Math.abs(dx) === 2 && Math.abs(dz) === 2) { put(wx, gy + 2, wz, 4); put(wx, gy + 3, wz, 4); }
+          put(wx, gy + 4, wz, 10);
+        });
+      }
+    }
+  } else if (type === 'ruin') {              // ruines : murs de briques éboulés
+    for (let dx = -5; dx <= 5; dx++) {
+      for (let dz = -5; dz <= 5; dz++) {
+        col(dx, dz, (wx, wz) => {
+          found(wx, wz, gy);
+          clearAir(wx, wz, 5);
+          const edge = Math.max(Math.abs(dx), Math.abs(dz)) === 5;
+          const h1 = mcHash(wx, 11, wz, s + 910), h2 = mcHash(wx, 12, wz, s + 911);
+          if (edge && h1 > 0.35) { const hh = 1 + Math.floor(h2 * 3); for (let y = 1; y <= hh; y++) put(wx, gy + y, wz, h2 > 0.8 ? 3 : 11); }
+          else if (!edge && h1 > 0.72) put(wx, gy, wz, 10);
+        });
+      }
+    }
+    if (mcHash(st.rx, 13, st.rz, s + 912) > 0.5) col(0, 0, (wx, wz) => put(wx, gy + 1, wz, 16));
+    else col(1, 1, (wx, wz) => put(wx, gy + 1, wz, 15));
+  } else if (type === 'tower') {             // tour en briques, de plus en plus abîmée vers le haut, avec du minerai au pied
+    for (let dx = -3; dx <= 3; dx++) {
+      for (let dz = -3; dz <= 3; dz++) {
+        col(dx, dz, (wx, wz) => {
+          found(wx, wz, gy);
+          clearAir(wx, wz, 11);
+          put(wx, gy, wz, 11);
+          const edge = Math.abs(dx) === 3 || Math.abs(dz) === 3;
+          if (edge) {
+            for (let y = 1; y <= 9; y++) {
+              if (dx === 0 && dz === 3 && y <= 2) continue;
+              if (mcHash(wx, y, wz, s + 920) < 1 - y * 0.06) put(wx, gy + y, wz, 11);
+            }
+          } else put(wx, gy + 4, wz, 10);
+        });
+      }
+    }
+    col(-1, 0, (wx, wz) => put(wx, gy + 1, wz, 7));
+    col(1, 0, (wx, wz) => put(wx, gy + 1, wz, 7));
+    col(0, 1, (wx, wz) => put(wx, gy + 1, wz, 6));
+    if (mcHash(st.rx, 14, st.rz, s + 921) < 0.5) col(0, -1, (wx, wz) => put(wx, gy + 1, wz, 8));
+  } else if (type === 'pyramid') {           // pyramide en grès avec une chambre au trésor (minerais)
+    for (let dx = -7; dx <= 7; dx++) {
+      for (let dz = -7; dz <= 7; dz++) {
+        col(dx, dz, (wx, wz) => {
+          found(wx, wz, gy);
+          clearAir(wx, wz, 10);
+          put(wx, gy, wz, 20);
+          const m = Math.max(Math.abs(dx), Math.abs(dz));
+          for (let k = 0; k <= 7; k++) if (m <= 7 - k) put(wx, gy + 1 + k, wz, 20);
+          if (Math.abs(dx) <= 2 && Math.abs(dz) <= 2) for (let y = 1; y <= 3; y++) put(wx, gy + y, wz, 0);
+          if (dx === 0 && dz >= 3) for (let y = 1; y <= 2; y++) put(wx, gy + y, wz, 0);
+          if (Math.abs(dx) === 7 && Math.abs(dz) === 7) put(wx, gy + 1, wz, 11);
+        });
+      }
+    }
+    col(0, 0, (wx, wz) => put(wx, gy + 1, wz, 8));
+    col(-2, -2, (wx, wz) => put(wx, gy + 1, wz, 7));
+    col(2, -2, (wx, wz) => put(wx, gy + 1, wz, 7));
+    col(-2, 2, (wx, wz) => put(wx, gy + 1, wz, 7));
+    col(2, 2, (wx, wz) => put(wx, gy + 1, wz, 8));
+  }
+}
+
+// Génère un chunk (16x16 colonnes) de façon déterministe à partir de la graine
+
 function mcGenChunk(cx, cz) {
   const key = mcCK(cx, cz);
   let ch = mcChunkMap.get(key);
   if (!ch) {
-    ch = { cx, cz, data: null, top: null, solid: null, glass: null, meshed: false, dirty: false };
+    ch = { cx, cz, data: null, top: null, solid: null, glass: null, water: null, meshed: false, dirty: false };
     mcChunkMap.set(key, ch);
   }
   const data = new Uint8Array(MC_VOL);
@@ -1410,17 +1762,23 @@ function mcGenChunk(cx, cz) {
     for (let lx = 0; lx < 16; lx++) {
       const wx = x0 + lx, wz = z0 + lz;
       mcColumn(wx, wz);
-      const h = mcColH, sandy = mcColSand;
+      const h = mcColH, biome = mcColBiome, surf = mcColSurf, sub1 = mcColSub1, sub2 = mcColSub2;
       for (let y = 0; y <= h; y++) {
         let t;
         if (y === 0) t = 14;
-        else if (y === h) t = sandy ? 12 : 1;
-        else if (y >= h - 3) t = sandy ? 12 : 2;
+        else if (y === h) t = surf;
+        else if (y === h - 1) t = sub1;
+        else if (y >= h - 3) t = sub2;
         else {
           t = 3;
           if (y >= 2 && mcNoise3(wx * 0.09, y * 0.13, wz * 0.09, s + 3) > 0.71) t = 0;   // grottes
         }
         if (t) data[(y << 8) | (lz << 4) | lx] = t;
+      }
+      if (h < MC_SEA) for (let y = h + 1; y <= MC_SEA; y++) data[(y << 8) | (lz << 4) | lx] = MC_WATER;   // mers, lacs, rivières
+      if (biome === 4 && mcHash(wx, 5, wz, s + 91) < 0.013) {                                          // cactus du désert
+        const n = 1 + Math.floor(mcHash(wx, 6, wz, s + 92) * 3);
+        for (let k = 1; k <= n; k++) data[((h + k) << 8) | (lz << 4) | lx] = 19;
       }
     }
   }
@@ -1447,17 +1805,16 @@ function mcGenChunk(cx, cz) {
   if (rng() < 0.9) vein(8, 1, 1, 3, 6);
   if (rng() < 0.5) vein(9, 1, 1, 2, 3);
 
-  // Arbres : un arbre possible par case de 6x6, position fixée par la graine
+  // Arbres : un arbre possible par case de 6x6, la densité dépend du biome (forêt dense, désert sans arbre)
   const CELL = 6;
   for (let gz = Math.floor((z0 - 2) / CELL); gz <= Math.floor((z0 + 17) / CELL); gz++) {
     for (let gx = Math.floor((x0 - 2) / CELL); gx <= Math.floor((x0 + 17) / CELL); gx++) {
-      if (mcHash(gx, 0, gz, s + 500) > 0.45) continue;
       const tx = gx * CELL + Math.floor(mcHash(gx, 1, gz, s + 501) * CELL);
       const tz = gz * CELL + Math.floor(mcHash(gx, 2, gz, s + 502) * CELL);
-      if (Math.abs(tx) < 4 && Math.abs(tz) < 4) continue;                    // zone de départ dégagée
+      if (Math.abs(tx - mcSpawnX) < 4 && Math.abs(tz - mcSpawnZ) < 4) continue;   // zone de départ dégagée
       if (tx < x0 - 2 || tx > x0 + 17 || tz < z0 - 2 || tz > z0 + 17) continue;
       mcColumn(tx, tz);
-      if (mcColSand || mcColH < 9) continue;
+      if (mcHash(gx, 0, gz, s + 500) >= MC_TREE_P[mcColBiome]) continue;
       const base = mcColH;
       const th = 4 + Math.floor(mcHash(gx, 3, gz, s + 503) * 2.99);
       if (base + th + 3 >= MC_WORLD_H) continue;
@@ -1481,6 +1838,20 @@ function mcGenChunk(cx, cz) {
     }
   }
 
+  // Structures (une région de 48x48 contient au plus une structure)
+  const st = mcStructAt(Math.floor(x0 / MC_STRUCT_REGION), Math.floor(z0 / MC_STRUCT_REGION));
+  if (st) {
+    const put = (wx, wy, wz, bl) => {
+      if (wx < x0 || wx >= x0 + 16 || wz < z0 || wz >= z0 + 16 || wy < 1 || wy >= MC_WORLD_H) return;
+      data[(wy << 8) | ((wz - z0) << 4) | (wx - x0)] = bl;
+    };
+    const found = (wx, wz, gy) => {
+      mcColumn(wx, wz);
+      for (let y = mcColH + 1; y < gy; y++) put(wx, y, wz, 3);
+    };
+    mcBuildStruct(st, x0, z0, put, found);
+  }
+
   // Modifications du joueur
   const ed = mcEdits.get(key);
   if (ed) ed.forEach((t, li) => { data[li] = t; });
@@ -1497,13 +1868,14 @@ function mcGenChunk(cx, cz) {
 function mcUnloadChunk(ch) {
   if (ch.solid) { mcScene.remove(ch.solid); ch.solid.geometry.dispose(); ch.solid = null; }
   if (ch.glass) { mcScene.remove(ch.glass); ch.glass.geometry.dispose(); ch.glass = null; }
+  if (ch.water) { mcScene.remove(ch.water); ch.water.geometry.dispose(); ch.water = null; }
   mcChunkMap.delete(mcCK(ch.cx, ch.cz));
   mcLastCh = null;
 }
 
 function mcSpawnPos() {
-  const top = mcTopAt(0, 0);
-  return { x: 0, y: top + 0.5 + PLAYER_HEIGHT + 0.05, z: 0 };
+  const top = mcTopAt(mcSpawnX, mcSpawnZ);
+  return { x: mcSpawnX, y: top + 0.5 + PLAYER_HEIGHT + 0.05, z: mcSpawnZ };
 }
 
 // ---------- Chargement progressif autour du joueur ----------
@@ -1541,6 +1913,7 @@ function mcPlanStreaming(pcx, pcz) {
       const vis = dd <= R + 0.5;
       if (ch.solid) ch.solid.visible = vis;
       if (ch.glass) ch.glass.visible = vis;
+      if (ch.water) ch.water.visible = vis;
     }
   });
 }
@@ -1589,7 +1962,7 @@ function mcSaveGame(force) {
       ed.push([kx - 32768, k - kx * 65536 - 32768, flat]);
     });
     localStorage.setItem(MC_SAVE_KEY, JSON.stringify({
-      v: 3, seed: mcSeed, edits: ed, inv: mcInventory, hot: mcHotbar, furn: mcFurnace,
+      v: 4, seed: mcSeed, edits: ed, inv: mcInventory, hot: mcHotbar, furn: mcFurnace,
       pos: [mcPlayer.pos.x, mcPlayer.pos.y, mcPlayer.pos.z],
       yaw: mcPlayer.yaw, pitch: mcPlayer.pitch, time: mcTime, slot: mcSelectedIndex, hp: mcHealth, food: mcFood, sat: mcSat
     }));
@@ -1600,7 +1973,7 @@ function mcLoadGame() {
     const raw = localStorage.getItem(MC_SAVE_KEY);
     if (!raw) return null;
     const d = JSON.parse(raw);
-    return d && d.v === 3 ? d : null;
+    return d && d.v === 4 ? d : null;
   } catch (e) { return null; }
 }
 
@@ -1638,7 +2011,7 @@ const MC_OPAQ = new Uint8Array(256);
 Object.keys(BLOCK_TYPES).forEach(id => { if (BLOCK_TYPES[id].transparent) MC_TRANSP[id] = 1; else MC_OPAQ[id] = 1; });
 MC_OPAQ[254] = 1; MC_OPAQ[255] = 1;
 
-let mcMatSolid = null, mcMatGlass = null, mcMatHand = null;
+let mcMatSolid = null, mcMatGlass = null, mcMatHand = null, mcMatWater = null;
 
 function mcPushFace(B, x, y, z, f, tile, ao, light) {
   if (B.f >= B.cap) mcGrowBuf(B);
@@ -1708,7 +2081,7 @@ function mcFaceAO(px, y, pz, f) {
   }
 }
 
-const MC_BS = mcMakeBuf(6000), MC_BG = mcMakeBuf(1500);
+const MC_BS = mcMakeBuf(6000), MC_BG = mcMakeBuf(1500), MC_BW = mcMakeBuf(3000);
 
 function mcApplyGeo(ch, key, B, mat, order) {
   if (ch[key]) {
@@ -1739,7 +2112,8 @@ function mcApplyGeo(ch, key, B, mat, order) {
 function mcMeshChunk(ch) {
   mcFillPad(ch.cx, ch.cz);
   const S = MC_BS, G = MC_BG;
-  S.f = 0; G.f = 0;
+  const W = MC_BW;
+  S.f = 0; G.f = 0; W.f = 0;
   const useAO = !!mcSettings.ao;
   const top = ch.top;
   for (let lz = 0; lz < 16; lz++) {
@@ -1752,7 +2126,7 @@ function mcMeshChunk(ch) {
         const id = mcPad[base];
         if (!id) continue;
         const def = BLOCK_TYPES[id];
-        const B = def.glass ? G : S;
+        const B = def.water ? W : (def.glass ? G : S);
         const ao = useAO && !def.transparent;
         for (let fi = 0; fi < 6; fi++) {
           const f = MC_FACES[fi];
@@ -1777,6 +2151,7 @@ function mcMeshChunk(ch) {
   }
   mcApplyGeo(ch, 'solid', S, mcMatSolid, 0);
   mcApplyGeo(ch, 'glass', G, mcMatGlass, 1);
+  mcApplyGeo(ch, 'water', W, mcMatWater, 2);
   ch.meshed = true;
   ch.dirty = false;
 }
@@ -1846,7 +2221,7 @@ function mcRaycast(ox, oy, oz, dx, dy, dz, maxDist) {
   let t = 0, nx = 0, ny = 0, nz = 0;
   while (t <= maxDist) {
     const b = mcGet(ix, iy, iz);
-    if (b > 0 && b < 200 && (nx || ny || nz)) return { x: ix, y: iy, z: iz, type: b, nx, ny, nz, dist: t };
+    if (b > 0 && b < 200 && b !== MC_WATER && (nx || ny || nz)) return { x: ix, y: iy, z: iz, type: b, nx, ny, nz, dist: t };
     if (tmx < tmy && tmx < tmz) { ix += sx; t = tmx; tmx += tdx; nx = -sx; ny = 0; nz = 0; }
     else if (tmy < tmz) { iy += sy; t = tmy; tmy += tdy; nx = 0; ny = -sy; nz = 0; }
     else { iz += sz; t = tmz; tmz += tdz; nx = 0; ny = 0; nz = -sz; }
@@ -1859,7 +2234,8 @@ function mcCastFromCamera() {
 }
 
 function mcSolidAt(x, y, z) {
-  return mcGet(x, y, z) !== 0;   // inclut les chunks pas encore chargés (solides) et le dessous du monde
+  const b = mcGet(x, y, z);
+  return b !== 0 && b !== MC_WATER;   // l'eau ne bloque pas (on nage) ; les chunks pas chargés sont solides
 }
 // Le joueur (boîte AABB) touche-t-il un bloc à cette position (position des yeux) ?
 function mcBoxHits(px, py, pz) {
@@ -1891,16 +2267,28 @@ function mcPhysics(dt, ax, az, sprint, jump) {
     mx = (nx * cos + nz * sin) * mag;
     mz = (-nx * sin + nz * cos) * mag;
   }
-  const speed = sprint ? MC_RUN : MC_WALK;
+  const feetB = mcGet(mcBi(pos.x), mcBi(pos.y - PLAYER_HEIGHT + 0.3), mcBi(pos.z));
+  const headB = mcGet(mcBi(pos.x), mcBi(pos.y), mcBi(pos.z));
+  mcHeadUnder = headB === MC_WATER;
+  mcInWater = mcHeadUnder || feetB === MC_WATER;
+  let speed = sprint ? MC_RUN : MC_WALK;
+  if (mcInWater) speed *= 0.55;
   let jumped = false;
 
-  if (jump && p.onGround) {
-    p.velocity.y = MC_JUMP;
-    p.onGround = false;
-    jumped = true;
-    mcPlayTone(220, 0.1, 'sine', 0.08, 330);
+  if (mcInWater) {
+    // nage : sauter fait remonter (et sortir de l'eau au bord), sinon on coule doucement
+    if (jump) p.velocity.y = mcHeadUnder ? Math.min(3.6, p.velocity.y + 26 * dt) : Math.max(p.velocity.y, 7.2);
+    else p.velocity.y = Math.max(-2.4, p.velocity.y - 7 * dt);
+    p.velocity.y -= p.velocity.y * Math.min(1, 2.5 * dt);   // l'eau freine
+  } else {
+    if (jump && p.onGround) {
+      p.velocity.y = MC_JUMP;
+      p.onGround = false;
+      jumped = true;
+      mcPlayTone(220, 0.1, 'sine', 0.08, 330);
+    }
+    p.velocity.y = Math.max(-50, p.velocity.y - MC_GRAVITY * dt);
   }
-  p.velocity.y = Math.max(-50, p.velocity.y - MC_GRAVITY * dt);
 
   const dx = (mx * speed + mcKnock.x) * dt, dz = (mz * speed + mcKnock.z) * dt, dy = p.velocity.y * dt;
   const kd = Math.max(0, 1 - dt * 5);
@@ -2202,6 +2590,7 @@ function mcUpdateSky(dt) {
   const br = mcDaylight * mcSettings.brightness / 100;
   mcMatSolid.color.setRGB(br, br, br);
   mcMatGlass.color.setRGB(br, br, br);
+  mcMatWater.color.setRGB(br, br, br);
   const hb = Math.max(0.55, br);
   mcMatHand.color.setRGB(hb, hb, hb);
   mcCloudMesh.material.color.setRGB(mcDaylight, mcDaylight, Math.min(1, mcDaylight * 1.05));
@@ -2401,7 +2790,7 @@ function setupCybercraftUI(container, canvas) {
       #mc-fsbtn{position:absolute;top:8px;right:10px;width:36px;height:36px;border-radius:8px;border:2px solid rgba(0,243,255,.6);background:rgba(5,5,16,.55);color:#00f3ff;font-size:18px;cursor:pointer;pointer-events:auto;z-index:15}
       #mc-death{position:absolute;inset:0;background:rgba(80,0,0,.72);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:50;pointer-events:auto;color:#fff}
       .mc-slot .e{position:absolute;font-size:calc(var(--mcslot) * 0.55);pointer-events:none;display:none;line-height:1}
-      #mc-slotname{bottom:calc(var(--mcslot) + 48px) !important}
+      #mc-slotname{bottom:calc(var(--mcslot) + 72px) !important}
       .mc-headbtns{display:flex;gap:6px;flex-wrap:wrap}
       .mc-btn.active{background:rgba(0,243,255,.25);border-color:#00f3ff}
       .mc-btn.go{background:#00f3ff;color:#001018;font-weight:700;border:none}
@@ -2424,6 +2813,18 @@ function setupCybercraftUI(container, canvas) {
       .mc-need.ok i{color:#7dff9c}
       .mc-need.no i{color:#ff7a7a}
       .mc-us.static{cursor:default;border-color:#3a4666}
+      .mc-us{touch-action:none;user-select:none;-webkit-user-select:none}
+      .mc-us.dropover{outline:2px dashed #58ff8a;background:rgba(88,255,138,.2)}
+      .mc-us.empty{cursor:default;opacity:.8}
+      .mc-bag{display:grid;grid-template-columns:repeat(9,46px);gap:4px;justify-content:start}
+      .mc-ghost{position:absolute;width:46px;height:46px;pointer-events:none;z-index:100;display:flex;align-items:center;justify-content:center;border:2px solid #00f3ff;border-radius:6px;background:rgba(0,40,60,.85);box-shadow:0 4px 14px rgba(0,0,0,.6);color:#fff}
+      .mc-ghost img{width:76%;height:76%;image-rendering:pixelated}
+      .mc-ghost .mc-emo{font-size:24px}
+      .mc-ghost .c{position:absolute;right:3px;bottom:0;font-size:11px;font-weight:700;text-shadow:1px 1px 0 #000}
+      .mc-rcpat{min-width:54px}
+      #mc-airrow{position:absolute;bottom:calc(var(--mcslot) + 50px);left:50%;transform:translateX(-50%);width:calc(var(--mcslot) * 9 + 44px);display:none;flex-direction:row-reverse;gap:1px;pointer-events:none}
+      #mc-airrow img{width:calc(var(--mcslot) * 0.4);height:calc(var(--mcslot) * 0.4);max-width:20px;max-height:20px;image-rendering:pixelated}
+      #mc-water{position:absolute;inset:0;pointer-events:none;opacity:0;background:rgba(20,70,170,.42);transition:opacity .15s}
       #mc-touch-ui{position:absolute;inset:0;pointer-events:none;touch-action:none}
       #mc-joy,#mc-btns{bottom:92px}
       @media (min-width:640px){#mc-joy,#mc-btns{bottom:18px}}
@@ -2443,11 +2844,13 @@ function setupCybercraftUI(container, canvas) {
         </div>`).join('')}
     </div>
 
+    <div id="mc-airrow">${Array.from({ length: 10 }, (_, i) => `<img id="mc-a-${i}" alt="">`).join('')}</div>
     <div id="mc-stats">
       <div class="mc-statrow">${Array.from({ length: 10 }, (_, i) => `<img id="mc-h-${i}" alt="">`).join('')}</div>
       <div class="mc-statrow rev">${Array.from({ length: 10 }, (_, i) => `<img id="mc-f-${i}" alt="">`).join('')}</div>
     </div>
     <div id="mc-hurt"></div>
+    <div id="mc-water"></div>
     <button id="mc-fsbtn" title="Plein écran">⛶</button>
     <div id="mc-pause-menu"><div class="mc-panel" id="mc-screen"></div></div>
     <div id="mc-death">
@@ -2548,69 +2951,65 @@ function mcMini(k) {
 }
 
 function mcHtmlInventory() {
-  const mode = mcCraftMode, view = mcSettings.craftView === 'grid' ? 'grid' : 'simple';
-  const title = mode === 'furnace' ? '🔥 Four' : (mode === 'table' ? '🔨 Table de craft' : '🧰 Fabrication');
-  let head = '<div class="mc-head"><h2>' + title + '</h2><div class="mc-headbtns">';
-  if (mode !== 'furnace') {
-    head += '<button class="mc-btn' + (view === 'simple' ? ' active' : '') + '" data-view="simple">📖 Simple</button>' +
-      '<button class="mc-btn' + (view === 'grid' ? ' active' : '') + '" data-view="grid">🧩 Grille</button>';
-  }
-  head += '<button class="mc-btn main" data-go="resume">✕ Fermer</button></div></div>';
-
-  let main = '';
+  const mode = mcCraftMode, N = mcGridSize;
+  const title = mode === 'furnace' ? '🔥 Four' : (mode === 'table' ? '🔨 Table de craft ' + N + '×' + N : '🧰 Inventaire · fabrication 2×2');
+  const head = '<div class="mc-head"><h2>' + title + '</h2><div class="mc-headbtns"><button class="mc-btn main" data-go="resume">✕ Fermer</button></div></div>';
+  let craft = '';
   if (mode === 'furnace') {
     const f = mcFurnace;
     const pb = f.burnMax ? Math.round(f.burn / f.burnMax * 100) : 0;
     const pp = Math.round(f.prog / MC_SMELT_TIME * 100);
-    const slot = (attr, c, hint) => '<button class="mc-us' + (mcCursor ? ' tgt' : '') + '" ' + attr + '>' + (c ? mcItemHtml(c.k, c.n) : '<span class="mc-hint">' + hint + '</span>') + '</button>';
-    main = '<div class="mc-craftrow">' +
-      '<div class="mc-col2">' + slot('data-fslot="inp"', f.inp, 'À cuire') +
+    const slot = (name, c, hint) => '<button class="mc-us' + (mcCursor ? ' tgt' : '') + '" data-fslot="' + name + '"' + mcSlotAttrs(c ? 'fslot:' + name : '', 'fslot:' + name) + '>' +
+      (c ? mcItemHtml(c.k, c.n) : '<span class="mc-hint">' + hint + '</span>') + '</button>';
+    craft = '<div class="mc-craftrow">' +
+      '<div class="mc-col2">' + slot('inp', f.inp, 'À cuire') +
       '<div class="mc-flame"><div id="mc-flame-fill" style="height:' + pb + '%"></div></div>' +
-      slot('data-fslot="fuel"', f.fuel, 'Fuel') + '</div>' +
+      slot('fuel', f.fuel, 'Fuel') + '</div>' +
       '<div class="mc-arrow">➜<div class="mc-prog"><div id="mc-prog-fill" style="width:' + pp + '%"></div></div></div>' +
-      '<button class="mc-us res" data-fout="1">' + (f.out ? mcItemHtml(f.out.k, f.out.n) : '') + '</button></div>' +
-      '<p class="mc-note"><b>Touche un objet de ton sac</b> pour le mettre dans le four (il choisit tout seul : à cuire ou combustible). Cuisent : minerai de fer, débris, sable (verre), bois (charbon de bois) et toute la viande crue. Combustibles : charbon, bois, planches, bâtons. Le four continue de cuire menu fermé.</p>';
-  } else if (view === 'grid') {
-    const N = mcGridSize;
-    const cells = mcGrid.map((c, i) => '<button class="mc-us' + (mcCursor ? ' tgt' : '') + '" data-cell="' + i + '">' + (c ? mcItemHtml(c.k, c.n) : '') + '</button>').join('');
-    const res = mcGridResult();
-    main = '<div class="mc-craftrow"><div class="mc-ugrid" style="grid-template-columns:repeat(' + N + ',46px)">' + cells + '</div>' +
-      '<div class="mc-arrow">➜</div>' +
-      '<button class="mc-us res" data-result="1" title="' + (res ? res.name : '') + '">' + (res ? mcItemHtml(res.out.k, res.out.n) : '') + '</button>' +
-      '<div class="mc-col2"><button class="mc-btn" data-act="craftall">Tout fabriquer</button><button class="mc-btn" data-act="clear">Vider la grille</button></div></div>' +
-      '<p class="mc-note">' + (mcCursor ? 'Objet en main : <b>' + mcItemName(mcCursor) + '</b> — touche une case pour le poser.' : '① Touche un objet du sac · ② touche une case de la grille · ③ touche le résultat pour le prendre. La forme compte (ex. 2 planches l\'une sur l\'autre = bâtons).') + '</p>';
+      '<button class="mc-us res" data-fout="1"' + (f.out ? mcSlotAttrs('fout:1') : '') + '>' + (f.out ? mcItemHtml(f.out.k, f.out.n) : '') + '</button></div>' +
+      '<p class="mc-note">🖐 <b>Glisse</b> un objet de ton sac dans « À cuire » ou « Fuel » (ou touche-le : il va tout seul au bon endroit). Cuisent : minerai de fer, débris, sable (verre), bois (charbon de bois) et toute la viande crue. Combustibles : charbon, bois, planches, bâtons. Le four continue de cuire menu fermé.</p>';
   } else {
-    const filters = [['all', 'Tout'], ['ok', 'Faisables'], ['Outils', 'Outils'], ['Blocs', 'Blocs'], ['Autre', 'Autre']];
-    const chips = filters.map(f => '<button class="mc-fbtn' + (mcRecipeFilter === f[0] ? ' active' : '') + '" data-filter="' + f[0] + '">' + f[1] + '</button>').join('');
-    const order = { ok: 0, missing: 1, table: 2, owned: 3 };
-    const list = MC_RECIPES.map(r => ({ r, st: mcRecipeStatus(r) }))
-      .filter(x => mcRecipeFilter === 'all' || (mcRecipeFilter === 'ok' ? x.st === 'ok' : x.r.cat === mcRecipeFilter))
-      .sort((a, b) => order[a.st] - order[b.st]);
-    const label = { ok: 'Fabriquer', missing: 'Il manque', table: '🔨 Table', owned: '✔ Possédé' };
-    const cards = list.map(({ r, st }) => {
-      const need = mcRecipeNeeds(r);
-      const needs = Object.keys(need).map(k => {
-        const have = mcInventory[k] || 0;
-        return '<span class="mc-need ' + (have >= need[k] ? 'ok' : 'no') + '" title="' + mcItemName(k) + '">' + mcMini(k) + '<i>' + Math.min(have, 99) + '/' + need[k] + '</i></span>';
-      }).join('');
-      return '<div class="mc-rc ' + st + '"><div class="mc-us static">' + mcItemHtml(r.out.k, r.out.n) + '</div>' +
-        '<div class="mc-rcmain"><b>' + r.name + '</b>' + (st === 'table' ? ' <span class="mc-tag">table requise</span>' : '') + '<div class="mc-needs">' + needs + '</div></div>' +
-        '<button class="mc-btn' + (st === 'ok' ? ' go' : '') + '" data-craft="' + r.id + '"' + (st === 'ok' ? '' : ' disabled') + '>' + label[st] + '</button></div>';
-    }).join('');
-    main = '<p class="mc-note" style="margin:0 0 8px">' + (mode === 'table' ? '🔨 Table de craft : toutes les recettes sont disponibles.' : '🧰 À la main : recettes simples. Pose une <b>table de craft</b> (4 planches) puis fais un clic droit dessus pour les outils et le four.') + '</p>' +
-      '<div class="mc-filters">' + chips + '</div><div class="mc-rlist">' + (cards || '<span class="mc-note">Aucune recette ici.</span>') + '</div>';
+    const cells = mcGrid.map((c, i) => '<button class="mc-us' + (mcCursor ? ' tgt' : '') + '" data-cell="' + i + '"' + mcSlotAttrs(c ? 'cell:' + i : '', 'cell:' + i) + '>' + (c ? mcItemHtml(c.k, c.n) : '') + '</button>').join('');
+    const res = mcGridResult();
+    craft = '<div class="mc-craftrow"><div class="mc-ugrid" style="grid-template-columns:repeat(' + N + ',46px)">' + cells + '</div>' +
+      '<div class="mc-arrow">➜</div>' +
+      '<button class="mc-us res" data-result="1" title="' + (res ? res.name : '') + '"' + (res ? mcSlotAttrs('res:1') : '') + '>' + (res ? mcItemHtml(res.out.k, res.out.n) : '') + '</button>' +
+      '<div class="mc-col2"><button class="mc-btn" data-act="craftall">Tout fabriquer</button><button class="mc-btn" data-act="clear">Vider la grille</button></div></div>' +
+      '<p class="mc-note">🖐 <b>Glisse</b> les objets de ton sac dans les cases (Maj + glisser = toute la pile ; clic droit sur une case = reprendre 1). La <b>forme</b> compte, pas la position : 2 planches l\'une sur l\'autre = bâtons. Touche le résultat pour le récupérer.' +
+      (mode === 'inv' ? ' Pose une <b>table de craft</b> et fais un clic droit dessus pour la grande grille (pioches, haches, pelles, four).' : '') + '</p>';
   }
 
-  const hot = mcHotbar.map((k, i) => '<button class="mc-us' + (i === mcSelectedIndex ? ' sel' : '') + '" data-hot="' + i + '" title="Case ' + (i + 1) + '">' +
-    (k ? '<span style="opacity:' + ((mcInventory[k] || 0) > 0 ? 1 : 0.4) + '">' + mcItemHtml(k, MC_TOOL_RE.test(k) ? 0 : (mcInventory[k] || 0)) + '</span>' : '') + '</button>').join('');
-  const pal = Object.keys(mcInventory).filter(k => mcInventory[k] > 0).map(k =>
-    '<button class="mc-us' + (mcCursor === k ? ' sel' : '') + '" data-pal="' + k + '" title="' + mcItemName(k) + '">' + mcItemHtml(k, mcInventory[k]) + '</button>').join('');
+  // sac : cases fixes comme dans Minecraft
+  const items = Object.keys(mcInventory).filter(k => mcInventory[k] > 0);
+  const total = Math.max(27, Math.ceil(items.length / 9) * 9);
+  let bag = '';
+  for (let i = 0; i < total; i++) {
+    const k = items[i];
+    bag += k
+      ? '<button class="mc-us' + (mcCursor === k ? ' sel' : '') + '" data-pal="' + k + '"' + mcSlotAttrs('pal:' + k, 'pal') + ' title="' + mcItemName(k) + '">' + mcItemHtml(k, mcInventory[k]) + '</button>'
+      : '<div class="mc-us empty" data-drop="pal"></div>';
+  }
+  const hot = mcHotbar.map((k, i) => '<button class="mc-us' + (i === mcSelectedIndex ? ' sel' : '') + '" data-hot="' + i + '"' + mcSlotAttrs(k ? 'hot:' + i : '', 'hot:' + i) + ' title="Case ' + (i + 1) + '">' +
+    (k ? '<span style="opacity:' + ((mcInventory[k] || 0) > 0 ? 1 : 0.4) + ';pointer-events:none">' + mcItemHtml(k, MC_TOOL_RE.test(k) ? 0 : (mcInventory[k] || 0)) + '</span>' : '') + '</button>').join('');
   const stat = mcSettings.survival ? '<span class="mc-note" style="float:right">❤ ' + Math.ceil(mcHealth / 2) + '/10 · 🍗 ' + Math.ceil(mcFood / 2) + '/10</span>' : '';
 
-  return head + '<div class="mc-box">' + main + '</div>' +
-    '<div class="mc-box"><h4 style="margin:0 0 6px;color:#9dffb0">BARRE D\'OBJETS ' + stat + '</h4><div class="mc-palette">' + hot + '</div>' +
-    '<h4 style="margin:12px 0 6px;color:#ffcc00">SAC</h4><div class="mc-palette">' + (pal || '<span class="mc-note">Vide</span>') + '</div>' +
-    '<p class="mc-note" style="margin:8px 0 0">' + (mode === 'furnace' ? 'Touche un objet pour l\'envoyer au four.' : 'Pour ranger un objet (bloc, <b>outil</b>, nourriture) dans la barre : touche-le dans le sac, puis touche une case de la barre.') + '</p></div>';
+  let book = '';
+  if (mode !== 'furnace') {
+    book = '<details id="mc-book" class="mc-box"' + (mcBookOpen ? ' open' : '') + '><summary style="cursor:pointer;color:#ffcc00;font-weight:700">📖 Livre de recettes <span class="mc-note">(besoin d\'aide ? touche « Placer » pour remplir la grille)</span></summary><div class="mc-rlist" style="margin-top:8px">' +
+      MC_RECIPES.map(r => {
+        const locked = r.big && mcGridSize < 3;
+        const pat = r.shapeless
+          ? '<div class="mc-mini" style="grid-template-columns:repeat(' + Math.min(4, r.shapeless.length) + ',22px)">' + r.shapeless.map(mcMini).join('') + '</div>'
+          : '<div class="mc-mini" style="grid-template-columns:repeat(' + r.w + ',22px)">' + r.shape.map(row => row.map(mcMini).join('')).join('') + '</div>';
+        return '<div class="mc-rc"><div class="mc-rcpat">' + pat + '</div><span>➜</span>' + mcMini(r.out.k) +
+          '<div class="mc-rcmain"><b>' + (r.out.n > 1 ? r.out.n + '× ' : '') + r.name + '</b>' + (r.big ? ' <span class="mc-tag">table</span>' : '') + '</div>' +
+          '<button class="mc-btn" data-fill="' + r.id + '"' + (locked ? ' disabled' : '') + '>Placer</button></div>';
+      }).join('') + '</div></details>';
+  }
+
+  return head + '<div class="mc-box">' + craft + '</div>' +
+    '<div class="mc-box"><h4 style="margin:0 0 6px;color:#ffcc00">SAC ' + stat + '</h4><div class="mc-bag" data-drop="pal">' + bag + '</div>' +
+    '<h4 style="margin:12px 0 6px;color:#9dffb0">BARRE D\'OBJETS <span class="mc-note">(glisse un bloc, un <b>outil</b> ou de la nourriture dedans)</span></h4><div class="mc-palette">' + hot + '</div></div>' + book;
 }
 
 function mcRecipeNeeds(r) {
@@ -2668,6 +3067,149 @@ function mcHtmlPause() {
     '<button class="mc-btn" data-go="save">💾 Sauvegarder</button>' +
     '<button class="mc-btn danger" data-go="new">' + (mcConfirmReset ? '⚠ Confirmer : tout effacer ?' : '🗑 Nouveau monde') + '</button>' +
     '</div><p class="mc-note">' + help + '</p>';
+}
+
+function mcSlotAttrs(drag, drop) {
+  return (drag ? ' data-drag="' + drag + '"' : '') + (drop ? ' data-drop="' + drop + '"' : '');
+}
+
+function mcWireDrag(root) {
+  if (!root._mcGuard) {
+    root._mcGuard = true;
+    root.addEventListener('click', (ev) => { if (performance.now() - mcDragEndT < 300) { ev.stopPropagation(); ev.preventDefault(); } }, true);
+  }
+  root.querySelectorAll('[data-drag]').forEach(el => el.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    const s = el.dataset.drag, p = s.indexOf(':');
+    mcDrag = { kind: s.slice(0, p), id: s.slice(p + 1), sx: e.clientX, sy: e.clientY, moved: false, pid: e.pointerId, ghost: null, src: el, shift: !!e.shiftKey, over: null };
+    window.addEventListener('pointermove', mcDragMove);
+    window.addEventListener('pointerup', mcDragUp);
+    window.addEventListener('pointercancel', mcDragUp);
+  }));
+  root.querySelectorAll('[data-cell]').forEach(el => el.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const i = parseInt(el.dataset.cell, 10), c = mcGrid[i];
+    if (c) { mcGive(c.k, 1); c.n--; if (c.n <= 0) mcGrid[i] = null; updateInventoryUI(); }
+  }));
+  root.querySelectorAll('[data-fill]').forEach(el => el.addEventListener('click', () => { mcAutoFill(el.dataset.fill); mcPlayClick(); updateInventoryUI(); }));
+  const det = root.querySelector('#mc-book');
+  if (det) det.addEventListener('toggle', () => { mcBookOpen = det.open; });
+}
+
+function mcDragMove(e) {
+  const d = mcDrag;
+  if (!d || e.pointerId !== d.pid) return;
+  const hud = document.getElementById('mc-hud-container');
+  if (!d.moved) {
+    if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 6) return;
+    d.moved = true;
+    const g = document.createElement('div');
+    g.className = 'mc-ghost';
+    g.innerHTML = d.src.innerHTML;
+    if (hud) hud.appendChild(g);
+    d.ghost = g;
+    d.src.style.opacity = '0.35';
+  }
+  const r = hud ? hud.getBoundingClientRect() : { left: 0, top: 0 };
+  if (d.ghost) { d.ghost.style.left = (e.clientX - r.left - 23) + 'px'; d.ghost.style.top = (e.clientY - r.top - 23) + 'px'; }
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const t = el && el.closest ? el.closest('[data-drop]') : null;
+
+  // Sans relâcher : chaque case de la grille survolée reçoit 1 objet (un seul geste pour en remplir plusieurs)
+  if (d.kind === 'pal' && !d.shift && t && t.dataset && typeof t.dataset.drop === 'string' && t.dataset.drop.indexOf('cell:') === 0) {
+    const ci = parseInt(t.dataset.drop.slice(5), 10);
+    if (!d.visited) d.visited = {};
+    if (!d.visited[ci]) {
+      const cell = mcGrid[ci];
+      if ((mcInventory[d.id] || 0) > 0 && (!cell || cell.k === d.id)) {
+        d.visited[ci] = true;
+        mcCursor = d.id; mcPutCell(ci); mcCursor = null;
+        mcPlayClick();
+        updateInventoryUI();            // le sac et la grille se mettent à jour pendant que tu continues de glisser
+        d.over = null;
+        if (d.ghost) {
+          if ((mcInventory[d.id] || 0) > 0) d.ghost.innerHTML = mcItemHtml(d.id, mcInventory[d.id]);
+          else d.ghost.style.display = 'none';
+        }
+        const el2 = document.elementFromPoint(e.clientX, e.clientY);
+        const t2 = el2 && el2.closest ? el2.closest('[data-drop]') : null;
+        if (t2 && t2.classList && t2.dataset.drop !== 'pal') { t2.classList.add('dropover'); d.over = t2; }
+        return;
+      }
+    }
+  }
+  if (d.over !== t) {
+    if (d.over && d.over.classList) d.over.classList.remove('dropover');
+    d.over = t;
+    if (t && t.classList && t.dataset.drop !== 'pal') t.classList.add('dropover');
+  }
+}
+
+function mcDragUp(e) {
+  const d = mcDrag;
+  if (!d || (e.pointerId !== undefined && e.pointerId !== d.pid)) return;
+  window.removeEventListener('pointermove', mcDragMove);
+  window.removeEventListener('pointerup', mcDragUp);
+  window.removeEventListener('pointercancel', mcDragUp);
+  mcDrag = null;
+  if (d.ghost && d.ghost.parentNode) d.ghost.parentNode.removeChild(d.ghost);
+  if (!d.moved) return;
+  mcDragEndT = performance.now();
+  let target = '';
+  if (e.type !== 'pointercancel') {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const t = el && el.closest ? el.closest('[data-drop]') : null;
+    target = t ? t.dataset.drop : '';
+  }
+  d.shift = d.shift || !!e.shiftKey;
+  mcDropOn(d, target);
+  updateInventoryUI();
+}
+
+// Applique un glisser-déposer : d = objet saisi, target = « type:index » de la zone visée
+
+function mcDropOn(d, target) {
+  const p = target ? target.indexOf(':') : -1;
+  const tk = target ? (p < 0 ? target : target.slice(0, p)) : '';
+  const ti = p < 0 ? '' : target.slice(p + 1);
+  if (d.kind === 'pal') {
+    const k = d.id;
+    const n = d.shift ? (mcInventory[k] || 0) : 1;
+    if (tk === 'cell') {
+      if (d.visited && d.visited[parseInt(ti, 10)]) return;   // déjà posé pendant le glissement
+      mcCursor = k;
+      for (let i = 0; i < n && mcCursor; i++) mcPutCell(parseInt(ti, 10));
+      mcCursor = null;
+    } else if (tk === 'hot') {
+      if (mcHotbarOK(k)) { mcHotbar[parseInt(ti, 10)] = k; mcSelectedIndex = parseInt(ti, 10); }
+      else mcToast('Cet objet ne se range pas dans la barre.');
+    } else if (tk === 'fslot') {
+      mcCursor = k;
+      for (let i = 0; i < n && mcCursor; i++) mcPutFurnace(ti);
+      mcCursor = null;
+    }
+  } else if (d.kind === 'cell') {
+    const i = parseInt(d.id, 10), c = mcGrid[i];
+    if (!c) return;
+    if (tk === 'cell') {
+      const j = parseInt(ti, 10);
+      if (j === i) return;
+      if (!mcGrid[j]) { mcGrid[j] = c; mcGrid[i] = null; }
+      else if (mcGrid[j].k === c.k) { mcGrid[j].n += c.n; mcGrid[i] = null; }
+      else { mcGrid[i] = mcGrid[j]; mcGrid[j] = c; }
+    } else { mcGive(c.k, c.n); mcGrid[i] = null; }
+  } else if (d.kind === 'hot') {
+    const i = parseInt(d.id, 10);
+    if (tk === 'hot') { const j = parseInt(ti, 10); const tmp = mcHotbar[i]; mcHotbar[i] = mcHotbar[j]; mcHotbar[j] = tmp; mcSelectedIndex = j; }
+    else if (tk === 'pal') mcHotbar[i] = '';
+  } else if (d.kind === 'fslot') {
+    const c = mcFurnace[d.id];
+    if (c && tk !== 'fslot') { mcGive(c.k, c.n); mcFurnace[d.id] = null; }
+  } else if (d.kind === 'fout') {
+    if (tk) mcTakeFurnaceOut();
+  } else if (d.kind === 'res') {
+    if (tk) { if (d.shift) mcTakeAll(); else mcTakeResult(); }
+  }
 }
 
 function mcHtmlSettingsScreen() {
@@ -2769,6 +3311,7 @@ function mcWireScreen(root) {
   }));
   root.querySelectorAll('[data-fslot]').forEach(el => el.addEventListener('click', () => { mcPutFurnace(el.dataset.fslot); mcPlayClick(); rerender(); }));
   root.querySelectorAll('[data-fout]').forEach(el => el.addEventListener('click', () => { mcTakeFurnaceOut(); rerender(); }));
+  mcWireDrag(root);
 }
 
 // ----- Onglets du menu -----
@@ -2985,7 +3528,8 @@ function mcPlaceBlock() {
   const id = key ? parseInt(key, 10) : 0;
   if (!id || !BLOCK_TYPES[key] || !((mcInventory[key] || 0) > 0)) return;
   const px = t.x + t.nx, py = t.y + t.ny, pz = t.z + t.nz;
-  if (py < 0 || py >= MC_WORLD_H || mcGet(px, py, pz) !== 0) return;
+  const cur = mcGet(px, py, pz);
+  if (py < 0 || py >= MC_WORLD_H || (cur !== 0 && cur !== MC_WATER)) return;
   const p = mcPlayer.pos, r = PLAYER_RADIUS;
   const overlap = p.x + r > px - 0.5 && p.x - r < px + 0.5 &&
     p.z + r > pz - 0.5 && p.z - r < pz + 0.5 &&
@@ -3104,6 +3648,7 @@ function startCybercraftGame(fresh) {
   mcChunkMap.forEach(ch => {
     if (ch.solid) ch.solid.geometry.dispose();
     if (ch.glass) ch.glass.geometry.dispose();
+    if (ch.water) ch.water.geometry.dispose();
   });
   mcChunkMap.clear();
   if (mcRenderer && mcRenderer !== newRenderer) { try { mcRenderer.dispose(); } catch (e) { /* ignore */ } }
@@ -3162,6 +3707,9 @@ function startCybercraftGame(fresh) {
     mcSeed = Math.floor(Math.random() * 2147483647) + 1;
   }
 
+  mcStructCache.clear();
+  mcComputeSpawn();
+
   // Scène
   mcScene = new THREE.Scene();
   mcScene.background = new THREE.Color(0x78a7ff);
@@ -3189,6 +3737,7 @@ function startCybercraftGame(fresh) {
   mcMatSolid = new THREE.MeshBasicMaterial({ map: mcAtlasTex, vertexColors: true, alphaTest: 0.5 });
   mcMatGlass = new THREE.MeshBasicMaterial({ map: mcAtlasTex, vertexColors: true, transparent: true, alphaTest: 0.02, depthWrite: false });
   mcMatHand = new THREE.MeshBasicMaterial({ map: mcAtlasTex, vertexColors: true, alphaTest: 0.5, fog: false });
+  mcMatWater = new THREE.MeshBasicMaterial({ map: mcAtlasTex, vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false });
   mcMakeCrackTextures();
   mcIcons = {};
   mcMakeStatIcons();
@@ -3216,7 +3765,7 @@ function startCybercraftGame(fresh) {
   // Point de départ : on génère tout de suite le chunk de départ, le reste se charge en direct
   setTimeout(() => {
     if (runId !== mcRunId) return;
-    let sx = 0, sz = 0;
+    let sx = mcSpawnX, sz = mcSpawnZ;
     if (save && save.pos) { sx = save.pos[0]; sz = save.pos[2]; }
     mcGenChunk(mcBi(sx) >> 4, mcBi(sz) >> 4);
     if (save && save.pos) {
@@ -3224,7 +3773,7 @@ function startCybercraftGame(fresh) {
       mcPlayer.yaw = save.yaw || 0;
       mcPlayer.pitch = save.pitch || 0;
     } else {
-      if (!mcChunkMap.get(mcCK(0, 0))) mcGenChunk(0, 0);
+      if (!mcChunkMap.get(mcCK(mcSpawnX >> 4, mcSpawnZ >> 4))) mcGenChunk(mcSpawnX >> 4, mcSpawnZ >> 4);
       const sp = mcSpawnPos();
       mcPlayer.pos.set(sp.x, sp.y, sp.z);
     }
@@ -3361,12 +3910,13 @@ function startCybercraftGame(fresh) {
   // Boucle d'animation
   let last = performance.now();
   let fpsT = 0, fpsN = 0, fpsShown = 60;
-  let lowFpsCount = 0, lastLabel = '', furnUiT = 0, furnSig = '', lastHurt = -1;
+  let lowFpsCount = 0, lastLabel = '', furnUiT = 0, furnSig = '', lastHurt = -1, wasUnder = false, wasIn = false;
   let fovCur = mcSettings.fov;
   let autoQNotified = false;
   const elTarget = document.getElementById('mc-target');
   const elFps = document.getElementById('mc-fps');
   const elHurt = document.getElementById('mc-hurt');
+  const elWater = document.getElementById('mc-water');
 
   function animate(now) {
     if (runId !== mcRunId) return;
@@ -3404,8 +3954,9 @@ function startCybercraftGame(fresh) {
       const r = mcPhysics(dt, ax, az, sprint, jump);
       moving = r.moving; spd = r.speed;
 
-      // Dégâts de chute
-      if (!mcPlayer.onGround) {
+      // Dégâts de chute (aucun dans l'eau)
+      if (mcInWater) mcInAir = false;
+      else if (!mcPlayer.onGround) {
         if (!mcInAir) { mcInAir = true; mcAirMaxY = mcPlayer.pos.y; } else mcAirMaxY = Math.max(mcAirMaxY, mcPlayer.pos.y);
       } else if (mcInAir) {
         mcInAir = false;
@@ -3413,6 +3964,9 @@ function startCybercraftGame(fresh) {
         if (fall > 3.3) mcDamage(Math.floor(fall - 3));
       }
       mcSurvivalTick(dt, r.speed * dt, sprint && moving, r.jumped);
+      mcCactusT -= dt;
+      if (mcCactusT <= 0 && mcTouchCactus()) { mcCactusT = 0.5; mcDamage(1); }
+      if (mcInWater !== wasIn) { wasIn = mcInWater; mcNoiseBurst({ freq: 900, q: 0.5, dur: 0.25, gain: 0.35 }); }
 
       // Bruits de pas
       if (moving && mcPlayer.onGround && wasGround) {
@@ -3489,6 +4043,17 @@ function startCybercraftGame(fresh) {
       mcUpdateHand(dt, moving, spd);
       mcUpdateSky(dt);
       mcUpdateStatsHud();
+      if (mcHeadUnder !== wasUnder) {
+        wasUnder = mcHeadUnder;
+        if (elWater) elWater.style.opacity = mcHeadUnder ? '1' : '0';
+        if (!mcHeadUnder) mcApplyFog();
+      }
+      if (mcHeadUnder && mcScene.fog) {
+        const k = Math.max(0.35, mcDaylight);
+        mcScene.fog.color.setRGB(0.1 * k, 0.25 * k, 0.5 * k);
+        mcScene.background.copy(mcScene.fog.color);
+        mcScene.fog.near = 1; mcScene.fog.far = 26;
+      }
       if (mcHurtT > 0) mcHurtT = Math.max(0, mcHurtT - dt);
       const hv = Math.round(mcHurtT / 0.5 * 100);
       if (hv !== lastHurt && elHurt) { lastHurt = hv; elHurt.style.opacity = (hv / 100 * 0.55).toFixed(2); }
