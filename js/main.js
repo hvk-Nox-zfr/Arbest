@@ -168,6 +168,54 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.mi
 // REGISTRE DES JEUX ET CATÉGORIES
 // ============================================================
 const GAMES_REGISTRY = {
+  stickman: {
+    title: 'Stickman',
+    badge: '2D',
+    category: 'record',
+    desc: 'Prend la bonne décision pour finir l\'histoire plusieurs histoire sont à trouver !',
+    script: 'js/games/stickman.js',
+    initFn: 'startStickmanGame',
+    controls: 'click : choisir une direction d\'histoire',
+    needs3D: true,
+    disabled: false,
+    isNew: true
+  },
+  ropeswing: {
+    title: 'Ropeswing',
+    badge: '2D',
+    category: 'record',
+    desc: 'Avance le plus possible en t\'accrochant !',
+    script: 'js/games/ropeswing.js',
+    initFn: 'startRopeSwingGame',
+    controls: 'click : s\'accrocher',
+    needs3D: true,
+    disabled: false,
+    isNew: true
+  },
+  orbit: {
+    title: 'Orbit',
+    badge: 'SPACE 3D',
+    category: 'record',
+    desc: 'Avance le plus possible dans les en se mettant en orbit sur les planètes !',
+    script: 'js/games/orbit.js',
+    initFn: 'startOrbitGame',
+    controls: 'click : change d\'orbit',
+    needs3D: true,
+    disabled: false,
+    isNew: true
+  },
+  toxerstack: {
+    title: 'Tower Stack',
+    badge: '3D',
+    category: 'record',
+    desc: 'Fait la plus haute tour possible en empilant les blocs avec précision.',
+    script: 'js/games/tower-stack.js',
+    initFn: 'startTowerStackGame',
+    controls: 'click : poser un bloc | espace : recommencer',
+    needs3D: true,
+    disabled: false,
+    isNew: true
+  },
   horror: {
     title: 'PATIENTE 13',
     badge: 'HORREUR 3D',
@@ -396,19 +444,7 @@ const GAMES_REGISTRY = {
     initFn: 'startEcoleTycoonGame',
     controls: '💡 ZQSD/WASD : bouger | Souris droite : caméra | Maj : courir | E : interagir | Espace : utiliser un objet / sauter',
     needs3D: true,
-    disabled: true
-  },
-  toxerstack: {
-    title: 'Tower Stack',
-    badge: '3D',
-    category: 'record',
-    desc: 'Fait la plus haute tour possible en empilant les blocs avec précision.',
-    script: 'js/games/tower-stack.js',
-    initFn: 'startTowerStackGame',
-    controls: 'click : poser un bloc | espace : recommencer',
-    needs3D: true,
-    disabled: false,
-    isNew: true
+    disabled: false
   },
 };
 
