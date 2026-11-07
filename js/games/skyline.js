@@ -4,7 +4,9 @@
 //  • monde courbe façon "planète" (shader), brouillard atmosphérique
 //  • cycle aube → plein jour → crépuscule → nuit (ville qui s'allume)
 //  • héros animé : course, saut, glissade, jetpack, tenues débloquables
-//  • obstacles variés : barrières (sauter), portiques (glisser), conteneurs (esquiver)
+//  • style Subway Surfers : voies ferrées, trains colorés, RAMPES pour monter sur les toits,
+//    wagons bas sur lesquels atterrir, pièces sur les toits, GARDE qui te poursuit (1er choc = trébuchement)
+//  • obstacles variés et DENSES : barrières, portiques, conteneurs, trains, slaloms, haies enchaînées
 //  • power-ups : aimant, bouclier, score ×2, JET (vol au-dessus de tout)
 //  • missions, boutique d'améliorations, tenues — progression sauvegardée
 //  • contrôles : glisser le doigt / flèches / ZQSD ; qualité auto-adaptative
@@ -103,10 +105,10 @@ function startSkylineGame() {
   // ---------- ambiances (aube, jour, crépuscule, nuit) ----------
   const C = h => new THREE.Color(h);
   const PAL = [
-    { name: 'AUBE',        top: C('#34418f'), bot: C('#ffb28a'), sun: C('#ffd9a8'), hemiS: C('#ffd9c4'), hemiG: C('#4c4460'), ground: C('#3c3a58'), build: C('#a9b0d4'), light: 1.0,  night: 0, city: true,  sunS: 150 },
-    { name: 'PLEIN JOUR',  top: C('#2878e6'), bot: C('#c6e7ff'), sun: C('#fff6dc'), hemiS: C('#e8f4ff'), hemiG: C('#628f50'), ground: C('#5aa34f'), build: C('#d2deee'), light: 1.15, night: 0, city: false, sunS: 120 },
-    { name: 'CRÉPUSCULE',  top: C('#2c1a58'), bot: C('#ff7a5e'), sun: C('#ff9362'), hemiS: C('#ffb59a'), hemiG: C('#3a2a50'), ground: C('#2f2849'), build: C('#a592c6'), light: 0.92, night: 0, city: true,  sunS: 190 },
-    { name: 'NUIT',        top: C('#03061a'), bot: C('#18244f'), sun: C('#d2e2ff'), hemiS: C('#7088cc'), hemiG: C('#151b37'), ground: C('#0d1227'), build: C('#7580b4'), light: 0.82, night: 1, city: true,  sunS: 70 }
+    { name: 'PLEIN JOUR',  top: C('#2878e6'), bot: C('#c6e7ff'), sun: C('#fff6dc'), hemiS: C('#e8f4ff'), hemiG: C('#7a8294'), ground: C('#8a909c'), build: C('#e6d2c0'), light: 1.15, night: 0, city: true,  sunS: 120 },
+    { name: 'CRÉPUSCULE',  top: C('#2c1a58'), bot: C('#ff7a5e'), sun: C('#ff9362'), hemiS: C('#ffb59a'), hemiG: C('#3a2a50'), ground: C('#4a3f5e'), build: C('#c4a8c6'), light: 0.95, night: 0, city: true,  sunS: 190 },
+    { name: 'NUIT',        top: C('#03061a'), bot: C('#18244f'), sun: C('#d2e2ff'), hemiS: C('#7088cc'), hemiG: C('#151b37'), ground: C('#0d1227'), build: C('#7580b4'), light: 0.85, night: 1, city: true,  sunS: 70 },
+    { name: 'AUBE',        top: C('#34418f'), bot: C('#ffb28a'), sun: C('#ffd9a8'), hemiS: C('#ffd9c4'), hemiG: C('#4c4460'), ground: C('#4e4a66'), build: C('#c9b9d4'), light: 1.0,  night: 0, city: true,  sunS: 150 }
   ];
   const BIOME_LEN = 1100, BIOME_FADE = 240;
   const cur = { top: new THREE.Color(), bot: new THREE.Color(), sun: new THREE.Color(), hemiS: new THREE.Color(), hemiG: new THREE.Color(), ground: new THREE.Color(), build: new THREE.Color(), light: 1, night: 0, sunS: 100, name: '', idx: 0 };
@@ -250,24 +252,47 @@ function startSkylineGame() {
   scene.add(mountains);
 
   // ---------- matériaux du monde ----------
+  // voies ferrées : ballast + traverses + rails (une paire de rails par voie, façon Subway Surfers)
   const roadTex = canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#2b2e39'; g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 3200; i++) {
-      const lit = Math.random() > 0.5;
-      g.fillStyle = `rgba(${lit ? 255 : 0},${lit ? 255 : 0},${lit ? 255 : 0},${Math.random() * 0.06})`;
-      g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+    g.fillStyle = '#6a655c'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 5200; i++) {
+      const v = 70 + Math.random() * 110 | 0;
+      g.fillStyle = `rgba(${v},${v - 6},${v - 14},${0.35 + Math.random() * 0.4})`;
+      g.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 3, 1 + Math.random() * 2);
     }
     const u = x => w * (0.5 + x / 8.4);
-    g.fillStyle = 'rgba(255,255,255,0.8)';
-    g.fillRect(u(-3.8) - 3, 0, 6, h); g.fillRect(u(3.8) - 3, 0, 6, h);                 // lignes de rive
-    g.fillStyle = 'rgba(255,255,255,0.55)';
-    [-1.2, 1.2].forEach(x => { for (let k = 0; k < 2; k++) g.fillRect(u(x) - 2.5, k * h / 2 + h * 0.06, 5, h * 0.26); });
+    [-2.4, 0, 2.4].forEach(cx => {
+      for (let k = 0; k < 8; k++) {
+        const y = k * h / 8 + 3;
+        g.fillStyle = '#4a3322'; g.fillRect(u(cx - 1.02), y, u(cx + 1.02) - u(cx - 1.02), 10);
+        g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(u(cx - 1.02), y + 8, u(cx + 1.02) - u(cx - 1.02), 2);
+        g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(u(cx - 1.02), y, u(cx + 1.02) - u(cx - 1.02), 2);
+      }
+      [-0.55, 0.55].forEach(dx => {
+        g.fillStyle = '#7d838f'; g.fillRect(u(cx + dx) - 3.5, 0, 7, h);
+        g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(u(cx + dx) - 1, 0, 2, h);
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(u(cx + dx) + 2.5, 0, 1.5, h);
+      });
+    });
   });
   roadTex.wrapS = roadTex.wrapT = THREE.RepeatWrapping;
   roadTex.repeat.set(1, 3);
   const roadMat = bend(new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.9, metalness: 0 }));
   const groundMat = bend(new THREE.MeshStandardMaterial({ color: 0x3c3a58, roughness: 1, metalness: 0 }));
-  const curbMat = bend(new THREE.MeshStandardMaterial({ color: 0xcfd3dc, roughness: 0.8 }));
+  const wallTex = canvasTex(512, 128, (g, w, h) => {
+    g.fillStyle = '#9a9ca6'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 700; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * 0.06})`; g.fillRect(Math.random() * w, Math.random() * h, 3, 3); }
+    const cols = ['#ff3d6e', '#ffd23c', '#2fd0ff', '#7dff6a', '#b35cff', '#ff8a2a'];
+    const words = ['SKY', 'RUSH', 'ZAP', 'RUN', 'GO!', 'WOW', 'JET', 'FLY', 'MAX'];
+    for (let i = 0; i < 7; i++) {
+      g.save(); g.translate(20 + i * 72 + Math.random() * 20, 70 + Math.random() * 30); g.rotate((Math.random() - 0.5) * 0.4);
+      g.font = `900 ${34 + (Math.random() * 26 | 0)}px Arial`;
+      g.lineWidth = 6; g.strokeStyle = '#1a1a24'; g.strokeText(pick(words), 0, 0);
+      g.fillStyle = pick(cols); g.fillText(pick(words), 0, 0); g.restore();
+    }
+    g.fillStyle = '#e9e9ef'; g.fillRect(0, 0, w, 7);
+  });
+  const curbMat = bend(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85 }));
 
   // fenêtres : 1 texture couleur (jour) + 1 texture émissive (nuit), même disposition
   const winLayout = []; for (let i = 0; i < 16; i++) winLayout.push(Math.random() < 0.55);
@@ -313,7 +338,7 @@ function startSkylineGame() {
   const ROAD_W = 8.4, CH_LEN = 30, NCH = 9, SLOTS = 4;
   const roadGeo = new THREE.PlaneGeometry(ROAD_W, CH_LEN); roadGeo.rotateX(-Math.PI / 2);
   const sideGeo = new THREE.PlaneGeometry(90, CH_LEN); sideGeo.rotateX(-Math.PI / 2);
-  const curbGeo = new THREE.BoxGeometry(0.35, 0.28, CH_LEN);
+  const curbGeo = new THREE.BoxGeometry(0.5, 1.5, CH_LEN);
   const chunks = [];
   const nofrustum = o => { o.frustumCulled = false; return o; };
 
@@ -322,7 +347,7 @@ function startSkylineGame() {
     g.add(nofrustum(new THREE.Mesh(roadGeo, roadMat)));
     [-1, 1].forEach(s => {
       const side = nofrustum(new THREE.Mesh(sideGeo, groundMat)); side.position.set(s * (ROAD_W / 2 + 45), -0.06, 0); g.add(side);
-      const curb = nofrustum(new THREE.Mesh(curbGeo, curbMat)); curb.position.set(s * (ROAD_W / 2 + 0.17), 0.14, 0); g.add(curb);
+      const curb = nofrustum(new THREE.Mesh(curbGeo, curbMat)); curb.position.set(s * (ROAD_W / 2 + 0.7), 0.75, 0); g.add(curb);
     });
     const slots = [];
     [-1, 1].forEach(s => {
@@ -365,7 +390,7 @@ function startSkylineGame() {
         const w = sl.b.geometry.boundingBox.max.x * 2;
         sl.b.position.set(sl.side * (ROAD_W / 2 + 2.6 + w / 2 + rand(0, 5)), 0, lz + rand(-1, 1));
         sl.b.visible = true;
-        if (sl.i % 2 === 0 && quality < 2) { sl.lamp.position.set(sl.side * (ROAD_W / 2 + 0.9), 0, lz); sl.lamp.visible = true; }
+        if (sl.i % 2 === 0 && quality < 2) { sl.lamp.position.set(sl.side * (ROAD_W / 2 + 1.7), 0, lz); sl.lamp.visible = true; }
       } else {
         if (Math.random() < 0.85) {
           const sc = rand(0.8, 1.6);
@@ -423,6 +448,36 @@ function startSkylineGame() {
   scene.add(hero);
   function applySkin(i) { matSuit.color.set(SKINS[i].main); matAcc.color.set(SKINS[i].accent); matAcc.emissive.set(SKINS[i].accent); }
 
+  // ---------- le garde qui te poursuit (trébuchement) ----------
+  const guard = new THREE.Group(); guard.visible = false;
+  const gSuit = new THREE.MeshStandardMaterial({ color: 0x2b4fd6, roughness: 0.6 });
+  const gPants = new THREE.MeshStandardMaterial({ color: 0x1b2a6b, roughness: 0.7 });
+  const gCap = new THREE.MeshStandardMaterial({ color: 0xd9262f, roughness: 0.5 });
+  const gBody = new THREE.Group(); gBody.position.y = 0.92; guard.add(gBody);
+  const gm = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); (parent || gBody).add(m); m.frustumCulled = false; return m; };
+  gm(new THREE.CylinderGeometry(0.3, 0.26, 0.68, 12), gSuit, 0, 0.34, 0);
+  gm(new THREE.SphereGeometry(0.21, 14, 10), matSkin, 0, 0.95, 0);
+  gm(new THREE.CylinderGeometry(0.22, 0.24, 0.1, 12), gCap, 0, 1.1, 0);
+  gm(new THREE.BoxGeometry(0.3, 0.04, 0.22), gCap, 0, 1.06, -0.2);
+  const gArmL = limb(-0.37, 0.6, 0.55, 0.08, gSuit, matSkin), gArmR = limb(0.37, 0.6, 0.55, 0.08, gSuit, matSkin);
+  const gLegL = limb(-0.14, 0, 0.82, 0.1, gPants, matDark), gLegR = limb(0.14, 0, 0.82, 0.1, gPants, matDark);
+  gBody.add(gArmL, gArmR, gLegL, gLegR);
+  scene.add(guard);
+  let guardZ = 40, guardX = 0;
+  function updateGuard(dt) {
+    const chasing = (state === 'playing' && P.stumble > 0) || state === 'dying';
+    const target = chasing ? P.z + (state === 'dying' ? 1.6 : 3.6) : P.z + 26;
+    guardZ += (target - guardZ) * Math.min(1, dt * (chasing ? 5 : 2));
+    guardX += (P.x - guardX) * Math.min(1, dt * 6);
+    guard.visible = state !== 'menu' && guardZ < P.z + 20;
+    if (!guard.visible) return;
+    const t = performance.now() * 0.014 * (state === 'dying' ? 0.2 : 1);
+    const a = Math.sin(t);
+    gLegL.rotation.x = a; gLegR.rotation.x = -a; gArmL.rotation.x = -a * 0.9; gArmR.rotation.x = a * 0.9;
+    gBody.rotation.x = -0.16;
+    guard.position.set(guardX, P.floor, guardZ);
+  }
+
   // ---------- obstacles & objets ----------
   function hazardTex() {
     return canvasTex(128, 64, (g, w, h) => {
@@ -453,9 +508,14 @@ function startSkylineGame() {
     return bend(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0.25 }));
   });
   const roofMat = bend(new THREE.MeshStandardMaterial({ color: 0x9aa0ad, roughness: 0.6, metalness: 0.4 }));
+  const trainBodyMats = ['#167c91', '#d9462f', '#e0a21a', '#2f7bd9', '#2fa56a', '#7b5bd6'].map(c => bend(new THREE.MeshStandardMaterial({ color: c, roughness: 0.42, metalness: 0.38 })));
+  const rampMat = bend(new THREE.MeshStandardMaterial({ color: 0xe9c43a, roughness: 0.6, metalness: 0.2 }));
+  const trainTrimMat = bend(new THREE.MeshStandardMaterial({ color: 0xd9e5eb, roughness: 0.32, metalness: 0.72 }));
+  const trainGlassMat = bend(new THREE.MeshStandardMaterial({ color: 0x102b43, emissive: 0x071522, roughness: 0.18, metalness: 0.25 }));
+  const trainLightMat = new THREE.MeshBasicMaterial({ color: 0xffe7a0 });
 
   const obstacles = [], coins = [], powers = [];
-  const poolObs = { barrier: [], gantry: [], block: [] };
+  const poolObs = { barrier: [], gantry: [], block: [], train: [], low: [], ramp: [] };
   const poolCoin = [];
   const poolPow = { magnet: [], shield: [], double: [], jet: [] };
 
@@ -471,6 +531,55 @@ function startSkylineGame() {
       [-1.0, 1.0].forEach(x => { const p = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.6, 0.22), frameMat); p.position.set(x, 1.3, 0); g.add(p); });
       const s = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.2, 0.26), signMat); s.position.y = 1.8; g.add(s);
       o = { hw: 1.05, hl: 0.3, y0: 1.2, y1: 2.6 };
+    } else if (type === 'train') {
+      // Rame de métro (longueur et couleur variables). On peut courir sur son toit via une rampe.
+      const L = pick([7.6, 10.8, 10.8]);
+      const bodyMat = pick(trainBodyMats);
+      const car = new THREE.Mesh(new THREE.BoxGeometry(2.05, 3.05, L), bodyMat);
+      car.position.y = 1.58; g.add(car);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.18, L - 0.35), roofMat);
+      roof.position.set(0, 3.18, 0); g.add(roof);
+      const lowerStripe = new THREE.Mesh(new THREE.BoxGeometry(2.08, 0.2, L + 0.02), trainTrimMat);
+      lowerStripe.position.set(0, 0.72, 0); g.add(lowerStripe);
+      const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.78, 0.07), trainGlassMat);
+      windshield.position.set(0, 2.35, L / 2 + 0.05); g.add(windshield);
+      const noseStripe = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.13, 0.08), trainTrimMat);
+      noseStripe.position.set(0, 1.55, L / 2 + 0.07); g.add(noseStripe);
+      [-0.62, 0.62].forEach(x => {
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), trainLightMat);
+        lamp.position.set(x, 1.18, L / 2 + 0.08); g.add(lamp);
+      });
+      [-1, 1].forEach(side => {
+        for (let z = -(L / 2 - 1.25); z <= L / 2 - 1.45; z += 1.65) {
+          const win = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.72, 1.05), trainGlassMat);
+          win.position.set(side * 1.035, 2.25, z); g.add(win);
+          const frame = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.08, 1.12), trainTrimMat);
+          frame.position.set(side * 1.045, 2.64, z); g.add(frame);
+        }
+      });
+      [-1, 1].forEach(side => {
+        [-(L / 2 - 1.6), L / 2 - 1.6].forEach(z => {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.16, 12), frameMat);
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(side * 1.02, 0.38, z); g.add(wheel);
+        });
+      });
+      o = { hw: 1.08, hl: L / 2 + 0.05, y0: 0, y1: 3.25, flat: true };
+    } else if (type === 'low') {
+      // Wagon bas : on peut sauter dessus et courir sur son toit.
+      const m = pick(containerMats);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.3, 4.4), [m, m, roofMat, roofMat, m, m]); b.position.y = 0.65; g.add(b);
+      const rim = new THREE.Mesh(new THREE.BoxGeometry(2.08, 0.1, 4.48), trainTrimMat); rim.position.y = 1.3; g.add(rim);
+      o = { hw: 1.05, hl: 2.2, y0: 0, y1: 1.3, flat: true };
+    } else if (type === 'ramp') {
+      // Rampe : mène au toit d'un train (hauteur H sur RL mètres).
+      const H = 3.25, RL = 8;
+      const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(RL, 0); sh.lineTo(RL, H); sh.lineTo(0, 0);
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: 2.0, bevelEnabled: false });
+      geo.translate(0, 0, -1.0); geo.rotateY(Math.PI / 2); geo.translate(0, 0, RL / 2);
+      const w = new THREE.Mesh(geo, rampMat); g.add(w);
+      [-0.85, 0.85].forEach(x => { const l = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), lampOrange); l.position.set(x, 0.2, RL / 2 + 0.05); g.add(l); });
+      o = { hw: 1.0, hl: RL / 2, y0: 0, y1: H, H, ramp: true };
     } else {
       const m = pick(containerMats);
       const mats = [m, m, roofMat, roofMat, m, m];
@@ -585,7 +694,7 @@ function startSkylineGame() {
   function placeLine(m, z) { m.position.set(rand(-8, 8), rand(0.4, 6.5), z); if (Math.abs(m.position.x) < 2.6 && m.position.y < 2.2) m.position.y += 3; }
 
   // ---------- état de la partie ----------
-  const P = { x: 0, z: 0, y: 0, vy: 0, lane: 1, sliding: false, slideT: 0, speed: 0, dist: 0, inv: 0, jet: 0, jetEnd: 0, phase: 0, coyote: 0, jumpBuf: 0, airDive: false };
+  const P = { x: 0, z: 0, y: 0, vy: 0, lane: 1, sliding: false, slideT: 0, speed: 0, dist: 0, inv: 0, jet: 0, jetEnd: 0, phase: 0, coyote: 0, jumpBuf: 0, airDive: false, floor: 0, stumble: 0 };
   const pw = { magnet: 0, double: 0, shield: false, jet: 0, magnetMax: 1, doubleMax: 1, jetMax: 1 };
   let R = null;                      // stats de la partie en cours
   let state = 'menu';                // menu | playing | dying | over
@@ -608,39 +717,131 @@ function startSkylineGame() {
   function addObstacle(type, lane, z) { const o = getObstacle(type); o.x = LANES[lane]; o.z = z; o.mesh.position.set(o.x, 0, z); return o; }
   function addPower(type, lane, z) { const p = getPower(type); p.x = LANES[lane]; p.z = z; p.mesh.position.set(p.x, p.y, z); return p; }
 
-  function spawnRow(z) {
-    const d = P.dist, diff = clamp(d / 4500, 0, 1);
+  // Étendue de chaque motif [vers le joueur, vers l'horizon] — sert à espacer les rangées sans chevauchement.
+  const EXT = {
+    coins: [0, 13], block1: [3.2, 3.2], blockPair: [3.2, 3.2], barriers: [3.5, 3.5], barrierAll: [3.5, 3.5],
+    gantry: [3.5, 5], gantryAll: [3.5, 5], train: [5.6, 5.6], mixed: [3.5, 3.5], trainMix: [5.6, 5.6],
+    lowcar: [2.4, 2.4], rampTrain: [14, 5.6], slalom: [2, 22], hurdles: [2, 14], trainWall: [5.6, 5.6], power: [1, 8]
+  };
+  function spawnRow(zNear) {
+    const d = P.dist, diff = clamp(d / 3500, 0, 1);
     let kind;
-    if (d < 120) kind = pick(['coins', 'coins', 'block1']);
+    if (d < 100) kind = pick(['coins', 'block1', 'barriers', 'barriers', 'gantry']);
     else {
-      const w = [['coins', 0.26 - 0.08 * diff], ['block1', 0.18 + 0.06 * diff], ['barriers', 0.2], ['gantry', 0.11 + 0.05 * diff], ['barrierAll', 0.07], ['blockPair', 0.03 + 0.14 * diff], ['gantryAll', 0.04 + 0.04 * diff]];
-      if (d - lastPowerDist > 520) w.push(['power', 0.3]);
+      // Beaucoup plus d'obstacles : peu de rangées de pièces seules, des motifs enchaînés
+      // (slalom, haies, rampes + trains) et des combinaisons multi-voies de plus en plus fréquentes.
+      const w = [
+        ['coins',      0.07 - 0.04 * diff],
+        ['block1',     0.08],
+        ['barriers',   0.12],
+        ['gantry',     0.09],
+        ['barrierAll', 0.04 + 0.03 * diff],
+        ['blockPair',  0.06 + 0.06 * diff],
+        ['gantryAll',  0.04 + 0.03 * diff],
+        ['train',      0.10 + 0.04 * diff],
+        ['mixed',      0.07 + 0.08 * diff],
+        ['trainMix',   0.05 + 0.08 * diff],
+        ['trainWall',  0.03 + 0.07 * diff],
+        ['lowcar',     0.09],
+        ['rampTrain',  0.07 + 0.03 * diff],
+        ['slalom',     0.07 + 0.05 * diff],
+        ['hurdles',    0.06 + 0.02 * diff]
+      ];
+      if (d - lastPowerDist > 520) w.push(['power', 0.22]);
       let tot = 0; w.forEach(x => { tot += x[1]; });
       let r = Math.random() * tot;
       kind = w[0][0];
       for (const x of w) { r -= x[1]; if (r <= 0) { kind = x[0]; break; } }
-      if (kind === lastRow && (kind === 'blockPair' || kind === 'gantryAll' || kind === 'barrierAll')) kind = 'coins';
+      const hardRows = ['blockPair', 'gantryAll', 'barrierAll', 'mixed', 'trainMix', 'trainWall', 'rampTrain', 'slalom'];
+      if (kind === lastRow && hardRows.includes(kind)) kind = pick(['barriers', 'gantry', 'lowcar', 'train']);
     }
     lastRow = kind;
-    let extra = 0;
+    const ext = EXT[kind];
+    const z = zNear - ext[0];                      // z = centre du motif
     const lanes = shuffle([0, 1, 2]);
+    const trainTop = 3.25;
     switch (kind) {
-      case 'coins': { coinLine(lanes[0], z, randi(7, 12)); if (Math.random() < 0.45) coinLine(lanes[1], z - rand(2, 8), randi(5, 8)); extra = 14; break; }
-      case 'block1': { addObstacle('block', lanes[0], z); coinLine(lanes[1], z + 2, randi(6, 9)); extra = 6; break; }
-      case 'blockPair': { addObstacle('block', lanes[0], z); addObstacle('block', lanes[1], z); coinLine(lanes[2], z + 4, 10); extra = 6; break; }
-      case 'barriers': { const n = randi(1, 2); for (let i = 0; i < n; i++) { addObstacle('barrier', lanes[i], z); coinArc(lanes[i], z); } if (n === 1) coinLine(lanes[1], z + 3, 7); break; }
+      case 'coins': { coinLine(lanes[0], z, randi(5, 8)); if (Math.random() < 0.4) coinLine(lanes[1], z - rand(2, 5), randi(4, 6)); break; }
+      case 'block1': { addObstacle('block', lanes[0], z); coinLine(lanes[1], z + 2, randi(5, 8)); if (Math.random() < 0.5) addObstacle('barrier', lanes[2], z - 1); break; }
+      case 'blockPair': { addObstacle('block', lanes[0], z); addObstacle('block', lanes[1], z); coinLine(lanes[2], z + 3, 8); break; }
+      case 'barriers': { const n = randi(1, 3); for (let i = 0; i < n; i++) { addObstacle('barrier', lanes[i], z); if (i === 0) coinArc(lanes[i], z); } if (n < 3) coinLine(lanes[2], z + 3, 6); break; }
       case 'barrierAll': { [0, 1, 2].forEach(l => addObstacle('barrier', l, z)); coinArc(lanes[0], z); break; }
-      case 'gantry': { const n = randi(1, 2); for (let i = 0; i < n; i++) { addObstacle('gantry', lanes[i], z); coinLine(lanes[i], z + 4, 5); } if (n === 1) coinLine(lanes[1], z + 3, 6); break; }
+      case 'gantry': { const n = randi(1, 2); for (let i = 0; i < n; i++) { addObstacle('gantry', lanes[i], z); coinLine(lanes[i], z + 4, 5); } if (n === 1) { addObstacle('barrier', lanes[1], z - 1); coinArc(lanes[1], z - 1); } break; }
       case 'gantryAll': { [0, 1, 2].forEach(l => addObstacle('gantry', l, z)); [0, 1, 2].forEach(l => coinAt(l, z + 3, 0.5)); break; }
+      case 'train': {
+        addObstacle('train', lanes[0], z);
+        coinLine(lanes[1], z + 2, 7);
+        addObstacle(pick(['barrier', 'gantry', 'low']), lanes[2], z - 1.5);
+        break;
+      }
+      case 'mixed': {
+        addObstacle('block', lanes[0], z);
+        addObstacle('barrier', lanes[1], z);
+        addObstacle('gantry', lanes[2], z);
+        coinArc(lanes[1], z);
+        break;
+      }
+      case 'trainMix': {
+        addObstacle('train', lanes[0], z);
+        addObstacle('barrier', lanes[1], z);
+        addObstacle('gantry', lanes[2], z);
+        coinLine(lanes[1], z + 3, 5);
+        break;
+      }
+      case 'trainWall': {
+        // Deux trains côte à côte : une seule voie libre, avec un obstacle à franchir.
+        addObstacle('train', lanes[0], z); addObstacle('train', lanes[1], z);
+        addObstacle(pick(['barrier', 'gantry']), lanes[2], z + 1);
+        coinLine(lanes[2], z + 4, 5);
+        break;
+      }
+      case 'lowcar': {
+        // Wagon bas : saute dessus et ramasse les pièces du toit.
+        const lc = addObstacle('low', lanes[0], z);
+        for (let i = 0; i < 4; i++) coinAt(lanes[0], z + 1.6 - i * 1.5, 1.3 + 0.85);
+        addObstacle(pick(['barrier', 'gantry', 'block']), lanes[1], z);
+        if (Math.random() < 0.6) addObstacle('barrier', lanes[2], z + 1);
+        else coinLine(lanes[2], z + 2, 6);
+        break;
+      }
+      case 'rampTrain': {
+        // Rampe + train : monte sur le toit (pièces en hauteur), ou évite par les autres voies.
+        const t = addObstacle('train', lanes[0], z);
+        const ramp = addObstacle('ramp', lanes[0], z + t.hl + 0.3 + 4);
+        const n = Math.floor((t.hl * 2 - 1.2) / 1.9);
+        for (let i = 0; i < n; i++) coinAt(lanes[0], z + t.hl - 0.8 - i * 1.9, trainTop + 0.85);
+        addObstacle(pick(['barrier', 'gantry', 'block']), lanes[1], z + 3);
+        addObstacle(pick(['barrier', 'gantry']), lanes[2], z - 2);
+        break;
+      }
+      case 'slalom': {
+        // Une seule voie libre qui se décale à chaque étape : il faut slalomer.
+        let free = randi(0, 2);
+        for (let k = 0; k < 4; k++) {
+          const zz = z - k * 7;
+          [0, 1, 2].forEach(l => { if (l !== free) addObstacle(k % 2 ? 'gantry' : 'barrier', l, zz); });
+          coinAt(free, zz, 0.85); coinAt(free, zz - 2.2, 0.85);
+          const step = free === 0 ? 1 : free === 2 ? -1 : (Math.random() < 0.5 ? -1 : 1);
+          free += step;
+        }
+        break;
+      }
+      case 'hurdles': {
+        // Haies enchaînées sur les trois voies : un bon saut en franchit plusieurs.
+        for (let k = 0; k < 3; k++) { [0, 1, 2].forEach(l => addObstacle('barrier', l, z - k * 6.2)); coinAt(1, z - k * 6.2, 1.9); }
+        break;
+      }
       case 'power': {
         const types = ['magnet', 'magnet', 'double', 'double', 'shield', 'shield', 'jet'];
         addPower(pick(types), lanes[0], z); coinLine(lanes[1], z + 2, 6);
+        addObstacle(pick(['barrier', 'gantry']), lanes[2], z - 3);
         lastPowerDist = P.dist; break;
       }
       default: break;
     }
-    const gap = Math.max(17, P.speed * 0.66) + rand(0, 6) + extra * 0.2;
-    nextRowZ = z - gap - (kind === 'block1' || kind === 'blockPair' ? 6 : 0);
+    // Écart de réaction court mais jouable (≈0,3 s) — nettement plus dense qu'avant.
+    const clear = Math.max(6.5, P.speed * 0.30) + rand(0, 1.8);
+    nextRowZ = z - ext[1] - clear;
   }
 
   // ---------- interface (HUD + menu) ----------
@@ -815,7 +1016,7 @@ function startSkylineGame() {
     state = 'playing';
     R = newRun();
     paused = false; timeScale = 1; shake = 0; deathT = 0;
-    P.x = 0; P.lane = 1; P.y = 0; P.vy = 0; P.sliding = false; P.slideT = 0; P.speed = 6; P.dist = 0; P.inv = 0; P.jet = 0; P.z = 0; P.coyote = 0; P.jumpBuf = 0;
+    P.x = 0; P.lane = 1; P.y = 0; P.vy = 0; P.sliding = false; P.slideT = 0; P.speed = 6; P.dist = 0; P.inv = 0; P.jet = 0; P.z = 0; P.coyote = 0; P.jumpBuf = 0; P.floor = 0; P.stumble = 0; guardZ = 40; guard.visible = false;
     pw.magnet = pw.double = pw.jet = 0; pw.shield = SV.upg.shield > 0;
     lastPowerDist = 0; lastRow = '';
     obstacles.splice(0).forEach(o => { o.mesh.visible = false; poolObs[o.type].push(o); });
@@ -829,7 +1030,7 @@ function startSkylineGame() {
     if (!SV.tuto) {
       SV.tuto = true; saveGame();
       elHint.style.display = 'block'; elHint.style.opacity = 1;
-      elHint.innerHTML = IS_TOUCH ? 'Glisse à gauche / droite pour changer de voie<br>↑ pour sauter · ↓ pour glisser' : '← → pour changer de voie<br>↑ pour sauter · ↓ pour glisser';
+      elHint.innerHTML = IS_TOUCH ? 'Glisse à gauche / droite pour changer de voie<br>↑ pour sauter · ↓ pour rouler<br>Monte sur les trains par les rampes !' : '← → pour changer de voie<br>↑ pour sauter · ↓ pour rouler<br>Monte sur les trains par les rampes !';
       tutoShown = true;
       setTimeout(() => { elHint.style.opacity = 0; setTimeout(() => { elHint.style.display = 'none'; }, 700); }, 5200);
     }
@@ -892,7 +1093,16 @@ function startSkylineGame() {
       elFlash.style.opacity = 0.5; setTimeout(() => { elFlash.style.opacity = 0; }, 160);
       return;
     }
-    state = 'dying'; deathT = 0; shake = 1;
+    if (!forced && P.stumble <= 0) {
+      // 1er choc : tu trébuches, le garde se rapproche. Un 2e choc rapide = fin de partie.
+      P.stumble = 9; P.inv = 1.5; P.speed *= 0.72; shake = 0.7; guardZ = Math.min(guardZ, P.z + 9);
+      snd('shield', 180, 0.22, 'sawtooth');
+      emit(P.x, 1, P.z, new THREE.Color(0xffb04a), 22, 7, 5, 0.6);
+      pop('ATTENTION !', '#ff9a7a');
+      elFlash.style.opacity = 0.45; setTimeout(() => { elFlash.style.opacity = 0; }, 150);
+      return;
+    }
+    state = 'dying'; deathT = 0; shake = 1; guardZ = P.z + 1.6;
     snd('crash', 120, 0.4, 'sawtooth');
     emit(P.x, 1, P.z, new THREE.Color(0xff5a5a), 40, 9, 7, 0.9);
     elFlash.style.opacity = 1; setTimeout(() => { elFlash.style.opacity = 0; }, 260);
@@ -923,8 +1133,8 @@ function startSkylineGame() {
   }
   function doJump() {
     if (state !== 'playing' || paused || P.jet > 0) return;
-    if (P.y <= 0.05 || P.coyote > 0) {
-      P.vy = 10.4; P.y = Math.max(P.y, 0.001); P.sliding = false; P.slideT = 0; P.coyote = 0; P.jumpBuf = 0;
+    if (P.y <= P.floor + 0.05 || P.coyote > 0) {
+      P.vy = 10.4; P.y = Math.max(P.y, P.floor + 0.001); P.sliding = false; P.slideT = 0; P.coyote = 0; P.jumpBuf = 0;
       R.jumps++;
       snd('jump', 420, 0.08, 'triangle');
       emit(P.x, 0.1, P.z, new THREE.Color(0xffffff), 6, 2.5, 1.5, 0.4);
@@ -932,7 +1142,7 @@ function startSkylineGame() {
   }
   function doSlide() {
     if (state !== 'playing' || paused || P.jet > 0) return;
-    if (P.y > 0.05) { P.vy = -20; P.airDive = true; return; }
+    if (P.y > P.floor + 0.05) { P.vy = -20; P.airDive = true; return; }
     if (!P.sliding) R.slides++;
     P.sliding = true; P.slideT = 0.75;
     snd('slide', 240, 0.12, 'sawtooth');
@@ -973,10 +1183,36 @@ function startSkylineGame() {
   window.addEventListener('pagehide', onPageHide);
 
   // ---------- mise à jour de la partie ----------
+  // Hauteur du sol sous le joueur : 0, ou le toit d'un train / wagon bas / une rampe.
+  function floorAt(x, z, y) {
+    let f = 0;
+    for (let i = 0; i < obstacles.length; i++) {
+      const o = obstacles[i];
+      if (!o.flat && !o.ramp) continue;
+      if (Math.abs(x - o.x) >= o.hw + 0.12) continue;
+      if (o.ramp) {
+        if (z > o.z + o.hl || z < o.z - o.hl - 0.7) continue;
+        const sf = o.H * clamp((o.z + o.hl - z) / (2 * o.hl), 0, 1);
+        if (y >= sf - 0.5 && sf > f) f = sf;
+      } else {
+        if (Math.abs(z - o.z) >= o.hl + 0.2) continue;
+        if (y >= o.y1 - 0.1 && o.y1 > f) f = o.y1;
+      }
+    }
+    return f;
+  }
   const boxHit = (o) => {
     const px0 = P.x - 0.34, px1 = P.x + 0.34;
     const py0 = P.y, py1 = P.y + (P.sliding ? 0.75 : 1.65);
-    return px1 > o.x - o.hw && px0 < o.x + o.hw && Math.abs(P.z - o.z) < o.hl + 0.32 && py1 > o.y0 && py0 < o.y1;
+    if (!(px1 > o.x - o.hw && px0 < o.x + o.hw)) return false;
+    if (o.ramp) {
+      // la rampe ne tue que si on la heurte par en dessous / de côté, pas en la montant
+      if (P.z > o.z + o.hl || P.z < o.z - o.hl) return false;
+      const sf = o.H * clamp((o.z + o.hl - P.z) / (2 * o.hl), 0, 1);
+      return py0 < sf - 0.55;
+    }
+    const top = o.flat ? o.y1 - 0.08 : o.y1;
+    return Math.abs(P.z - o.z) < o.hl + 0.32 && py1 > o.y0 && py0 < top;
   };
 
   function updateRun(dt) {
@@ -990,7 +1226,7 @@ function startSkylineGame() {
 
     // voie
     const tx = LANES[P.lane];
-    P.x += (tx - P.x) * (1 - Math.exp(-15 * dt));
+    P.x += (tx - P.x) * (1 - Math.exp(-18 * dt));
 
     // saut / chute / glissade / jet
     if (P.jet > 0) {
@@ -998,22 +1234,26 @@ function startSkylineGame() {
       P.y += (4.1 - P.y) * (1 - Math.exp(-4 * dt));
       P.vy = 0; P.sliding = false;
       if (P.jet <= 0) { P.jet = 0; P.inv = 1.6; pop('ATTERRISSAGE', '#ffffff'); }
+      P.floor = 0;
     } else {
-      if (P.y > 0 || P.vy > 0) {
+      const fl = floorAt(P.x, P.z, P.y);
+      P.floor = fl;
+      if (P.y > fl + 0.001 || P.vy > 0) {
         P.vy -= 33 * dt;
         P.y += P.vy * dt;
         P.coyote = 0;
-        if (P.y <= 0) {
-          P.y = 0; P.vy = 0;
+        if (P.y <= fl && P.vy <= 0) {
+          P.y = fl; P.vy = 0;
           emit(P.x, 0.1, P.z, new THREE.Color(0xffffff), 8, 3, 1.5, 0.45);
           if (P.airDive) { P.airDive = false; P.sliding = true; P.slideT = 0.6; shake = Math.max(shake, 0.15); R.slides++; }
           if (P.jumpBuf > 0) doJump();
         }
-      } else { P.coyote = 0.08; }
+      } else { P.y = fl; P.vy = 0; P.coyote = 0.08; }
       if (P.sliding) { P.slideT -= dt; if (P.slideT <= 0) P.sliding = false; }
     }
     if (P.jumpBuf > 0) P.jumpBuf -= dt;
     if (P.inv > 0) P.inv -= dt;
+    if (P.stumble > 0) { P.stumble -= dt; if (P.stumble <= 0) { P.stumble = 0; pop('SEMÉ !', '#9dffb8'); } }
     ['magnet', 'double'].forEach(k => { if (pw[k] > 0) { pw[k] -= dt; if (pw[k] < 0) pw[k] = 0; } });
 
     // rangées d'obstacles à l'horizon
@@ -1070,7 +1310,7 @@ function startSkylineGame() {
       if (state === 'dying') mode = 'dead';
       else if (P.jet > 0) mode = 'jet';
       else if (P.sliding) mode = 'slide';
-      else if (P.y > 0.05) mode = 'air';
+      else if (P.y > P.floor + 0.05) mode = 'air';
       else mode = 'run';
     }
     P.phase += (state === 'playing' ? P.speed : 0) * dt * 0.62;
@@ -1111,13 +1351,14 @@ function startSkylineGame() {
     bubble.visible = pw.shield && state !== 'dying';
     if (bubble.visible) bubble.scale.setScalar(1 + Math.sin(performance.now() * 0.006) * 0.03);
     hero.visible = !(P.inv > 0 && state === 'playing' && Math.floor(performance.now() / 70) % 2 === 0);
-    blob.position.set(P.x, 0.04, P.z);
-    const bs = clamp(1.25 - P.y * 0.12, 0.5, 1.25);
+    blob.position.set(P.x, P.floor + 0.04, P.z);
+    const hh = Math.max(0, P.y - P.floor);
+    const bs = clamp(1.25 - hh * 0.12, 0.5, 1.25);
     blob.scale.set(bs, bs, 1);
-    blob.material.opacity = clamp(0.5 - P.y * 0.06, 0.15, 0.5);
+    blob.material.opacity = clamp(0.5 - hh * 0.06, 0.15, 0.5);
 
     // poussière / sillage
-    if (state === 'playing' && mode === 'run' && Math.random() < dt * 22) emit(P.x + rand(-0.15, 0.15), 0.1, P.z + 0.3, new THREE.Color(SKINS[SV.skin].accent), 1, 1, 0.8, 0.35);
+    if (state === 'playing' && mode === 'run' && Math.random() < dt * 22) emit(P.x + rand(-0.15, 0.15), P.floor + 0.1, P.z + 0.3, new THREE.Color(SKINS[SV.skin].accent), 1, 1, 0.8, 0.35);
     if (mode === 'jet') emit(P.x, P.y + 0.55, P.z + 0.7, new THREE.Color(0xffa24a), 2, 1.2, 0.5, 0.45);
   }
 
@@ -1138,8 +1379,8 @@ function startSkylineGame() {
     } else {
       const sp = clamp(P.speed / maxSpeed, 0, 1);
       const up = P.jet > 0 ? 1.3 : P.y * 0.45;
-      pos = new THREE.Vector3(P.x * 0.55, 3.15 + up, P.z + 6.7 - sp * 0.8 + (aspect < 1 ? 1.5 : 0));
-      look = new THREE.Vector3(P.x * 0.7, 1.3 + P.y * 0.5, P.z - 9);
+      pos = new THREE.Vector3(P.x * 0.5, 3.7 + up, P.z + 7.2 - sp * 0.8 + (aspect < 1 ? 1.5 : 0));
+      look = new THREE.Vector3(P.x * 0.65, 1.2 + P.y * 0.55, P.z - 10);
       fov += (baseFov + sp * 13 - fov) * Math.min(1, dt * 3);
     }
     if (!camInit) { camPos.copy(pos); camLook.copy(look); camInit = true; }
@@ -1268,6 +1509,7 @@ function startSkylineGame() {
       else if (state === 'dying') { P.y = Math.max(0, P.y + P.vy * dt); }
       stepParticles(dt);
       animateHero(dt);
+      updateGuard(rdt);
       updateCamera(rdt);
       updateEnvironment(rdt, ts);
       if (R) updateHud();

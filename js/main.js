@@ -485,41 +485,98 @@ function escapeHTML(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// ------------------------------------------------------------
+// Miniatures : mets simplement images/<id-du-jeu>.jpg (ou .webp / .png)
+// Exemple : images/snake.jpg, images/gta.webp, images/game2048.png
+// Tu peux aussi forcer un fichier avec `image: 'images/autre.jpg'` dans le registre.
+// Si aucune image n'existe, une vignette néon avec l'icône du jeu est affichée.
+// ------------------------------------------------------------
+const THUMB_EXTENSIONS = ['jpg', 'webp', 'png', 'jpeg'];
+
+const CATEGORY_LABELS = {
+  all: 'TOUS', '3d': '3D', action: 'ACTION', arcade: 'ARCADE', retro: 'RETRO',
+  reflexion: 'RÉFLEXION', record: 'RECORD', horror: 'HORREUR', simulation: 'SIMULATION'
+};
+const CATEGORY_ICONS = {
+  '3d': '🧊', action: '💥', arcade: '🕹️', retro: '👾', reflexion: '🧠',
+  record: '🏆', horror: '👻', simulation: '🚗'
+};
+
+function thumbCandidates(id, game) {
+  const list = [];
+  if (game.image) list.push(game.image);
+  THUMB_EXTENSIONS.forEach(ext => list.push(`images/${id}.${ext}`));
+  return list;
+}
+
+// Appelée par onerror : essaie le format suivant, puis bascule sur la vignette de secours
+function thumbFallback(img) {
+  const list = (img.dataset.srcs || '').split('|').filter(Boolean);
+  const next = (parseInt(img.dataset.i, 10) || 0) + 1;
+  if (next < list.length) {
+    img.dataset.i = next;
+    img.src = list[next];
+  } else {
+    img.onerror = null;
+    img.parentElement.classList.add('no-image');
+    img.remove();
+  }
+}
+
 function renderHubGrid() {
   const grid = document.getElementById('game-grid');
   if (!grid) return;
 
   const searchQuery = (document.getElementById('game-search')?.value || '').toLowerCase().trim();
 
-  grid.innerHTML = Object.entries(GAMES_REGISTRY)
+  const entries = Object.entries(GAMES_REGISTRY)
     .filter(([_, game]) => {
       const matchCategory = currentCategoryFilter === 'all' || game.category === currentCategoryFilter;
       const matchSearch = !searchQuery || game.title.toLowerCase().includes(searchQuery) || game.desc.toLowerCase().includes(searchQuery);
       return matchCategory && matchSearch;
     })
-    .map(([id, game]) => {
-      const hs = parseInt(localStorage.getItem(`hs_${id}`), 10) || 0;
-      const isDisabled = game.disabled || false;
-      const btnText = isDisabled ? 'EN DEV' : 'JOUER';
-      const cardClass = isDisabled ? 'game-card disabled' : 'game-card';
-      const clickHandler = isDisabled ? '' : `onclick="openGame('${id}')"`;
+    // les jeux « NOUVEAU » en premier, les jeux en développement à la fin
+    .sort((a, b) => ((b[1].isNew ? 1 : 0) - (a[1].isNew ? 1 : 0)) || ((a[1].disabled ? 1 : 0) - (b[1].disabled ? 1 : 0)));
 
-      // Affiche la pastille 'NOUVEAU' si l'option est activée dans le registre
-      const newBadgeHTML = game.isNew ? '<div class="card-new-badge">NOUVEAU</div>' : '';
+  if (!entries.length) {
+    grid.innerHTML = '<div class="empty-state">😕 Aucun jeu trouvé… essaie un autre mot !</div>';
+    return;
+  }
 
-      return `
-        <div class="${cardClass}" ${clickHandler}>
+  grid.innerHTML = entries.map(([id, game], index) => {
+    const hs = parseInt(localStorage.getItem(`hs_${id}`), 10) || 0;
+    const isDisabled = game.disabled || false;
+    const btnText = isDisabled ? 'EN DEV' : '▶ JOUER';
+    const cardClass = isDisabled ? 'game-card disabled' : 'game-card';
+    const clickHandler = isDisabled ? '' : `onclick="openGame('${id}')"`;
+    const newBadgeHTML = game.isNew ? '<div class="card-new-badge">NOUVEAU</div>' : '';
+    const catLabel = CATEGORY_LABELS[game.category] || String(game.category || '').toUpperCase();
+    const icon = CATEGORY_ICONS[game.category] || '🎮';
+    const srcs = thumbCandidates(id, game);
+    const hasRecord = hs > 0;
+
+    return `
+      <article class="${cardClass}" ${clickHandler} data-cat="${escapeHTML(game.category || '')}" style="--i:${Math.min(index, 14)}">
+        <div class="card-thumb">
+          <div class="thumb-fallback"><span class="thumb-icon">${icon}</span><span class="thumb-name">${escapeHTML(game.title)}</span></div>
+          <img src="${srcs[0]}" data-srcs="${srcs.join('|')}" data-i="0" alt="Aperçu de ${escapeHTML(game.title)}" loading="lazy" decoding="async" onerror="thumbFallback(this)">
+          <div class="thumb-shade"></div>
           ${newBadgeHTML}
-          <div class="card-badge">${game.badge}</div>
-          <h3>${game.title}</h3>
+          <div class="card-badge">${escapeHTML(game.badge)}</div>
+          <div class="thumb-play"><span>${isDisabled ? '🔒' : '▶'}</span></div>
+        </div>
+        <div class="card-body">
+          <div class="card-meta"><span class="cat-chip">${escapeHTML(catLabel)}</span>${hasRecord ? '<span class="record-chip">🏆 RECORD</span>' : ''}</div>
+          <h3>${escapeHTML(game.title)}</h3>
           <p>${game.desc}</p>
           <div class="card-footer">
             <div class="hs-tag">BEST: <span id="hs-${id}">${hs}</span></div>
             <button class="btn-neon sm" ${isDisabled ? 'disabled' : ''}>${btnText}</button>
           </div>
         </div>
-      `;
-    }).join('');
+      </article>
+    `;
+  }).join('');
 }
 
 function setFilter(cat, btn) {
