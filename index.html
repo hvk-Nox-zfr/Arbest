@@ -5,13 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <title>Arbest</title>
-  <meta name="description" content="Arbest — You are the best. Plateforme d'arcade interactive et de jeux rétro-futuristes en HTML5/JS.">
-  
-  <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-
+  <meta name="description" content="Arbest - un univers à part où se mêlent découvertes, surprises et expériences inattendues. Explorez, laissez-vous surprendre et découvrez ce qui vous attend.">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png">
 
@@ -20,7 +14,20 @@
 
     <!-- Raccourci classique / Rétrocompatibilité -->
     <link rel="shortcut icon" href="/favicon.png" type="image/x-icon">
-
+  
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <script>
+    // Essaie les formats de logo un par un (png, webp, svg, jpg)
+    function logoFallback(img) {
+      var list = (img.dataset.srcs || '').split('|');
+      var next = (parseInt(img.dataset.i, 10) || 0) + 1;
+      if (next < list.length) { img.dataset.i = next; img.src = list[next]; }
+      else { img.onerror = null; img.remove(); }
+    }
+  </script>
 </head>
 <body class="crt">
   <!-- Arrière-plan animé Néon Cyber Grid avec le halo suivant la souris -->
@@ -36,15 +43,20 @@
 
   <!-- EN-TÊTE GLASSMORPHISME -->
   <header class="glass-header">
-    <div class="logo">
-      <div class="logo-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polygon points="6 11 10 11 10 7 14 7 14 11 18 11 18 15 14 15 14 19 10 19 10 15 6 15 6 11" />
-          <circle cx="12" cy="13" r="1.5" />
-        </svg>
-      </div>
-      <span class="logo-text">ARBEST<span class="highlight">ARCADE</span></span>
-    </div>
+    <a class="logo" href="#" onclick="if (typeof closeGame === 'function') closeGame(); window.scrollTo(0, 0); return false;" aria-label="Arbest Arcade - accueil">
+      <!-- LOGO : mets ton image dans images/logo.png (ou .webp / .svg / .jpg) -->
+      <img class="logo-img" src="images/logo.png" data-srcs="images/logo.png|images/logo.webp|images/logo.svg|images/logo.jpg" data-i="0" alt="Arbest Arcade" onload="this.parentElement.classList.add('has-logo')" onerror="logoFallback(this)">
+      <!-- Affiché seulement si aucune image de logo n'est trouvée -->
+      <span class="logo-fallback">
+        <span class="logo-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polygon points="6 11 10 11 10 7 14 7 14 11 18 11 18 15 14 15 14 19 10 19 10 15 6 15 6 11" />
+            <circle cx="12" cy="13" r="1.5" />
+          </svg>
+        </span>
+        <span class="logo-text">ARBEST<span class="highlight">ARCADE</span></span>
+      </span>
+    </a>
 
     <div class="header-right">
       <button onclick="window.location.href='https://docs.google.com'" class="btn-stealth" title="Redirection d'urgence (Shift+Echap)">

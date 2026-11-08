@@ -168,6 +168,18 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.mi
 // REGISTRE DES JEUX ET CATÉGORIES
 // ============================================================
 const GAMES_REGISTRY = {
+  trounoir: {
+    title: 'Trou Noir',
+    badge: '3D lopoly',
+    category: 'battle',
+    desc: 'Mange tous se qu\'il y a sur ton passage',
+    script: 'js/games/trounoir.js',
+    initFn: 'startBlackHoleGame',
+    controls: 'Souris : dirige ton trou noir',
+    needs3D: true,
+    disabled: false,
+    isNew: true
+  },
   stickman: {
     title: 'Stickman',
     badge: '2D',
