@@ -168,6 +168,18 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.mi
 // REGISTRE DES JEUX ET CATÉGORIES
 // ============================================================
 const GAMES_REGISTRY = {
+  barber: {
+  title: 'Barber',
+  badge: '3D satisfaisant',
+  category: 'simulation',
+  desc: 'Coupe les cheveux, rate-les si tu veux, gagne de l\'argent et améliore ton matériel !',
+  script: 'js/games/barber.js',
+  initFn: 'startBarber',
+  controls: '💡 Clic / doigt maintenu : couper | Boutique : acheter du matériel | 1-2-3 : outils',
+  needs3D: false,
+  disabled: false,
+  isNew: true
+},
   trounoir: {
     title: 'Trou Noir',
     badge: '3D lopoly',

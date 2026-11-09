@@ -5,15 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
   <title>Arbest</title>
-  <meta name="description" content="Arbest - un univers à part où se mêlent découvertes, surprises et expériences inattendues. Explorez, laissez-vous surprendre et découvrez ce qui vous attend.">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon.png">
-
-    <!-- Favicon pour les raccourcis sur iPhone / iPad -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/favicon.png">
-
-    <!-- Raccourci classique / Rétrocompatibilité -->
-    <link rel="shortcut icon" href="/favicon.png" type="image/x-icon">
+  <meta name="description" content="Arbest — You are the best. Plateforme d'arcade interactive et de jeux rétro-futuristes en HTML5/JS.">
   
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -82,6 +74,12 @@
         <h1 class="glitch-title" data-text="ARCADE SYSTEM 2.0">ARCADE SYSTEM 2.0</h1>
         <p class="subtitle">Sélectionnez votre simulation interactive et pulvérisez les records du serveur</p>
 
+        <div class="hero-stats">
+          <div class="hero-stat"><strong data-stat="games" data-count="0">0</strong><span>JEUX</span></div>
+          <div class="hero-stat"><strong data-stat="cats" data-count="0">0</strong><span>CATÉGORIES</span></div>
+          <div class="hero-stat"><strong data-count="100" data-suffix="%">0%</strong><span>GRATUIT</span></div>
+        </div>
+
         <div class="hub-controls">
           <div class="search-box">
             <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -90,6 +88,8 @@
             </svg>
             <input type="text" id="game-search" placeholder="Rechercher un jeu..." oninput="filterGames()">
           </div>
+
+          <button id="random-game" class="btn-neon random-btn" type="button">🎲 SURPRENDS-MOI</button>
 
           <div class="category-filters">
             <button class="filter-btn active" data-cat="all" onclick="setFilter('all', this)">TOUS</button>
@@ -162,5 +162,6 @@
 
   <script src="mobile.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/effects.js"></script>
 </body>
 </html>

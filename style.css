@@ -743,7 +743,7 @@ body.in-game .cursor-orb { display: none; }
 /* ============================================================
    CARTES AVEC MINIATURES
    ============================================================ */
-.game-card { animation: cardIn 0.5s ease-out both; animation-delay: calc(var(--i, 0) * 40ms); }
+.game-card { animation: cardIn 0.5s ease-out backwards; animation-delay: calc(var(--i, 0) * 40ms); }
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
@@ -889,4 +889,114 @@ body.in-game .cursor-orb { display: none; }
 
 @media (max-width: 768px) {
   .logo-img { height: 38px; max-width: 180px; }
+}
+
+
+/* ============================================================
+   EFFETS "WOW"
+   ============================================================ */
+/* Écran de démarrage */
+.boot-screen {
+  position: fixed; inset: 0; z-index: 9999999;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 40%, #12082b, #04040a 70%);
+  cursor: pointer; transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.boot-screen.out { opacity: 0; transform: scale(1.08); pointer-events: none; }
+.boot-inner { display: flex; flex-direction: column; align-items: center; gap: 1.2rem; padding: 1rem; text-align: center; }
+.boot-logo { max-height: 90px; max-width: 70vw; object-fit: contain; filter: drop-shadow(0 0 18px var(--neon-cyan)); animation: bootPop 0.7s cubic-bezier(.175,.885,.32,1.275) both; }
+.boot-title { font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: clamp(1.6rem, 6vw, 3rem); letter-spacing: 4px; color: #fff; text-shadow: 0 0 20px rgba(0,243,255,.6); animation: bootPop 0.7s 0.1s cubic-bezier(.175,.885,.32,1.275) both; }
+.boot-title span { color: var(--neon-pink); text-shadow: 0 0 20px var(--neon-pink); }
+.boot-bar { width: min(280px, 70vw); height: 6px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
+.boot-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink)); box-shadow: 0 0 14px var(--neon-cyan); animation: bootLoad 1.3s 0.2s ease-out forwards; }
+.boot-coin { font-family: 'Orbitron', sans-serif; font-size: 0.75rem; letter-spacing: 4px; color: var(--neon-yellow); text-shadow: 0 0 10px var(--neon-yellow); animation: coinBlink 0.8s steps(2) infinite; }
+@keyframes bootLoad { to { width: 100%; } }
+@keyframes bootPop { from { opacity: 0; transform: scale(0.7) translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes coinBlink { 50% { opacity: 0.15; } }
+
+/* Particules */
+.fx-particles { position: absolute; inset: 0; width: 100%; height: 100%; background: transparent; z-index: 0; }
+body.in-game .fx-particles { display: none; }
+
+/* Titre glitch réel (utilise data-text) */
+.glitch-title { position: relative; }
+.glitch-title::before, .glitch-title::after {
+  content: attr(data-text);
+  position: absolute; inset: 0;
+  text-shadow: none; opacity: 0; pointer-events: none;
+}
+.glitch-title::before { color: var(--neon-cyan); animation: glitchA 5s infinite steps(1); }
+.glitch-title::after { color: var(--neon-pink); animation: glitchB 5s infinite steps(1); }
+@keyframes glitchA {
+  0%, 92%, 100% { opacity: 0; transform: none; }
+  93% { opacity: .9; transform: translate(-5px, 2px); clip-path: inset(10% 0 60% 0); }
+  95% { opacity: .9; transform: translate(4px, -2px); clip-path: inset(55% 0 15% 0); }
+  97% { opacity: .9; transform: translate(-3px, 1px); clip-path: inset(30% 0 40% 0); }
+}
+@keyframes glitchB {
+  0%, 92%, 100% { opacity: 0; transform: none; }
+  94% { opacity: .9; transform: translate(5px, -2px); clip-path: inset(60% 0 10% 0); }
+  96% { opacity: .9; transform: translate(-4px, 2px); clip-path: inset(15% 0 55% 0); }
+  98% { opacity: .9; transform: translate(3px, -1px); clip-path: inset(40% 0 30% 0); }
+}
+
+/* Sous-titre machine à écrire */
+.subtitle.typing { min-height: 1.6em; }
+.subtitle.typing::after { content: '▌'; color: var(--neon-cyan); margin-left: 2px; animation: coinBlink 0.8s steps(2) infinite; }
+
+/* Compteurs */
+.hero-stats { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1.8rem; }
+.hero-stat {
+  min-width: 110px; padding: 0.7rem 1.2rem;
+  background: rgba(12,12,28,.6); border: 1px solid var(--glass-border); border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+  box-shadow: 0 0 18px rgba(0,243,255,.08);
+}
+.hero-stat strong { font-family: 'Orbitron', sans-serif; font-size: 1.6rem; font-weight: 900; color: var(--neon-cyan); text-shadow: 0 0 12px var(--neon-cyan); }
+.hero-stat span { font-size: 0.65rem; font-weight: 700; letter-spacing: 2px; color: var(--text-muted); }
+
+/* Bouton aléatoire */
+.random-btn { border-color: var(--neon-pink); color: var(--neon-pink); box-shadow: 0 0 14px rgba(255,0,85,.25); animation: randomPulse 2.4s ease-in-out infinite; }
+.random-btn:hover:not(:disabled) { background: var(--neon-pink); color: #fff; box-shadow: 0 0 28px var(--neon-pink); }
+@keyframes randomPulse { 50% { box-shadow: 0 0 26px rgba(255,0,85,.55); } }
+
+/* Cartes : inclinaison 3D + reflet */
+.game-card { transform-style: preserve-3d; }
+.game-card.tilting {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-8px) scale(1.03);
+  transition: transform 0.08s linear, border-color 0.3s, box-shadow 0.3s;
+  border-color: var(--neon-pink);
+  box-shadow: 0 18px 50px rgba(255,0,85,.3), 0 0 30px rgba(0,243,255,.15);
+}
+.game-card::after {
+  content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.22), transparent 45%);
+  transition: opacity 0.3s;
+}
+.game-card.tilting::after { opacity: 1; }
+
+/* Étincelles */
+.fx-spark { position: fixed; z-index: 9999998; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; }
+
+/* En-tête qui s'illumine */
+.glass-header { transition: box-shadow 0.3s, border-color 0.3s; }
+.glass-header.scrolled { border-bottom-color: var(--neon-cyan); box-shadow: 0 4px 30px rgba(0,0,0,.6), 0 2px 25px rgba(0,243,255,.25); }
+
+/* Easter egg */
+body.rainbow-mode { animation: rainbowHue 3s linear infinite; }
+@keyframes rainbowHue { to { filter: hue-rotate(360deg); } }
+.fx-toast {
+  position: fixed; left: 50%; top: 90px; transform: translateX(-50%); z-index: 9999998;
+  padding: 0.8rem 1.4rem; border-radius: 10px; border: 1px solid var(--neon-yellow);
+  background: rgba(10,10,30,.95); color: var(--neon-yellow);
+  font-family: 'Orbitron', sans-serif; font-size: 0.8rem; font-weight: 800; letter-spacing: 2px;
+  box-shadow: 0 0 25px rgba(255,230,0,.4); animation: bootPop 0.5s both;
+}
+
+@media (hover: none) {
+  .game-card.tilting { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot-bar i { animation-duration: 0.01s; }
+  .glitch-title::before, .glitch-title::after, .random-btn, .boot-coin { animation: none; }
 }
