@@ -66,6 +66,21 @@
       t: (x, y, z) => (Math.abs(x) < 0.65 && y < -0.3 ? (y < -0.55 && z > -0.2 ? 52 : 42) : 4) }
   ];
 
+  /* Coupes avec lesquelles les clients ARRIVENT (chaque client a une tignasse différente) */
+  const START_STYLES = [
+    { id: 'long', len: () => 62, droop: 1, jit: 1, curl: 1 },
+    { id: 'shaggy', len: () => 34 + Math.random() * 26, droop: 1.1, jit: 1.5, curl: 1.4 },
+    { id: 'afro', len: () => 56 + Math.random() * 8, droop: 0.1, jit: 2.0, curl: 2.2, up: 0.3 },
+    { id: 'mullet', len: (x, y, z) => (z > 0.15 || y > 0.55 ? 16 + Math.random() * 6 : Math.abs(x) > 0.75 && y > 0.1 ? 30 : 60 + (Math.random() - 0.5) * 8), droop: 0.9, jit: 1, curl: 1 },
+    { id: 'slick', len: (x, y) => (Math.abs(x) > 0.7 && y < 0.4 ? 9 : 40 + (Math.random() - 0.5) * 6), droop: 0.5, jit: 0.8, curl: 0.8, sw: [0, 0.1, -0.7] },
+    { id: 'part', len: (x, y) => (Math.abs(x) > 0.72 && y < 0.45 ? 8 : 36 + (Math.random() - 0.5) * 6), droop: 0.8, jit: 0.9, curl: 1, side: 0.5 },
+    { id: 'overgrown', len: () => 12 + Math.random() * 6, droop: 0.3, jit: 1, curl: 1 },
+    { id: 'oldmohawk', len: (x) => (Math.abs(x) < 0.28 ? 54 + (Math.random() - 0.5) * 6 : 3), droop: 0.2, jit: 1, curl: 1, up: 0.5 },
+    { id: 'bedhead', len: () => 24 + Math.random() * 38, droop: 0.9, jit: 2.2, curl: 1.5 },
+    { id: 'monk', len: (x, y) => (y > 0.78 ? 2 : 46 + (Math.random() - 0.5) * 6), droop: 1, jit: 1, curl: 1 },
+    { id: 'curly', len: () => 40 + Math.random() * 12, droop: 0.5, jit: 1.6, curl: 2 }
+  ];
+
   const ITEMS = [
     { id: 'c1', cat: 'c', name: 'Tondeuse rouillée', price: 0, r: 20, col: '#9aa0a6', ic: '⚡', desc: 'Fait le job. Doucement.' },
     { id: 'c2', cat: 'c', name: 'Tondeuse Pro', price: 150, r: 28, col: '#e0463c', ic: '⚡', desc: 'Lame plus large, moteur costaud.' },
@@ -292,6 +307,10 @@
     let rig, swivel, head, headMat, hairMesh, guidePts, fallMesh, floorMesh, capeMesh, chairGroup, sweeper, poleTex, neonMat, ground;
     const len = new Float32Array(N), tgt = new Float32Array(N), gcol = new Float32Array(N * 3);
     let hairDirty = false, guideDirty = false, bendArr, bendAttr, irisCanvas, irisTex, lidMat, eyes = [], glassesG;
+    const swX = new Float32Array(N), swY = new Float32Array(N), swZ = new Float32Array(N), swM = new Uint8Array(N);   // mèches poussées par l'outil
+    let toolG = null, ropeG = null, ropeMeshes = [], ropeNodes = [], ropeOn = false, ropeInit = false, toolKey = '', toolInit = false, tailY = 1.43;
+    let cutterG = null, scHalves = [], toolLight = null, snipClock = 0, snipIdx = -1, scAng = 0.25, headTX = 0, headTZ = 0;
+    let tp, tvel, tq, tqT, _eu, _qe, _P, _nrm, _tgt, _h, _xa, _za, _bm, _a, _hBias, _sw, _anc;
     let faceCanvas = null, faceCtx = null, baseCanvas = null, faceTex = null, faceKey = '', faceT = 0;
     let thumb = null;
     let falls = [], floorN = 0, floorX = new Float32Array(3600), capeN = 0, capeList = [], floorCount = 0;
@@ -362,13 +381,17 @@
       _m = new THREE.Matrix4(); _q = new THREE.Quaternion(); _p = new THREE.Vector3(); _s = new THREE.Vector3();
       _d = new THREE.Vector3(); _up = new THREE.Vector3(0, 1, 0); _v = new THREE.Vector3(); _c = new THREE.Color();
       _raycaster = new THREE.Raycaster(); _ndc = new THREE.Vector2(); _inv = new THREE.Matrix4();
+      tp = new THREE.Vector3(); tvel = new THREE.Vector3(); tq = new THREE.Quaternion(); tqT = new THREE.Quaternion(); _eu = new THREE.Euler(); _qe = new THREE.Quaternion();
+      _P = new THREE.Vector3(); _nrm = new THREE.Vector3(); _tgt = new THREE.Vector3(); _h = new THREE.Vector3(); _xa = new THREE.Vector3(); _za = new THREE.Vector3();
+      _bm = new THREE.Matrix4(); _a = new THREE.Vector3(); _hBias = new THREE.Vector3(0.35, 0.8, 0.35); _sw = new THREE.Vector3(); _anc = new THREE.Vector3();
+      ropeG = new THREE.Group(); scene.add(ropeG); toolLight = new THREE.PointLight(0xffffff, 0, 6); scene.add(toolLight);
 
       // lumières
       scene.add(new THREE.HemisphereLight(L('#fff6e5'), L('#47606a'), 0.8));
       const sun = new THREE.DirectionalLight(L('#fff4e6'), 1.35);
       sun.position.set(3.2, 7, 6); sun.target.position.set(0, 1.8, 0);
       sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-      const sc = sun.shadow.camera; sc.left = -4; sc.right = 4; sc.top = 5; sc.bottom = -2; sc.near = 1; sc.far = 20; sun.shadow.bias = -0.0008; sc.updateProjectionMatrix();
+      const sc = sun.shadow.camera; sc.left = -4; sc.right = 4; sc.top = 5; sc.bottom = -2; sc.near = 1; sc.far = 20; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.045; sc.updateProjectionMatrix();
       scene.add(sun); scene.add(sun.target);
       const rim = new THREE.DirectionalLight(L('#7fd8ff'), 0.6); rim.position.set(-5, 4, -4); scene.add(rim);
       const warm = new THREE.PointLight(L('#ffb866'), 0.9, 14); warm.position.set(-3.5, 4.2, 3); scene.add(warm);
@@ -502,15 +525,10 @@
 
       // tête : sphère remodelée (mâchoire, menton, pommettes) + texture visage + grain de peau
       head = new THREE.Group(); head.position.y = HEAD_Y; swivel.add(head);
-      faceCanvas = document.createElement('canvas'); faceCanvas.width = 1024; faceCanvas.height = 512; faceCtx = faceCanvas.getContext('2d');
-      baseCanvas = document.createElement('canvas'); baseCanvas.width = 512; baseCanvas.height = 256;
+      faceCanvas = document.createElement('canvas'); faceCanvas.width = 2048; faceCanvas.height = 1024; faceCtx = faceCanvas.getContext('2d');
+      baseCanvas = document.createElement('canvas'); baseCanvas.width = 1024; baseCanvas.height = 512;
       faceTex = new THREE.CanvasTexture(faceCanvas); faceTex.anisotropy = 8; faceTex.encoding = THREE.sRGBEncoding;
-      const poreC = document.createElement('canvas'); poreC.width = 512; poreC.height = 256;
-      { const g = poreC.getContext('2d'), im = g.createImageData(512, 256);
-        for (let i = 0; i < 512 * 256; i++) { const v = 128 + (Math.random() - 0.5) * 90; im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; }
-        g.putImageData(im, 0, 0); }
-      const poreTex = new THREE.CanvasTexture(poreC);
-      headMat = new THREE.MeshPhysicalMaterial({ map: faceTex, roughness: 0.55, metalness: 0, clearcoat: 0.12, clearcoatRoughness: 0.55, bumpMap: poreTex, bumpScale: 0.35 });
+      headMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.62, metalness: 0, emissive: new THREE.Color(1, 1, 1), emissiveMap: faceTex, emissiveIntensity: 0.1 });   // peau lisse + léger éclairage de fond
       const hgeo = new THREE.SphereGeometry(1, 64, 48);
       {
         const pa = hgeo.attributes.position, WS = 64, HS = 48;
@@ -643,14 +661,16 @@
 
     /* --------------------------------------------------------------- mèches */
     function dirOf(i, Lpx, out) {
-      const b = BASE[i], d = Lpx / 60, g = d * d * 0.55;
-      return out.set(b.nx + b.jx, b.ny + 0.12 + b.jy - g, b.nz + b.jz).normalize();
+      const b = BASE[i], d = Lpx / 60, g = d * d * 0.55 * cust.droop, j = cust.jit;
+      out.set(b.nx + b.jx * j + cust.swx + (cust.side && b.ez > 0.1 ? cust.side : 0), b.ny + 0.12 + b.jy * j + cust.swy - g, b.nz + b.jz * j + cust.swz);
+      if (swM[i]) { out.x += swX[i]; out.y += swY[i]; out.z += swZ[i]; }
+      return out.normalize();
     }
     function setStrand(i) {
       const L = len[i] * K, b = BASE[i];
       if (L < 0.006) _s.set(0, 0, 0); else _s.set(1, L, 1);
       dirOf(i, len[i], _d); _q.setFromUnitVectors(_up, _d); _p.set(b.x, b.y, b.z);
-      bendArr[i * 2] = b.bx * L * 0.45; bendArr[i * 2 + 1] = b.bz * L * 0.45;
+      bendArr[i * 2] = b.bx * L * 0.35 * cust.curl; bendArr[i * 2 + 1] = b.bz * L * 0.35 * cust.curl;
       _m.compose(_p, _q, _s); hairMesh.setMatrixAt(i, _m); hairDirty = true;
     }
     function setGuide(i) {
@@ -663,66 +683,88 @@
 
     /* ------------------------------------------------------------ le visage */
     function buildBase(c) {
-      const bx = baseCanvas.getContext('2d'), W = 512, Hh = 256;
+      const bx = baseCanvas.getContext('2d'), W = 1024, Hh = 512;
       bx.fillStyle = c.skin; bx.fillRect(0, 0, W, Hh);
       const img = bx.getImageData(0, 0, W, Hh), dta = img.data;
       const sk = parseInt(c.skin.slice(1), 16), hc = parseInt(c.hair.c[2].slice(1), 16);
       const sr = (sk >> 16) & 255, sg = (sk >> 8) & 255, sb = sk & 255, hr = (hc >> 16) & 255, hg2 = (hc >> 8) & 255, hb = hc & 255;
+      const cp = new Float32Array(W), sp = new Float32Array(W);
+      for (let x = 0; x < W; x++) { const phi = (x + 0.5) / W * TAU; cp[x] = Math.cos(phi); sp[x] = Math.sin(phi); }
       for (let y = 0; y < Hh; y++) {
         const th = (y + 0.5) / Hh * Math.PI, ey = Math.cos(th), sn = Math.sin(th);
         for (let x = 0; x < W; x++) {
-          const phi = (x + 0.5) / W * TAU, ex = -Math.cos(phi) * sn, ez = Math.sin(phi) * sn;
-          const o = (y * W + x) * 4;
-          const inZone = ey > hairMin(ex, ez) && ey > -0.35;
-          const a = inZone ? 0.26 : 0;
+          const ex = -cp[x] * sn, ez = sp[x] * sn, o = (y * W + x) * 4;
+          const a = (ey > -0.35 && ey > hairMin(ex, ez)) ? 0.22 : 0;      // léger voile de racines sous les cheveux
           dta[o] = sr + (hr - sr) * a; dta[o + 1] = sg + (hg2 - sg) * a; dta[o + 2] = sb + (hb - sb) * a; dta[o + 3] = 255;
         }
       }
       bx.putImageData(img, 0, 0);
     }
+    const FW = 2048, FH = 1024;
     function fp(ex, ey) {
       const sn = Math.sqrt(Math.max(1e-4, 1 - ey * ey)), phi = Math.acos(clamp(-ex / sn, -1, 1)), th = Math.acos(clamp(ey, -1, 1));
-      return { X: phi / TAU * 1024, Y: th / Math.PI * 512, sx: 1024 / (TAU * sn * Math.max(0.25, Math.sin(phi))), sy: 512 / (Math.PI * sn) };
+      return { X: phi / TAU * FW, Y: th / Math.PI * FH, sx: FW / (TAU * sn * Math.max(0.25, Math.sin(phi))), sy: FH / (Math.PI * sn) };
     }
     function at(g, ex, ey, fn) { const p = fp(ex, ey); g.save(); g.translate(p.X, p.Y); g.scale(p.sx, p.sy); fn(); g.restore(); }
+    function hex2rgba(hex, a) { const n = parseInt(hex.slice(1), 16); return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
 
-    function paintFace(c, mood, blink) {
-      const g = faceCtx, ink = '#1e232b';
-      g.clearRect(0, 0, 1024, 512); g.drawImage(baseCanvas, 0, 0, 1024, 512);
+    function paintFace(c, mood) {
+      const g = faceCtx, hairDark = c.hair.c[2];
+      g.clearRect(0, 0, FW, FH); g.drawImage(baseCanvas, 0, 0, FW, FH);
       g.lineCap = 'round'; g.lineJoin = 'round';
-      // joues, taches de rousseur
-      if (mood === 'happy' || mood === 'cry') for (const sx of [-1, 1]) at(g, sx * 0.56, -0.34, () => { g.fillStyle = 'rgba(255,90,110,.28)'; g.beginPath(); g.ellipse(0, 0, 0.13, 0.07, 0, 0, TAU); g.fill(); });
-      if (c.freckles) at(g, 0, -0.2, () => { g.fillStyle = 'rgba(120,60,30,.5)'; for (let i = 0; i < 12; i++) { g.beginPath(); g.arc((i % 2 ? 1 : -1) * (0.3 + (i * 0.037) % 0.22), (i * 0.021) % 0.1 - 0.02, 0.012, 0, TAU); g.fill(); } });
+      // lumière douce sur le front, joues
+      at(g, 0, 0.18, () => { const gr = g.createRadialGradient(0, 0, 0.02, 0, 0, 0.55); gr.addColorStop(0, 'rgba(255,255,255,.10)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(0, 0, 0.6, 0.4, 0, 0, TAU); g.fill(); });
+      for (const sx of [-1, 1]) at(g, sx * 0.55, -0.34, () => { const a = (mood === 'happy' || mood === 'cry') ? 0.34 : 0.12; const gr = g.createRadialGradient(0, 0, 0.01, 0, 0, 0.18); gr.addColorStop(0, 'rgba(255,90,110,' + a + ')'); gr.addColorStop(1, 'rgba(255,90,110,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(0, 0, 0.18, 0.12, 0, 0, TAU); g.fill(); });
+      if (c.freckles) at(g, 0, -0.2, () => { g.fillStyle = 'rgba(120,60,30,.5)'; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc((i % 2 ? 1 : -1) * (0.3 + (i * 0.037) % 0.22), (i * 0.021) % 0.1 - 0.02, 0.011, 0, TAU); g.fill(); } });
       // orbites (les yeux sont en 3D)
       for (const sx of [-1, 1]) at(g, sx * 0.36, -0.06, () => {
-        const gr = g.createRadialGradient(0, 0, 0.06, 0, 0, 0.3); gr.addColorStop(0, 'rgba(90,40,30,0)'); gr.addColorStop(0.6, 'rgba(90,40,30,.17)'); gr.addColorStop(1, 'rgba(90,40,30,0)');
+        const gr = g.createRadialGradient(0, 0, 0.06, 0, 0, 0.3); gr.addColorStop(0, 'rgba(90,40,30,0)'); gr.addColorStop(0.6, 'rgba(90,40,30,.16)'); gr.addColorStop(1, 'rgba(90,40,30,0)');
         g.fillStyle = gr; g.beginPath(); g.ellipse(0, 0, 0.3, 0.22, 0, 0, TAU); g.fill();
       });
-      if (mood === 'cry') for (const sx of [-1, 1]) at(g, sx * 0.36, -0.07, () => {
-        const f = (T * 1.6 + (sx > 0 ? 0.4 : 0)) % 1; g.fillStyle = 'rgba(120,195,255,.9)'; g.fillRect(-0.025, 0.1, 0.05, 0.3 * f); g.beginPath(); g.arc(0, 0.11 + 0.3 * f, 0.04, 0, TAU); g.fill();
+      // rides (clients âgés)
+      if (c.old) {
+        g.strokeStyle = 'rgba(80,40,30,.13)'; g.lineWidth = 0.012;
+        at(g, 0, 0.3, () => { for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(-0.34, i * 0.06); g.quadraticCurveTo(0, i * 0.06 - 0.03, 0.34, i * 0.06); g.stroke(); } });
+        for (const sx of [-1, 1]) {
+          at(g, sx * 0.6, -0.05, () => { for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(0, i * 0.04); g.lineTo(sx * 0.1, i * 0.07); g.stroke(); } });
+          at(g, sx * 0.2, -0.5, () => { g.beginPath(); g.moveTo(0, -0.1); g.quadraticCurveTo(sx * 0.08, 0.03, sx * 0.04, 0.16); g.stroke(); });
+        }
+      }
+      // pilosité faciale (peinte, non coupable)
+      if (c.beard === 'stubble') at(g, 0, -0.66, () => {
+        const gr2 = g.createRadialGradient(0, 0.05, 0.12, 0, 0.05, 0.8); gr2.addColorStop(0, hex2rgba(hairDark, 0.34)); gr2.addColorStop(0.7, hex2rgba(hairDark, 0.26)); gr2.addColorStop(1, hex2rgba(hairDark, 0));
+        g.fillStyle = gr2; g.beginPath(); g.ellipse(0, 0.05, 0.8, 0.55, 0, 0, TAU); g.fill();
+      });
+      if (c.beard === 'goatee') at(g, 0, -0.8, () => { const gr = g.createRadialGradient(0, 0, 0.02, 0, 0, 0.18); gr.addColorStop(0, hex2rgba(hairDark, 0.85)); gr.addColorStop(1, hex2rgba(hairDark, 0)); g.fillStyle = gr; g.beginPath(); g.ellipse(0, 0, 0.16, 0.2, 0, 0, TAU); g.fill(); });
+      if (c.beard === 'mustache' || c.beard === 'goatee') at(g, 0, -0.5, () => {
+        g.fillStyle = hex2rgba(hairDark, 0.92); g.beginPath(); g.moveTo(0, -0.025);
+        g.quadraticCurveTo(-0.13, -0.085, -0.27, 0.01); g.quadraticCurveTo(-0.2, 0.075, -0.02, 0.05); g.lineTo(0.02, 0.05); g.quadraticCurveTo(0.2, 0.075, 0.27, 0.01); g.quadraticCurveTo(0.13, -0.085, 0, -0.025); g.fill();
       });
       // sourcils
-      const bc = c.hair.rare ? '#3a2a20' : c.hair.c[2];
       for (const sx of [-1, 1]) at(g, sx * 0.36, 0.14, () => {
         let yi = 0, yo = 0, ym = -0.04;
         if (mood === 'worry') { yi = -0.1; yo = 0.04; ym = -0.05; }
         if (mood === 'angry') { yi = 0.08; yo = -0.08; ym = 0.0; }
         if (mood === 'happy') { yi = -0.06; yo = -0.04; ym = -0.12; }
         if (mood === 'ouch') { yi = 0.06; yo = -0.02; ym = 0.02; }
-        g.strokeStyle = bc; g.lineWidth = 0.062; g.beginPath(); g.moveTo(sx * 0.12, yo); g.quadraticCurveTo(0, ym, -sx * 0.12, yi); g.stroke();
+        g.strokeStyle = c.browCol; g.lineWidth = c.browW; g.beginPath(); g.moveTo(sx * 0.13, yo); g.quadraticCurveTo(0, ym, -sx * 0.13, yi); g.stroke();
+      });
+      if (mood === 'cry') for (const sx of [-1, 1]) at(g, sx * 0.36, -0.07, () => {
+        const f = (T * 1.6 + (sx > 0 ? 0.4 : 0)) % 1; g.fillStyle = 'rgba(120,195,255,.9)'; g.fillRect(-0.025, 0.1, 0.05, 0.3 * f); g.beginPath(); g.arc(0, 0.11 + 0.3 * f, 0.04, 0, TAU); g.fill();
       });
       // bouche
       at(g, 0, -0.58, () => {
-        g.lineWidth = 0.035; g.strokeStyle = '#7a2230'; g.fillStyle = '#6d1626';
-        if (mood === 'happy') { g.beginPath(); g.moveTo(-0.2, -0.03); g.quadraticCurveTo(0, 0.26, 0.2, -0.03); g.closePath(); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-0.18, -0.02); g.quadraticCurveTo(0, 0.05, 0.18, -0.02); g.lineTo(0.16, 0.025); g.quadraticCurveTo(0, 0.09, -0.16, 0.025); g.fill(); }
+        g.lineWidth = 0.032; g.strokeStyle = '#7a2230'; g.fillStyle = '#6d1626';
+        if (mood === 'happy') { g.beginPath(); g.moveTo(-0.2, -0.03); g.quadraticCurveTo(0, 0.26, 0.2, -0.03); g.closePath(); g.fill(); g.fillStyle = '#fbfbf8'; g.beginPath(); g.moveTo(-0.18, -0.02); g.quadraticCurveTo(0, 0.05, 0.18, -0.02); g.lineTo(0.16, 0.025); g.quadraticCurveTo(0, 0.09, -0.16, 0.025); g.fill(); g.fillStyle = '#d9606e'; g.beginPath(); g.ellipse(0, 0.14, 0.09, 0.05, 0, 0, TAU); g.fill(); }
         else if (mood === 'worry') { g.beginPath(); g.moveTo(-0.14, 0); for (let i = 0; i <= 6; i++) g.lineTo(-0.14 + i * 0.047, i % 2 ? -0.025 : 0.025); g.stroke(); }
         else if (mood === 'angry') { g.beginPath(); g.moveTo(-0.17, 0.06); g.quadraticCurveTo(0, -0.08, 0.17, 0.06); g.stroke(); }
         else if (mood === 'cry') { g.beginPath(); g.ellipse(0, 0.04, 0.12, 0.09 + Math.sin(T * 14) * 0.015, 0, 0, TAU); g.fill(); }
         else if (mood === 'ouch') { g.beginPath(); g.ellipse(0, 0.04, 0.085, 0.12, 0, 0, TAU); g.fill(); }
         else {
-          g.fillStyle = 'rgba(170,78,88,.92)'; g.beginPath(); g.moveTo(-0.15, 0.012); g.quadraticCurveTo(-0.07, -0.05, 0, -0.02); g.quadraticCurveTo(0.07, -0.05, 0.15, 0.012); g.quadraticCurveTo(0, 0.035, -0.15, 0.012); g.fill();
-          g.fillStyle = 'rgba(196,98,108,.95)'; g.beginPath(); g.moveTo(-0.14, 0.012); g.quadraticCurveTo(0, 0.105, 0.14, 0.012); g.quadraticCurveTo(0, 0.035, -0.14, 0.012); g.fill();
-          g.strokeStyle = 'rgba(80,25,35,.75)'; g.lineWidth = 0.013; g.beginPath(); g.moveTo(-0.15, 0.012); g.quadraticCurveTo(0, 0.04, 0.15, 0.012); g.stroke(); }
+          g.fillStyle = c.lip; g.beginPath(); g.moveTo(-0.15, 0.012); g.quadraticCurveTo(-0.07, -0.05, 0, -0.02); g.quadraticCurveTo(0.07, -0.05, 0.15, 0.012); g.quadraticCurveTo(0, 0.035, -0.15, 0.012); g.fill();
+          g.fillStyle = c.lip2; g.beginPath(); g.moveTo(-0.14, 0.012); g.quadraticCurveTo(0, 0.105, 0.14, 0.012); g.quadraticCurveTo(0, 0.035, -0.14, 0.012); g.fill();
+          g.strokeStyle = 'rgba(70,22,32,.7)'; g.lineWidth = 0.011; g.beginPath(); g.moveTo(-0.15, 0.012); g.quadraticCurveTo(0, 0.04, 0.15, 0.012); g.stroke();
+        }
       });
       faceTex.needsUpdate = true;
     }
@@ -730,10 +772,33 @@
     /* ------------------------------------------------------------- clients */
     function makeCustomer() {
       const avail = STYLES.filter((s) => S.rep >= s.unlock);
-      const style = pick(avail);
-      const hair = Math.random() < 0.15 ? pick(HAIRS.filter((h) => h.rare)) : pick(HAIRS.filter((h) => !h.rare));
-      return { name: pick(NAMES), skin: pick(SKINS), hair, style, mood: 'neutral', glasses: Math.random() < 0.25, freckles: Math.random() < 0.2,
-        seed: rnd(0, 3000), nicks: 0, ouchT: 0, time: 0, cuts: 0, lookX: 0, lookY: 0, cols: hair.c.map((h) => L(h)), iris: pick(['#5a3a24', '#3b7a57', '#3a6ea5', '#7a6a2a', '#4a4036']) };
+      const old = Math.random() < 0.2;
+      let hair = Math.random() < 0.15 ? pick(HAIRS.filter((h) => h.rare)) : pick(HAIRS.filter((h) => !h.rare));
+      if (old && Math.random() < 0.8) hair = HAIRS[4];
+      // coupe de départ + coupe demandée : toujours réalisable avec les cheveux de départ
+      const order = START_STYLES.slice().sort(() => Math.random() - 0.5);
+      let start = null, style = null, sl = null;
+      for (const st of order) {
+        const cand = new Float32Array(N);
+        for (let i = 0; i < N; i++) { const b = BASE[i]; cand[i] = clamp(st.len(b.ex, b.ey, b.ez) * rnd(0.94, 1.06), 1, 70); }
+        const ok = avail.filter((sty) => {
+          let bad = 0, need = 0;
+          for (let i = 0; i < N; i++) { const b = BASE[i], t = sty.t(b.ex, -b.ey, b.ez), tol = 4 + 0.12 * t; if (t - cand[i] > tol + 3) bad++; if (cand[i] - t > tol) need++; }
+          return bad / N < 0.04 && need / N > 0.25;
+        });
+        if (ok.length) { start = st; sl = cand; style = pick(ok); break; }
+      }
+      if (!start) { start = START_STYLES[0]; sl = new Float32Array(N).fill(62); style = STYLES[1]; }
+      const skin = pick(SKINS), dk = SKINS.indexOf(skin) >= 3;
+      const lipBase = pick(dk ? ['#8a4048', '#9a4a52', '#7a3a40'] : ['#c46a74', '#d07a80', '#b85c68']);
+      const r1 = Math.random(), beard = r1 < 0.55 ? 'none' : r1 < 0.77 ? 'stubble' : r1 < 0.9 ? 'mustache' : 'goatee';
+      return { name: pick(NAMES), skin, hair, style, start, startLens: sl, mood: 'neutral', old, beard,
+        glasses: Math.random() < (old ? 0.45 : 0.22), freckles: !dk && Math.random() < 0.22,
+        browW: rnd(0.045, 0.075), browCol: hair.rare ? '#3a2a20' : hair.c[2], lip: hex2rgba(lipBase, 0.92), lip2: hex2rgba(lipBase, 0.97),
+        droop: start.droop, jit: start.jit || 1, curl: start.curl || 1,
+        swx: start.sw ? start.sw[0] : 0, swy: (start.sw ? start.sw[1] : 0) + (start.up || 0), swz: start.sw ? start.sw[2] : 0, side: start.side ? (Math.random() < 0.5 ? -1 : 1) * start.side : 0,
+        seed: rnd(0, 3000), nicks: 0, ouchT: 0, time: 0, cuts: 0, lookX: 0, lookY: 0, cols: hair.c.map((h) => L(h)),
+        iris: pick(['#5a3a24', '#3b7a57', '#3a6ea5', '#7a6a2a', '#4a4036']) };
     }
 
     function renderThumb(c) {
@@ -762,10 +827,11 @@
 
     function nextCustomer() {
       cust = makeCustomer(); res = null; phase = 'enter'; pt = 0;
-      const st = cust.style, start0 = rnd(60, 68);
+      const st = cust.style;
+      swM.fill(0); swX.fill(0); swY.fill(0); swZ.fill(0);
       for (let i = 0; i < N; i++) {
         const b = BASE[i];
-        len[i] = start0 * rnd(0.94, 1.04); tgt[i] = st.t(b.ex, -b.ey, b.ez);
+        len[i] = cust.startLens[i]; tgt[i] = st.t(b.ex, -b.ey, b.ez);
         hairMesh.setColorAt(i, cust.cols[b.sh]);
         setStrand(i); setGuide(i);
       }
@@ -796,7 +862,7 @@
     function paintFaceIfNeeded(force) {
       const key = cust.mood + '|' + (cust.mood === 'cry' ? Math.floor(T * 8) : 0);
       if (!force && key === faceKey) return;
-      faceKey = key; paintFace(cust, cust.mood, false);
+      faceKey = key; paintFace(cust, cust.mood);
     }
 
     /* --------------------------------------------------- caméra & lancer de rayon */
@@ -836,7 +902,7 @@
       const delta = old - lv, t = rnd(0.3, 1), Lp = (lv + delta * t) * K, b = BASE[i];
       dirOf(i, lv + delta * t, _d);
       _v.set(b.x + _d.x * Lp, b.y + _d.y * Lp, b.z + _d.z * Lp); head.localToWorld(_v);
-      falls.push({ x: _v.x, y: _v.y, z: _v.z, vx: rnd(-0.35, 0.35) + pvx * 0.0007, vy: rnd(0.2, 0.9), vz: rnd(-0.1, 0.5),
+      falls.push({ x: _v.x, y: _v.y, z: _v.z, vx: rnd(-0.35, 0.35) + tvel.x * 0.25, vy: rnd(0.2, 0.9) + tvel.y * 0.2, vz: rnd(-0.1, 0.5) + tvel.z * 0.25,
         ax: rnd(0, TAU), ay: rnd(0, TAU), avx: rnd(-6, 6), avy: rnd(-6, 6), l: Math.max(0.03, Math.min(delta * rnd(0.5, 1) * K, 0.26)),
         col: cust.cols[b.sh], ph: rnd(0, TAU), sl: false, nc: false });
     }
@@ -965,6 +1031,154 @@
       return ey < hairMin(ex, ez) - 0.03;
     }
 
+    /* ---------------------------------------------------- outils en 3D (physique) */
+    function rrShape(w, h, r) {
+      const sh = new THREE.Shape();
+      sh.moveTo(-w / 2 + r, -h / 2); sh.lineTo(w / 2 - r, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+      sh.lineTo(w / 2, h / 2 - r); sh.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2); sh.lineTo(-w / 2 + r, h / 2);
+      sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); sh.lineTo(-w / 2, -h / 2 + r); sh.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+      return sh;
+    }
+    function buildTool() {
+      if (toolG) { scene.remove(toolG); toolG.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); toolG = null; }
+      while (ropeG.children.length) { const o = ropeG.children[0]; ropeG.remove(o); if (o.geometry) o.geometry.dispose(); }
+      ropeMeshes = []; ropeOn = false; ropeInit = false; cutterG = null; scHalves = [];
+      const it = toolItem(); if (!it) return;
+      const lv = curLen(), g = new THREE.Group();
+      const metal = M({ color: '#d5dbe2', roughness: 0.25, metalness: 0.5 }), dark = M({ color: '#161a20', roughness: 0.55, metalness: 0.1 });
+      const bw = Math.max(0.3, it.r * K * 2);
+      const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+      if (tool === 'c' || tool === 'r') {
+        const clip = tool === 'c', electric = clip || it.id === 'r2';
+        const bodyW = clip ? Math.min(bw + 0.12, 0.8) : (it.id === 'r2' ? 0.4 : 0.22), bodyH = clip ? 1.25 : 1.35;
+        const geo = new THREE.ExtrudeGeometry(rrShape(bodyW, bodyH, 0.14), { depth: clip ? 0.2 : 0.1, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 3, curveSegments: 8 });
+        geo.translate(0, 0.16 + bodyH / 2, clip ? -0.1 : -0.05);
+        const wood = tool === 'r' && it.id === 'r1';
+        const bodyM = M({ color: wood ? '#6b4a30' : it.col, roughness: wood ? 0.7 : (it.id === 'c4' ? 0.2 : 0.4), metalness: it.id === 'c4' ? 0.5 : 0.12, emissive: it.id === 'c5' ? '#0b4a52' : '#000000' });
+        const body = new THREE.Mesh(geo, bodyM); body.castShadow = true; g.add(body);
+        tailY = 0.16 + bodyH + 0.02;
+        if (clip) {
+          for (let k = 0; k < 3; k++) box(bodyW * 0.96, 0.035, 0.34, dark, 0, 0.5 + k * 0.17, 0);           // bandes de grip
+          box(0.11, 0.2, 0.05, dark, 0, 1.0, 0.2);                                                           // interrupteur
+          const led = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), new THREE.MeshBasicMaterial({ color: L('#4cd964') })); led.position.set(0, 1.18, 0.2); g.add(led);
+          box(bodyW * 0.7, 0.07, 0.3, M({ color: '#ffffff', roughness: 0.5 }), 0, 0.34, 0);                  // étiquette
+          box(bw + 0.04, 0.2, 0.2, dark, 0, 0.12, 0);                                                         // support de lame
+          // lames : peigne fixe + lame mobile qui vibre
+          const nT = Math.max(6, Math.floor(bw / 0.04)), tg = new THREE.BoxGeometry(0.024, 0.11, 0.035);
+          const fixedT = new THREE.InstancedMesh(tg, metal, nT), cutT = new THREE.InstancedMesh(tg, metal, nT);
+          for (let k = 0; k < nT; k++) {
+            const x = (k - (nT - 1) / 2) * (bw / nT);
+            _m.makeTranslation(x, -0.02, -0.025); fixedT.setMatrixAt(k, _m); _m.makeTranslation(x + 0.02, -0.015, 0.02); cutT.setMatrixAt(k, _m);
+          }
+          fixedT.castShadow = cutT.castShadow = true; g.add(fixedT);
+          cutterG = new THREE.Group(); cutterG.add(cutT);
+          const cpl = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.09, 0.03), metal); cpl.position.set(0, 0.06, 0.02); cutterG.add(cpl); g.add(cutterG);
+          // sabot (peigne de protection) : sa hauteur = longueur de coupe choisie
+          const tl = 0.105 + lv * K + 0.01, nC = Math.max(6, Math.floor((bw + 0.06) / 0.056));
+          const combM = M({ color: '#222831', roughness: 0.3, transparent: true, opacity: 0.9 });
+          const comb = new THREE.InstancedMesh(new THREE.BoxGeometry(0.03, tl, 0.27), combM, nC);
+          for (let k = 0; k < nC; k++) { _m.makeTranslation((k - (nC - 1) / 2) * 0.056, 0.03 - tl / 2, 0); comb.setMatrixAt(k, _m); }
+          comb.castShadow = true; g.add(comb);
+          box(bw + 0.08, 0.05, 0.27, combM, 0, 0.045, 0);
+        } else {
+          const bl = box(bw, 0.07, 0.03, metal, 0, -0.01, 0); bl.castShadow = true;
+          box(bw + 0.02, 0.12, 0.05, dark, 0, 0.1, 0);
+          if (it.id === 'r2') box(0.12, 0.2, 0.04, dark, 0, 0.95, 0.12);
+        }
+        ropeOn = electric;
+        if (electric) {
+          const rg = new THREE.CylinderGeometry(0.02, 0.02, 1, 6); rg.translate(0, 0.5, 0);
+          const rm = M({ color: '#0c0e12', roughness: 0.6 });
+          for (let k = 0; k < 8; k++) { const m2 = new THREE.Mesh(rg, rm); m2.castShadow = true; ropeG.add(m2); ropeMeshes.push(m2); }
+          ropeNodes = []; for (let k = 0; k < 9; k++) ropeNodes.push({ x: 0, y: 0, z: 0, px: 0, py: 0, pz: 0 });
+        }
+      } else {
+        // ciseaux : deux demi-lames articulées autour d'une vis
+        const pivot = new THREE.Group(); pivot.position.y = 1.08; g.add(pivot);
+        const bshape = new THREE.Shape(); bshape.moveTo(-0.075, 0.02); bshape.lineTo(0.07, 0.02); bshape.lineTo(0.034, -0.98); bshape.lineTo(0.0, -1.1); bshape.lineTo(-0.05, -0.35); bshape.closePath();
+        const bgeo = new THREE.ExtrudeGeometry(bshape, { depth: 0.014, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2 });
+        const bm = M({ color: it.col, roughness: 0.18, metalness: 0.5, side: THREE.DoubleSide });
+        const ringM = M({ color: it.id === 's1' ? '#6b6f76' : '#c8363e', roughness: 0.45 });
+        for (const sgn of [-1, 1]) {
+          const h = new THREE.Group(), z = sgn * 0.012;
+          const bl = new THREE.Mesh(bgeo, bm); bl.scale.x = sgn; bl.position.z = z; bl.castShadow = true; h.add(bl);
+          const sh = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.55, 0.03), bm); sh.position.set(sgn * 0.01, 0.3, z + 0.007); h.add(sh);
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.032, 10, 24), ringM); ring.position.set(sgn * 0.11, 0.7, z + 0.007); ring.castShadow = true; h.add(ring);
+          pivot.add(h); scHalves.push({ h, sgn });
+        }
+        const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.07, 12), M({ color: '#2a2f38', metalness: 0.5, roughness: 0.3 })); screw.rotation.x = Math.PI / 2; pivot.add(screw);
+        if (it.id === 's4') { const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.05), M({ color: '#d98cff', emissive: '#7a3aa8', roughness: 0.1 })); gem.position.set(0, 0.12, 0.04); pivot.add(gem); }
+      }
+      g.visible = false; scene.add(g); toolG = g;
+    }
+
+    function updateTool(dt) {
+      const key = tool + '|' + S.eq[tool] + '|' + (tool === 'c' ? S.lvl.c : 0);
+      if (key !== toolKey) { toolKey = key; buildTool(); toolInit = false; }
+      if (!toolG) return;
+      const show = hasPtr && phase === 'cut' && !shopOpen && !rotDrag && !!cust;
+      toolG.visible = show; ropeG.visible = show && ropeOn; toolLight.intensity = 0;
+      if (!show) { toolInit = false; ropeInit = false; return; }
+      const it = toolItem(), lv = curLen(), cutting = pDown && (tool === 'c' || tool === 'r');
+      updateCamera(); head.updateMatrixWorld(true); _inv.copy(head.matrixWorld).invert(); castLocal(px, py);
+      if (tHit > 0) {
+        _P.set(hx * HR.x, hy * HR.y, hz * HR.z).applyMatrix4(head.matrixWorld);
+        _nrm.set(hx / HR.x, hy / HR.y, hz / HR.z).normalize().transformDirection(head.matrixWorld);
+      } else {   // le rayon rate la tête : l'outil reste en l'air à la profondeur de la tête
+        const o = _raycaster.ray.origin, d = _raycaster.ray.direction;
+        _v.setFromMatrixPosition(head.matrixWorld);
+        _P.copy(d).multiplyScalar(o.distanceTo(_v) * 0.96).add(o); _nrm.copy(camera.position).sub(_P).normalize();
+      }
+      const lift = tool === 'c' ? lv * K + 0.085 : tool === 'r' ? 0.06 : lv * K + 0.03;
+      _tgt.copy(_nrm).multiplyScalar(lift).add(_P);
+      _h.copy(_nrm).multiplyScalar(0.5).add(_hBias).addScaledVector(tvel, 0.03).normalize();
+      _xa.crossVectors(_up, _h); if (_xa.lengthSq() < 1e-4) _xa.set(1, 0, 0); _xa.normalize();
+      _za.crossVectors(_xa, _h); _bm.makeBasis(_xa, _h, _za); tqT.setFromRotationMatrix(_bm);
+      if (!toolInit) { tp.copy(_tgt); tvel.set(0, 0, 0); tq.copy(tqT); toolInit = true; }
+      const d2 = Math.min(dt, 0.033);
+      // ressort amorti : l'outil a de l'inertie et « traîne » derrière le curseur
+      _a.copy(_tgt).sub(tp).multiplyScalar(300).addScaledVector(tvel, -28);
+      tvel.addScaledVector(_a, d2); tp.addScaledVector(tvel, d2);
+      tq.slerp(tqT, 1 - Math.exp(-16 * d2));
+      _eu.set(clamp(-tvel.y * 0.035, -0.35, 0.35), 0, clamp(-tvel.x * 0.06, -0.5, 0.5)); _qe.setFromEuler(_eu);
+      toolG.quaternion.copy(tq).multiply(_qe); toolG.position.copy(tp);
+      if (cutting) {   // moteur : vibration du corps et lame mobile
+        toolG.position.x += rnd(-0.004, 0.004); toolG.position.y += rnd(-0.004, 0.004); toolG.position.z += rnd(-0.004, 0.004);
+        if (cutterG) cutterG.position.x = Math.sin(T * 150) * 0.018;
+      } else if (cutterG) cutterG.position.x = 0;
+      if (tool === 's') {   // ciseaux : ouverture / fermeture articulée
+        const ph = snipClock / it.rate, target = pDown ? 0.03 + 0.42 * (0.5 + 0.5 * Math.cos(ph * TAU)) : 0.26;
+        scAng += (target - scAng) * Math.min(1, dt * 40);
+        for (const hh of scHalves) hh.h.rotation.z = hh.sgn * scAng;
+      }
+      if (it.id === 'c5' || it.id === 'c4') {
+        toolLight.color.set(it.id === 'c5' ? 0x17d6e8 : 0xffd978); toolLight.intensity = cutting ? 1.2 : 0.4;
+        _v.copy(tp).addScaledVector(_nrm, 0.35); toolLight.position.copy(_v);
+      }
+      // cordon : corde physique (Verlet) qui pend et se tend
+      if (ropeOn) {
+        toolG.updateMatrixWorld(true); _v.set(0, tailY, 0); toolG.localToWorld(_v);
+        _anc.set(camTx + 1.4, 0.05, 3.6);
+        const n = ropeNodes.length, seg = 0.62;
+        if (!ropeInit) { for (let k = 0; k < n; k++) { const f = k / (n - 1), nd = ropeNodes[k]; nd.x = nd.px = lerp(_v.x, _anc.x, f); nd.y = nd.py = lerp(_v.y, _anc.y, f); nd.z = nd.pz = lerp(_v.z, _anc.z, f); } ropeInit = true; }
+        for (let k = 1; k < n - 1; k++) { const nd = ropeNodes[k], vx = (nd.x - nd.px) * 0.985, vy = (nd.y - nd.py) * 0.985, vz = (nd.z - nd.pz) * 0.985; nd.px = nd.x; nd.py = nd.y; nd.pz = nd.z; nd.x += vx; nd.y += vy - 9 * d2 * d2; nd.z += vz; }
+        ropeNodes[0].x = _v.x; ropeNodes[0].y = _v.y; ropeNodes[0].z = _v.z; ropeNodes[n - 1].x = _anc.x; ropeNodes[n - 1].y = _anc.y; ropeNodes[n - 1].z = _anc.z;
+        for (let it2 = 0; it2 < 8; it2++) {
+          for (let k = 0; k < n - 1; k++) {
+            const a1 = ropeNodes[k], b1 = ropeNodes[k + 1], dx = b1.x - a1.x, dy = b1.y - a1.y, dz = b1.z - a1.z, dd = Math.hypot(dx, dy, dz) || 1e-4, df = (dd - seg) / dd;
+            const wa = k === 0 ? 0 : 0.5, wb = k === n - 2 ? 0 : 0.5, wsum = (wa + wb) || 1;
+            a1.x += dx * df * wa / wsum; a1.y += dy * df * wa / wsum; a1.z += dz * df * wa / wsum; b1.x -= dx * df * wb / wsum; b1.y -= dy * df * wb / wsum; b1.z -= dz * df * wb / wsum;
+          }
+          for (let k = 1; k < n - 1; k++) if (ropeNodes[k].y < 0.03) ropeNodes[k].y = 0.03;
+        }
+        for (let k = 0; k < n - 1; k++) {
+          const a1 = ropeNodes[k], b1 = ropeNodes[k + 1], m2 = ropeMeshes[k];
+          _d.set(b1.x - a1.x, b1.y - a1.y, b1.z - a1.z); const l2 = _d.length() || 1e-4; _d.divideScalar(l2);
+          m2.position.set(a1.x, a1.y, a1.z); m2.quaternion.setFromUnitVectors(_up, _d); m2.scale.set(1, l2, 1);
+        }
+      }
+    }
+
     function updateCutting(dt) {
       const it = toolItem(); if (!it) return;
       const rw = it.r * K, lv = curLen(), rpx = rw * ppu;
@@ -976,12 +1190,27 @@
         for (let i = 1; i <= steps; i++) { castLocal(lerp(lx, px, i / steps), lerp(ly, py, i / steps)); n += cutRay(rw, lv, 0.5); }
         vib = lerp(vib, 1, 0.3);
       } else {
-        snipT -= dt;
-        if (snipT <= 0) {
-          snipT = it.rate; snipAnim = 1; castLocal(px, py);
+        snipClock += dt; castLocal(px, py);
+        const idx = Math.floor(snipClock / it.rate - 0.5);          // les lames se referment ici → coupe
+        if (idx > snipIdx) {
+          snipIdx = idx; snipAnim = 1;
           n += cutRay(rw, lv, 0.95);
           sfx.snip(); if (navigator.vibrate && n) navigator.vibrate(8);
-        } else castLocal(px, py);
+        }
+      }
+      // les mèches proches sont poussées par l'outil (puis reviennent)
+      {
+        const sp = tvel.length();
+        if (sp > 0.2 && tHit > 0) {
+          _v.set(hx * HR.x, hy * HR.y, hz * HR.z); _sw.copy(tvel).transformDirection(_inv);
+          const rr2 = rw * 1.7;
+          for (let i = 0; i < N; i++) {
+            const b = BASE[i], dx = b.x - _v.x, dy = b.y - _v.y, dz = b.z - _v.z, d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 > rr2 * rr2 || len[i] < 8) continue;
+            const f = 1 - Math.sqrt(d2) / rr2, k2 = Math.min(0.7, sp * 0.02) * f;
+            swX[i] = clamp(swX[i] + _sw.x * k2, -0.9, 0.9); swY[i] = clamp(swY[i] + _sw.y * k2, -0.9, 0.9); swZ[i] = clamp(swZ[i] + _sw.z * k2, -0.9, 0.9); swM[i] = 1; hairDirty = true;
+          }
+        }
       }
       if (n > 0) {
         hairDirty = true; cutTotal += n; cust.cuts += n; flow = clamp(flow + n * 0.004, 0, 1);
@@ -1112,12 +1341,27 @@
         if (u >= 1) nextCustomer();
       }
       swivel.rotation.y = ang;
-      shk = Math.max(0, shk - dt); head.rotation.y = shk > 0 ? Math.sin(shk * 60) * shk * 0.35 : 0; head.rotation.z = shk > 0 ? Math.sin(shk * 47) * shk * 0.12 : 0;
+      shk = Math.max(0, shk - dt);
+      {   // la tête réagit à la pression de l'outil et aux « Aïe »
+        const press = (phase === 'cut' && pDown && toolG && toolG.visible) ? 1 : 0;
+        headTX += (clamp(-tvel.y * 0.012, -0.08, 0.08) * press - headTX) * Math.min(1, dt * 6);
+        headTZ += (clamp(tvel.x * 0.012, -0.08, 0.08) * press - headTZ) * Math.min(1, dt * 6);
+        head.rotation.set(headTX, shk > 0 ? Math.sin(shk * 60) * shk * 0.35 : 0, headTZ + (shk > 0 ? Math.sin(shk * 47) * shk * 0.12 : 0));
+      }
       cust.ouchT = Math.max(0, cust.ouchT - dt);
       faceT += dt; if (faceT > 0.09) { faceT = 0; paintFaceIfNeeded(false); }
 
       lx = px; ly = py; flow = Math.max(0, flow - dt * 0.35); vib *= 0.9; snipAnim = Math.max(0, snipAnim - dt * 7);
       scene.updateMatrixWorld(true);
+      updateTool(dt);
+      {   // les mèches poussées reviennent doucement en place
+        const dec = Math.pow(0.02, dt);
+        for (let i = 0; i < N; i++) if (swM[i]) {
+          swX[i] *= dec; swY[i] *= dec; swZ[i] *= dec;
+          if (Math.abs(swX[i]) + Math.abs(swY[i]) + Math.abs(swZ[i]) < 0.01) { swM[i] = 0; swX[i] = swY[i] = swZ[i] = 0; }
+          setStrand(i);
+        }
+      }
       animEyes(dt);
       updatePieces(dt); updateFx(dt);
 
@@ -1207,44 +1451,14 @@
       ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.stroke();
     }
 
-    function drawTool() {
+    function drawTool() {   // seul l'anneau de la zone de coupe est en 2D : l'outil lui-même est un objet 3D
       if (!hasPtr || shopOpen || rotDrag) return;
       const it = toolItem(); if (!it) return;
-      const rpx = Math.max(8, it.r * K * ppu), active = pDown && phase === 'cut', u = clamp(ch / 420, 0.7, 1.4);
+      const rpx = Math.max(8, it.r * K * ppu), active = pDown && phase === 'cut';
       ctx.save(); ctx.translate(px, py);
-      ctx.strokeStyle = active ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.5)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = active ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.45)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
       ctx.beginPath(); ctx.arc(0, 0, rpx, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
       if (flow > 0.5) { ctx.strokeStyle = 'rgba(255,217,120,' + (flow - 0.4) + ')'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, rpx + 5, 0, TAU); ctx.stroke(); }
-      const jit = vib * 1.6; ctx.translate(rnd(-jit, jit), rnd(-jit, jit)); ctx.scale(u, u);
-      const rr0 = rpx / u;
-      if (tool === 'c') {
-        ctx.rotate(clamp(pvx / 1600, -0.45, 0.45));
-        const bw = Math.max(40, rr0 * 2), col = it.col;
-        ctx.fillStyle = 'rgba(0,0,0,.25)'; rr(-bw * .42 + 5, -80 + 6, bw * .84, 78, 14); ctx.fill();
-        const gr = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0); gr.addColorStop(0, 'rgba(0,0,0,.35)'); gr.addColorStop(.5, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(0,0,0,.4)');
-        ctx.fillStyle = col; rr(-bw * .42, -82, bw * .84, 80, 14); ctx.fill(); ctx.fillStyle = gr; ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,.22)'; rr(-bw * .3, -76, bw * .12, 60, 6); ctx.fill();
-        ctx.fillStyle = '#d9dee4'; ctx.fillRect(-bw / 2, -8, bw, 11);
-        ctx.fillStyle = '#6a7380'; for (let x = -bw / 2 + 2; x < bw / 2 - 2; x += 5) ctx.fillRect(x, -2, 2.4, 8);
-        ctx.fillStyle = '#14202e'; rr(-8, -66, 16, 12, 5); ctx.fill();
-        if (it.id === 'c5') { ctx.fillStyle = '#17d6e8'; ctx.shadowColor = '#17d6e8'; ctx.shadowBlur = 14; ctx.fillRect(-bw / 2, 3, bw, 3); ctx.shadowBlur = 0; }
-      } else if (tool === 's') {
-        ctx.rotate(-0.55);
-        const open = 0.06 + 0.42 * (snipAnim > 0 ? snipAnim : 0.35);
-        for (const sg of [-1, 1]) {
-          ctx.save(); ctx.translate(0, -44); ctx.rotate(sg * open);
-          ctx.fillStyle = it.col; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.lineTo(sg * 1.5, 46); ctx.closePath(); ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1.5; ctx.stroke();
-          ctx.strokeStyle = '#d6334a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.ellipse(sg * 12, -34, 11, 15, sg * 0.25, 0, TAU); ctx.stroke();
-          ctx.restore();
-        }
-        ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(0, -44, 4, 0, TAU); ctx.fill();
-      } else {
-        ctx.rotate(0.45);
-        ctx.fillStyle = '#5a3a24'; rr(-6, -86, 12, 70, 6); ctx.fill();
-        ctx.fillStyle = '#c9d2dc'; rr(-rr0 * 0.8, -16, rr0 * 1.6, 12, 4); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.globalAlpha = .6; ctx.fillRect(-rr0 * 0.7, -14, rr0 * 1.4, 3); ctx.globalAlpha = 1;
-      }
       ctx.restore();
     }
 
@@ -1442,7 +1656,7 @@
       initAudio();
       if (e.button === 2 || e.button === 1) { rotDrag = true; pDown = false; angVel = 0; lx = e.clientX; e.preventDefault(); try { ov.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ } return; }
       if (e.button > 0) return;
-      const p = toLocalPt(e); px = lx = p.x; py = ly = p.y; hasPtr = true; pDown = true; snipT = 0;
+      const p = toLocalPt(e); px = lx = p.x; py = ly = p.y; hasPtr = true; pDown = true; snipT = 0; snipClock = 0.45 * ((toolItem() && toolItem().rate) || 0.12); snipIdx = -1;
       try { ov.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ }
       if (phase === 'result' && pt > 1.2 && !shopOpen) leave();
       e.preventDefault();

@@ -168,6 +168,30 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.mi
 // REGISTRE DES JEUX ET CATÉGORIES
 // ============================================================
 const GAMES_REGISTRY = {
+  morpion: {
+    title: 'MORPION',
+    badge: 'MULTIJOUEUR',
+    category: 'reflexion',
+    desc: 'Défiez un bot avec trois difficultés, un ami sur le même PC ou jouez en ligne avec un code.',
+    script: 'js/games/morpion.js',
+    initFn: 'startMorpionGame',
+    controls: '💡 Clic : placer votre symbole | En ligne : échangez les codes de connexion',
+    needs3D: false,
+    disabled: false,
+    isNew: true
+  },
+  horreur: {
+  title: 'LABO 7',
+  badge: '3D horreur',
+  category: 'horreur',
+  desc: 'Fait les quêtes sans te faire attraper sauras-tu t\'en sortir ?',
+  script: 'js/games/horreur.js',
+  initFn: 'startHorreurGame',
+  controls: '💡 ZQSD : bouger | Souris : regarder | Maj : courir | F : lampe | E : se cacher',
+  needs3D: false,
+  disabled: false,
+  isNew: true
+},
   barber: {
   title: 'Barber',
   badge: '3D satisfaisant',
@@ -336,7 +360,7 @@ const GAMES_REGISTRY = {
     controls: '💡 ZQSD / joystick : bouger · Clic gauche : casser · Clic droit : poser · E : menu & crafts',
     disabled: false,
     needs3D: true,
-    isNew: true
+    isNew: false
   },
   chess: {
     title: 'ECHEQUE',
@@ -345,7 +369,8 @@ const GAMES_REGISTRY = {
     desc: 'Affrontez l\'IA de la matrice dans un duel d\'échecs tactique.',
     script: 'js/games/chess.js',
     initFn: 'startChessGame',
-    controls: '💡 Clic : Sélectionner et déplacer les pièces'
+    controls: '💡 Clic : Sélectionner et déplacer les pièces',
+    isNew: true
   },
   worm: {
     title: 'MANGE MOI',
@@ -646,7 +671,7 @@ const _HANDLER_PROPS = ['onkeydown', 'onkeyup', 'onkeypress', 'onmousemove', 'on
 
 function stopAllGames() {
   // 1) Fonctions de nettoyage propres à chaque jeu (avant de couper les timers)
-  const known = ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup', '_beamCleanup', '_physicsCleanup'];
+  const known = ['_survCleanup', '_g2048Cleanup', '_clickerCleanup', '_skyCleanup', '_gtaCleanup', '_horrorCleanup', '_beamCleanup', '_physicsCleanup', '_morpionCleanup'];
   const found = new Set(known);
   try { Object.keys(window).forEach(k => { if (/^_{1,2}\w*(Cleanup|Stop)$/.test(k)) found.add(k); }); } catch (e) {}
   found.forEach(k => {
