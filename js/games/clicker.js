@@ -124,64 +124,136 @@ function startClickerGame() {
   // ---------- interface ----------
   board.innerHTML = `
     <style>
+      #memory-board[data-game="clicker"] { scrollbar-width: thin; scrollbar-color: #5664b8 #111832; }
       #memory-board[data-game="clicker"] button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-      .cl-head { text-align: center; }
-      .cl-coins { font-size: 34px; font-weight: 900; color: #ffe600; text-shadow: 0 0 12px rgba(255,230,0,.5); line-height: 1.1; }
-      .cl-cps { color: #9aa4b8; font-size: 14px; font-weight: 600; }
-      .cl-core-wrap { position: relative; display: flex; justify-content: center; margin: 10px 0 6px; }
-      .cl-core { width: 128px; height: 128px; border-radius: 50%; font-size: 54px; color: #00f3ff; background: radial-gradient(circle at 35% 30%, rgba(0,243,255,.35), rgba(5,5,16,.9)); border: 3px solid #00f3ff; box-shadow: 0 0 24px rgba(0,243,255,.45); transition: transform .05s; padding: 0; }
-      .cl-core:active { transform: scale(.93); }
-      .cl-float { position: absolute; top: 18%; pointer-events: none; font-weight: 900; font-size: 20px; color: #ffe600; text-shadow: 0 0 6px #000; animation: clfloat .8s ease-out forwards; }
-      @keyframes clfloat { to { transform: translateY(-70px); opacity: 0; } }
-      .cl-banner { display: none; margin: 6px 0; padding: 8px 10px; border-radius: 8px; font-weight: 700; font-size: 14px; text-align: center; }
-      .cl-frenzy { background: rgba(255,85,0,.18); border: 1px solid #ff5500; color: #ffb27a; }
-      .cl-toast { background: rgba(0,255,157,.12); border: 1px solid #00ff9d; color: #8dffcf; }
-      .cl-daily { display: none; width: 100%; margin: 6px 0; padding: 11px; border-radius: 8px; border: 1px solid #ffe600; background: rgba(255,230,0,.12); color: #ffe600; font-weight: 800; font-size: 15px; }
-      .cl-qty { display: flex; gap: 6px; justify-content: center; margin: 8px 0; }
-      .cl-qty button { padding: 6px 12px; border-radius: 6px; border: 1px solid #334; background: #121826; color: #aab; font-weight: 700; }
-      .cl-qty button.on { border-color: #00f3ff; color: #00f3ff; background: rgba(0,243,255,.12); }
-      .cl-h { margin: 14px 0 6px; font-size: 13px; letter-spacing: 2px; color: #00f3ff; }
-      .cl-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 10px; margin-bottom: 6px; border-radius: 8px; border: 1px solid #222d42; background: #121826; color: #fff; }
-      .cl-row.can { border-color: #00f3ff; background: rgba(0,243,255,.08); }
-      .cl-row.no { opacity: .55; }
-      .cl-ico { font-size: 26px; width: 34px; text-align: center; flex: none; }
-      .cl-info { flex: 1; min-width: 0; }
-      .cl-name { font-weight: 800; font-size: 15px; }
-      .cl-sub { font-size: 12px; color: #9aa4b8; }
-      .cl-cost { font-weight: 800; color: #ffe600; font-size: 14px; white-space: nowrap; }
-      .cl-end { width: 100%; margin-top: 16px; padding: 12px; border-radius: 8px; border: 1px solid #ff0055; background: rgba(255,0,85,.1); color: #ff6b99; font-weight: 800; }
+      #memory-board[data-game="clicker"] .cl-shell { min-height: 100%; padding: 4px 2px 10px; color: #f6f7ff; }
+      #memory-board[data-game="clicker"] .cl-topline { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 3px 12px; }
+      #memory-board[data-game="clicker"] .cl-brand { display:flex; align-items:center; gap:9px; text-align:left; }
+      #memory-board[data-game="clicker"] .cl-brand-icon { display:grid; place-items:center; width:39px; height:39px; border-radius:13px; font-size:23px; background:linear-gradient(145deg,#273e83,#151c42); border:1px solid #637cf4; box-shadow:0 5px 15px #05091c; }
+      #memory-board[data-game="clicker"] .cl-brand b { display:block; font-family:system-ui,sans-serif; font-size:15px; font-weight:1000; letter-spacing:1.5px; color:#fff; text-shadow:0 2px 0 #26346d; }
+      #memory-board[data-game="clicker"] .cl-brand small { display:block; margin-top:1px; color:#8c9bd0; font:700 9px system-ui,sans-serif; letter-spacing:1.7px; }
+      #memory-board[data-game="clicker"] .cl-level { padding:7px 10px; border:1px solid #5265b4; border-radius:999px; color:#cbd5ff; background:#18234a; font:800 10px system-ui,sans-serif; letter-spacing:1px; white-space:nowrap; }
+      #memory-board[data-game="clicker"] .cl-wallet { position:relative; display:flex; align-items:center; justify-content:space-between; overflow:hidden; padding:14px 16px; margin-bottom:10px; border:1px solid #586bd0; border-radius:19px; background:linear-gradient(120deg,#222e68 0%,#263f8c 52%,#452d83 100%); box-shadow:0 8px 22px #05091b, inset 0 1px 0 #ffffff2b; }
+      #memory-board[data-game="clicker"] .cl-wallet:after { content:""; position:absolute; width:160px; height:160px; right:-54px; top:-82px; border-radius:50%; background:#9eb9ff18; border:1px solid #b4c5ff24; }
+      #memory-board[data-game="clicker"] .cl-wallet-label { color:#c3d0ff; font:900 10px system-ui,sans-serif; letter-spacing:2px; }
+      #memory-board[data-game="clicker"] .cl-coins { margin-top:3px; font:1000 clamp(27px,7vw,38px)/1.05 system-ui,sans-serif; color:#ffe58a; text-shadow:0 3px 0 #88551c,0 0 18px #ffc84d45; letter-spacing:-1px; }
+      #memory-board[data-game="clicker"] .cl-cps { margin-top:5px; color:#c5d7ff; font:700 11px system-ui,sans-serif; }
+      #memory-board[data-game="clicker"] .cl-wallet-gem { z-index:1; display:grid; place-items:center; width:54px; height:54px; border-radius:17px; font-size:31px; background:linear-gradient(145deg,#667af7,#29378c); border:1px solid #a4b6ff; box-shadow:0 7px 18px #07112c; transform:rotate(7deg); }
+      #memory-board[data-game="clicker"] .cl-core-panel { position:relative; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:220px; margin:0 0 10px; padding:10px 8px 13px; border:1px solid #5268be; border-radius:22px; background:radial-gradient(ellipse at 50% 58%,#294c8e 0%,#172754 46%,#101a39 100%); box-shadow:inset 0 1px 0 #ffffff20,0 9px 20px #05091a; }
+      #memory-board[data-game="clicker"] .cl-core-panel:before { content:""; position:absolute; inset:0; opacity:.24; background-image:radial-gradient(#a9c8ff 1px,transparent 1px); background-size:19px 19px; mask-image:linear-gradient(transparent,#000 20%,#000 80%,transparent); pointer-events:none; }
+      #memory-board[data-game="clicker"] .cl-core-panel:after { content:""; position:absolute; width:220px; height:90px; bottom:30px; border-radius:50%; border:1px solid #62dcff59; box-shadow:0 0 25px #3fbaff25,inset 0 0 24px #38c9ff18; transform:perspective(100px) rotateX(55deg); pointer-events:none; }
+      #memory-board[data-game="clicker"] .cl-core-label { z-index:1; margin:2px 0 0; color:#dce8ff; font:900 10px system-ui,sans-serif; letter-spacing:2.3px; text-align:center; }
+      #memory-board[data-game="clicker"] .cl-core-title { display:inline-flex; align-items:center; justify-content:center; gap:7px; margin:2px 0 7px; padding:8px 14px; border:1px solid #ffe27a; border-radius:999px; background:linear-gradient(180deg,#fff0a8,#ffbd3d); color:#53300b; font:1000 11px system-ui,sans-serif; letter-spacing:.8px; text-shadow:0 1px 0 #fff8d6; box-shadow:0 4px 0 #a85e1d,0 0 18px #ffc64b55; }
+      #memory-board[data-game="clicker"] .cl-core-wrap { position:relative; display:flex; align-items:center; justify-content:center; width:100%; min-height:174px; }
+      #memory-board[data-game="clicker"] .cl-core { z-index:1; position:relative; display:grid; place-items:center; width:190px; height:164px; padding:0; border:2px solid #65eaff; border-radius:30px; outline:0; background:radial-gradient(ellipse at 50% 30%,#427ed1 0%,#244b91 68%,#172c5e 100%); box-shadow:0 7px 0 #10224e,0 0 0 5px #64eaff20,0 0 28px #42dfff70,inset 0 2px 0 #ffffff55; cursor:pointer; touch-action:manipulation; filter:drop-shadow(0 10px 9px #05091b88); transition:transform .12s ease,filter .12s ease,box-shadow .12s ease; animation:clbuttonpulse 1.8s ease-in-out infinite; }
+      #memory-board[data-game="clicker"] .cl-core:hover { transform:translateY(-3px) scale(1.025); filter:drop-shadow(0 13px 13px #05091baa); box-shadow:0 10px 0 #10224e,0 0 0 6px #64eaff30,0 0 36px #42dfffaa,inset 0 2px 0 #ffffff66; }
+      #memory-board[data-game="clicker"] .cl-core:active { transform:scale(.92) translateY(3px); box-shadow:0 2px 0 #10224e,0 0 26px #ffe276aa,inset 0 2px 0 #ffffff66; animation:none; }
+      #memory-board[data-game="clicker"] .cl-core:focus-visible { outline:3px solid #fff2a0; outline-offset:5px; }
+      #memory-board[data-game="clicker"] .cl-tap-hint { position:absolute; z-index:3; right:calc(50% - 142px); top:18px; display:flex; align-items:center; gap:4px; padding:7px 10px; border:2px solid #fff0a3; border-radius:12px; background:linear-gradient(135deg,#ffdd63,#ff9d32); color:#48280c; font:1000 11px system-ui,sans-serif; box-shadow:0 4px 0 #9e5219,0 0 16px #ffcf4d88; pointer-events:none; animation:clhintbounce 1s ease-in-out infinite; }
+      #memory-board[data-game="clicker"] .cl-core-foot { margin-top:7px; color:#c9dcff; font:800 10px system-ui,sans-serif; letter-spacing:.6px; }
+      @keyframes clbuttonpulse { 0%,100%{box-shadow:0 7px 0 #10224e,0 0 0 4px #64eaff18,0 0 20px #42dfff55,inset 0 2px 0 #ffffff55} 50%{box-shadow:0 7px 0 #10224e,0 0 0 8px #64eaff08,0 0 34px #42dfff99,inset 0 2px 0 #ffffff70} }
+      @keyframes clhintbounce { 0%,100%{transform:translateY(0) rotate(2deg)} 50%{transform:translateY(-6px) rotate(-2deg)} }
+      #memory-board[data-game="clicker"] .cl-mascot { width:100%; height:100%; overflow:visible; animation:clbob 2.2s ease-in-out infinite; transform-origin:50% 70%; }
+      #memory-board[data-game="clicker"] .cl-core:active .cl-mascot { animation:none; }
+      #memory-board[data-game="clicker"] .cl-eye { transform-box:fill-box; transform-origin:center; animation:clblink 4.8s infinite; }
+      #memory-board[data-game="clicker"] .cl-arm-l { transform-box:fill-box; transform-origin:90% 20%; animation:clwave 1.8s ease-in-out infinite; }
+      #memory-board[data-game="clicker"] .cl-arm-r { transform-box:fill-box; transform-origin:10% 20%; animation:clwave 1.8s ease-in-out -.9s infinite; }
+      #memory-board[data-game="clicker"] .cl-spark { animation:clspark 2.2s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
+      @keyframes clbob { 0%,100%{transform:translateY(0) rotate(-1deg)} 50%{transform:translateY(-7px) rotate(1deg)} }
+      @keyframes clblink { 0%,45%,49%,100%{transform:scaleY(1)} 47%{transform:scaleY(.12)} }
+      @keyframes clwave { 0%,100%{transform:rotate(0)} 50%{transform:rotate(-8deg)} }
+      @keyframes clspark { 0%,100%{opacity:.55;transform:scale(.8)} 50%{opacity:1;transform:scale(1.2)} }
+      #memory-board[data-game="clicker"] .cl-float { position:absolute; z-index:4; top:15%; pointer-events:none; font:1000 19px system-ui,sans-serif; color:#ffe889; text-shadow:0 2px 0 #563d17,0 0 12px #ffca47; animation:clfloat .85s ease-out forwards; }
+      @keyframes clfloat { to { transform:translateY(-68px) scale(1.12); opacity:0; } }
+      #memory-board[data-game="clicker"] .cl-banner { display:none; margin:7px 0; padding:10px 12px; border-radius:13px; font:800 12px system-ui,sans-serif; text-align:center; }
+      #memory-board[data-game="clicker"] .cl-frenzy { background:linear-gradient(90deg,#622e42,#8a431e); border:1px solid #ff985e; color:#ffe1b9; box-shadow:0 0 15px #ff713522; }
+      #memory-board[data-game="clicker"] .cl-toast { background:#113e46; border:1px solid #45d6b3; color:#b3ffe8; }
+      #memory-board[data-game="clicker"] .cl-daily { display:none; width:100%; margin:7px 0; padding:12px; border-radius:14px; border:1px solid #e4b951; background:linear-gradient(100deg,#5b4422,#302a49); color:#ffe69a; font:900 12px system-ui,sans-serif; box-shadow:0 5px 13px #070b1d; }
+      #memory-board[data-game="clicker"] .cl-qty { display:flex; gap:6px; justify-content:space-between; margin:7px 0 12px; padding:5px; border:1px solid #303e70; border-radius:13px; background:#101a36; }
+      #memory-board[data-game="clicker"] .cl-qty button { flex:1; padding:8px 4px; border-radius:9px; border:1px solid transparent; background:transparent; color:#aab7e7; font:900 11px system-ui,sans-serif; }
+      #memory-board[data-game="clicker"] .cl-qty button.on { border-color:#57d8ff; color:#fff; background:linear-gradient(135deg,#27639b,#35439a); box-shadow:0 0 12px #3caaff35; }
+      #memory-board[data-game="clicker"] .cl-section { margin:14px 0 7px; display:flex; align-items:center; gap:8px; color:#b5c7ff; font:1000 11px system-ui,sans-serif; letter-spacing:2px; }
+      #memory-board[data-game="clicker"] .cl-section:after { content:""; height:1px; flex:1; background:linear-gradient(90deg,#5368ae55,transparent); }
+      #memory-board[data-game="clicker"] .cl-row { position:relative; display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:10px; margin-bottom:7px; border-radius:14px; border:1px solid #34436f; background:linear-gradient(110deg,#1a2548,#151e3a); color:#fff; box-shadow:0 4px 10px #05091a65,inset 0 1px 0 #ffffff0b; transition:transform .12s,border-color .12s,background .12s; }
+      #memory-board[data-game="clicker"] .cl-row:active { transform:scale(.985); }
+      #memory-board[data-game="clicker"] .cl-row.can { border-color:#48c9c1; background:linear-gradient(110deg,#173c54,#1b3150); box-shadow:0 0 13px #34d2ce17,inset 0 1px 0 #ffffff13; }
+      #memory-board[data-game="clicker"] .cl-row.no { opacity:.72; }
+      #memory-board[data-game="clicker"] .cl-ico { display:grid; place-items:center; font-size:25px; width:42px; height:42px; border-radius:12px; flex:none; background:linear-gradient(145deg,#344a82,#202c57); border:1px solid #556ba4; box-shadow:inset 0 1px 0 #ffffff20; }
+      #memory-board[data-game="clicker"] .cl-info { flex:1; min-width:0; }
+      #memory-board[data-game="clicker"] .cl-name { font:900 13px system-ui,sans-serif; color:#f2f5ff; }
+      #memory-board[data-game="clicker"] .cl-sub { margin-top:3px; font:600 10px/1.35 system-ui,sans-serif; color:#9eadd7; }
+      #memory-board[data-game="clicker"] .cl-cost { font:1000 12px system-ui,sans-serif; color:#ffdf83; white-space:nowrap; }
+      #memory-board[data-game="clicker"] .cl-end { width:100%; margin-top:15px; padding:12px; border-radius:13px; border:1px solid #bd5975; background:linear-gradient(100deg,#542842,#342241); color:#ffc4d3; font:900 11px system-ui,sans-serif; letter-spacing:.5px; }
+      @media (max-width:420px) { #memory-board[data-game="clicker"] .cl-core { width:164px;height:145px } #memory-board[data-game="clicker"] .cl-wallet { padding:12px } #memory-board[data-game="clicker"] .cl-name {font-size:12px} }
+      @media (prefers-reduced-motion: reduce) { #memory-board[data-game="clicker"] .cl-mascot,#memory-board[data-game="clicker"] .cl-eye,#memory-board[data-game="clicker"] .cl-arm-l,#memory-board[data-game="clicker"] .cl-arm-r,#memory-board[data-game="clicker"] .cl-spark,#memory-board[data-game="clicker"] .cl-core,#memory-board[data-game="clicker"] .cl-tap-hint { animation:none; } }
     </style>
 
-    <div class="cl-head">
-      <div class="cl-coins" id="cl-coins">0</div>
-      <div class="cl-cps" id="cl-cps"></div>
+    <div class="cl-shell">
+      <div class="cl-topline">
+        <div class="cl-brand"><span class="cl-brand-icon">⛏️</span><div><b>CYBER MINER</b><small>GALAXY CLICKER</small></div></div>
+        <span class="cl-level">✦ MINER EN CHEF</span>
+      </div>
+
+      <div class="cl-wallet">
+        <div><div class="cl-wallet-label">TES CRÉDITS</div><div class="cl-coins" id="cl-coins">0</div><div class="cl-cps" id="cl-cps">0 pièce / seconde</div></div>
+        <div class="cl-wallet-gem">💎</div>
+      </div>
+
+      <div class="cl-core-panel">
+        <div class="cl-core-label cl-core-title">👆 CLIQUE SUR LE ROBOT POUR MINER</div>
+        <div class="cl-core-wrap">
+          <div class="cl-tap-hint">CLIQUE !</div>
+          <button class="cl-core" id="cl-core" type="button" title="Clique ici pour gagner des crédits" aria-label="Cliquer sur le robot pour gagner des crédits">
+            <svg class="cl-mascot" viewBox="0 0 220 190" role="img" aria-label="Petit robot mineur" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="clBotBody" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset=".55" stop-color="#d8e8ff"/><stop offset="1" stop-color="#829fd8"/></linearGradient>
+                <linearGradient id="clBotBlue" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#69efff"/><stop offset="1" stop-color="#2784dc"/></linearGradient>
+                <linearGradient id="clBotGold" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffe999"/><stop offset="1" stop-color="#f3a52e"/></linearGradient>
+              </defs>
+              <g class="cl-spark" fill="#9ff6ff"><path d="M28 48l5 12 12 5-12 5-5 12-5-12-12-5 12-5z"/><circle cx="190" cy="63" r="4"/><path d="M178 125l4 9 9 4-9 4-4 9-4-9-9-4 9-4z"/></g>
+              <ellipse cx="110" cy="169" rx="65" ry="10" fill="#07142f" opacity=".5"/>
+              <g class="cl-arm-l"><path d="M57 108Q32 117 29 139" fill="none" stroke="#263d78" stroke-width="21" stroke-linecap="round"/><path d="M57 108Q32 117 29 139" fill="none" stroke="url(#clBotBody)" stroke-width="14" stroke-linecap="round"/><circle cx="27" cy="144" r="12" fill="#eaf4ff" stroke="#4765a6" stroke-width="4"/></g>
+              <g class="cl-arm-r"><path d="M161 106Q188 114 191 136" fill="none" stroke="#263d78" stroke-width="21" stroke-linecap="round"/><path d="M161 106Q188 114 191 136" fill="none" stroke="url(#clBotBody)" stroke-width="14" stroke-linecap="round"/><circle cx="193" cy="141" r="12" fill="#eaf4ff" stroke="#4765a6" stroke-width="4"/></g>
+              <path d="M80 139l-7 22q-2 8 8 8h22l6-24zM129 145l7 20q3 7 11 4l18-8-11-22z" fill="#405a9a"/>
+              <path d="M85 143l-4 18h19l5-18zM137 146l6 16 15-6-8-15z" fill="url(#clBotBlue)"/>
+              <rect x="51" y="53" width="118" height="99" rx="31" fill="#26396f" stroke="#101d49" stroke-width="7"/>
+              <rect x="57" y="49" width="106" height="94" rx="28" fill="url(#clBotBody)" stroke="#f8fbff" stroke-width="3"/>
+              <path d="M67 72Q110 45 153 72" fill="none" stroke="#fff" stroke-width="7" opacity=".65" stroke-linecap="round"/>
+              <rect x="70" y="78" width="80" height="43" rx="19" fill="#18284e" stroke="#607bb8" stroke-width="3"/>
+              <g class="cl-eye"><ellipse cx="93" cy="98" rx="8" ry="11" fill="#7bf4ff"/><ellipse cx="127" cy="98" rx="8" ry="11" fill="#7bf4ff"/><circle cx="95" cy="95" r="3" fill="#fff"/><circle cx="129" cy="95" r="3" fill="#fff"/></g>
+              <path d="M99 111q11 9 22 0" fill="none" stroke="#6c91c9" stroke-width="3" stroke-linecap="round"/>
+              <rect x="94" y="130" width="32" height="14" rx="7" fill="#253d7b"/><path d="M102 132h16l-8 9z" fill="url(#clBotBlue)"/>
+              <path d="M108 48V32" stroke="#d9eaff" stroke-width="6" stroke-linecap="round"/><circle cx="108" cy="25" r="10" fill="#ffcb65" stroke="#fff0b8" stroke-width="3"/>
+              <path d="M47 79q-14-14-8-29 13-7 22 4M173 78q14-14 8-29-13-7-22 4" fill="#6ddff7" stroke="#d7f7ff" stroke-width="4"/>
+              <g transform="translate(153 17) rotate(28)"><path d="M0 7h48" stroke="#b4c9e8" stroke-width="7" stroke-linecap="round"/><path d="M40 -7l17 14-17 14" fill="none" stroke="#ffd06b" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 -3l12 10-12 10" fill="none" stroke="#fff0b6" stroke-width="3" stroke-linecap="round"/></g>
+            </svg>
+          </button>
+        </div>
+        <div class="cl-core-label cl-core-foot">Chaque clic te rapporte des crédits • ESPACE / ENTRÉE</div>
+      </div>
+
+      <div class="cl-banner cl-frenzy" id="cl-frenzy"></div>
+      <div class="cl-banner cl-toast" id="cl-toast"></div>
+      <button class="cl-daily" id="cl-daily"></button>
+
+      <div class="cl-qty" id="cl-qty">
+        <button data-q="1" class="on">×1</button><button data-q="10">×10</button><button data-q="100">×100</button><button data-q="0">MAX</button>
+      </div>
+
+      <div class="cl-section">⚡ AMÉLIORER TON CLIC</div>
+      <button class="cl-row" id="cl-clickup"></button>
+
+      <div class="cl-section">🛠️ TES GÉNÉRATEURS</div>
+      <div id="cl-gens"></div>
+
+      <div class="cl-section">✨ TECHNOLOGIES À DÉBLOQUER</div>
+      <div id="cl-upgs"></div>
+
+      <div class="cl-section">🚀 OVERCLOCK</div>
+      <div id="cl-prestige"></div>
+
+      <button class="cl-end" id="cl-end">TERMINER LA SESSION ET ENREGISTRER MON SCORE</button>
     </div>
-
-    <div class="cl-core-wrap">
-      <button class="cl-core" id="cl-core" aria-label="Miner">⚡</button>
-    </div>
-
-    <div class="cl-banner cl-frenzy" id="cl-frenzy"></div>
-    <div class="cl-banner cl-toast" id="cl-toast"></div>
-    <button class="cl-daily" id="cl-daily"></button>
-
-    <div class="cl-qty" id="cl-qty">
-      <button data-q="1" class="on">×1</button><button data-q="10">×10</button><button data-q="100">×100</button><button data-q="0">MAX</button>
-    </div>
-
-    <div class="cl-h">CLIC</div>
-    <button class="cl-row" id="cl-clickup"></button>
-
-    <div class="cl-h">GÉNÉRATEURS</div>
-    <div id="cl-gens"></div>
-
-    <div class="cl-h">AMÉLIORATIONS</div>
-    <div id="cl-upgs"></div>
-
-    <div class="cl-h">OVERCLOCK</div>
-    <div id="cl-prestige"></div>
-
-    <button class="cl-end" id="cl-end">TERMINER LA SESSION ET ENREGISTRER MON SCORE</button>
   `;
 
   const $ = id => board.querySelector('#' + id);
