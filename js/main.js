@@ -168,6 +168,18 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.mi
 // REGISTRE DES JEUX ET CATÉGORIES
 // ============================================================
 const GAMES_REGISTRY = {
+  Ballsort: {
+    title: 'Ballsort',
+    badge: 'Puzzle',
+    category: 'reflexion',
+    desc: 'Range les balles par couleurs dans les tubes. Attention, tu ne peux déplacer qu\'une seule balle à la fois !',
+    script: 'js/games/ballsort.js',
+    initFn: 'startBallSort',
+    controls: '💡 Clic : déplacer une balle | R : recommencer',
+    needs3D: false,
+    disabled: false,
+    isNew: true
+  },
   morpion: {
     title: 'MORPION',
     badge: 'MULTIJOUEUR',
