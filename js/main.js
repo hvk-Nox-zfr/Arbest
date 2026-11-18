@@ -168,6 +168,18 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.mi
 // REGISTRE DES JEUX ET CATÉGORIES
 // ============================================================
 const GAMES_REGISTRY = {
+  Ferme: {
+    title: 'Ferme tycoon',
+    badge: '3D',
+    category: 'tycoon',
+    desc: 'Gère ta ferme et cultive tes récoltes !',
+    script: 'js/games/ferme.js',
+    initFn: 'startFermeTycoon',
+    controls: '💡 ZQSD : bouger | Souris : regarder | Maj : courir | E : interagir | Espace : utiliser un objet / sauter',
+    needs3D: false,
+    disabled: false,
+    isNew: true
+  },
   Ballsort: {
     title: 'Ballsort',
     badge: 'Puzzle',
