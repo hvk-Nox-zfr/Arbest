@@ -212,7 +212,7 @@
         pos = 0;
         document.body.classList.add('rainbow-mode');
         var t = document.createElement('div');
-        t.className = 'fx-toast'; t.textContent = '🌈 MODE SECRET DÉBLOQUÉ !';
+        t.className = 'fx-toast'; t.textContent = 'Mode secret débloqué';
         document.body.appendChild(t);
         setTimeout(function () { t.remove(); }, 3000);
         setTimeout(function () { document.body.classList.remove('rainbow-mode'); }, 12000);

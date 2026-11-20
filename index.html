@@ -18,9 +18,11 @@
     <link rel="shortcut icon" href="/favicon.png" type="image/x-icon">
   
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="hub-plus.css?v=2">
+  <link rel="stylesheet" href="theme.css?v=2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Figtree:wght@500;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
   <script>
     // Essaie les formats de logo un par un (png, webp, svg, jpg)
     function logoFallback(img) {
@@ -62,16 +64,16 @@
 
     <div class="header-right">
       <button onclick="window.location.href='https://docs.google.com'" class="btn-stealth" title="Redirection d'urgence (Shift+Echap)">
-        <span class="btn-icon">📄</span> DOCS
+        <span class="btn-icon"></span> DOCS
       </button>
 
       <!-- Bouton Son Corrigé -->
       <button id="sound-toggle" class="btn-neon sm">
-        <span id="sound-icon">🔊</span> SON: ON
+        <span id="sound-icon"></span> Son activé
       </button>
 
       <div class="stat-badge">
-        <span class="badge-label">SCORE TOTAL</span>
+        <span class="badge-label">Score total</span>
         <span id="total-score" class="badge-value">0</span>
       </div>
     </div>
@@ -80,9 +82,9 @@
   <main>
     <section id="hub-view" class="view active">
       <div class="hero">
-        <div class="hero-badge">SYSTEM STATUS: ONLINE</div>
-        <h1 class="glitch-title" data-text="ARCADE SYSTEM 2.0">ARCADE SYSTEM 2.0</h1>
-        <p class="subtitle">Sélectionnez votre simulation interactive et pulvérisez les records du serveur</p>
+        <div class="stage" id="stage" aria-hidden="true"><div class="scene" id="scene"></div></div>
+        <h1 class="hero-title">Des jeux gratuits,<br>direct dans ton navigateur.</h1>
+        <p class="lede">Choisis un jeu, bats ton record, reviens demain pour le défi du jour.</p>
 
         <div class="hero-stats">
           <div class="hero-stat"><strong data-stat="games" data-count="0">0</strong><span>JEUX</span></div>
@@ -99,7 +101,7 @@
             <input type="text" id="game-search" placeholder="Rechercher un jeu..." oninput="filterGames()">
           </div>
 
-          <button id="random-game" class="btn-neon random-btn" type="button">🎲 SURPRENDS-MOI</button>
+          <button id="random-game" class="btn-neon random-btn" type="button">Surprends-moi</button>
 
           <div class="category-filters">
             <button class="filter-btn active" data-cat="all" onclick="setFilter('all', this)">TOUS</button>
@@ -121,7 +123,7 @@
     <section id="game-view" class="view">
       <div class="game-header-bar">
         <button onclick="closeGame()" class="btn-neon sm btn-back">
-          ⬅ RETOUR HUB
+          Retour
         </button>
         <div class="game-title-container">
           <h2 id="game-title">TITRE DU JEU</h2>
@@ -139,7 +141,7 @@
 
         <div id="game-overlay" class="overlay hidden">
           <div class="overlay-card">
-            <div class="glitch-icon">⚡</div>
+            <div class="glitch-icon"></div>
             <h2 id="overlay-title">SYSTEM FAILURE</h2>
             <div class="final-score-box">
               <span>SCORE FINAL</span>
@@ -151,9 +153,9 @@
       </div>
 
       <div class="controls-card">
-        <div class="controls-icon">🎮</div>
+        <div class="controls-icon"></div>
         <div class="controls-hint" id="controls-hint">
-          💡 CONTRÔLES : Utiliser le clavier / souris pour interagir
+          Utiliser le clavier / souris pour interagir
         </div>
       </div>
     </section>
@@ -171,7 +173,9 @@
   </footer>
 
   <script src="mobile.js"></script>
-  <script src="js/main.js"></script>
+  <script src="js/main.js?v=2"></script>
+  <script src="js/hub-plus.js?v=2"></script>
+  <script src="js/theme3d.js?v=1"></script>
   <script src="js/effects.js"></script>
 </body>
 </html>

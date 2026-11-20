@@ -15,7 +15,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'Rajdhani', sans-serif;
+  font-family: 'Figtree', sans-serif;
 }
 
 body {
@@ -118,7 +118,7 @@ body {
 }
 
 .logo-text {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-weight: 900;
   font-size: 1.4rem;
   letter-spacing: 2px;
@@ -142,7 +142,7 @@ body {
   color: var(--neon-cyan);
   border: 1px solid var(--neon-cyan);
   padding: 0.7rem 1.4rem;
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
@@ -210,7 +210,7 @@ body {
 }
 
 .badge-value {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   color: var(--neon-yellow);
   font-size: 1rem;
   font-weight: 800;
@@ -248,7 +248,7 @@ main {
   background: rgba(0, 255, 136, 0.1);
   border: 1px solid var(--neon-green);
   color: var(--neon-green);
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 0.65rem;
   font-weight: 700;
   padding: 0.3rem 0.8rem;
@@ -258,7 +258,7 @@ main {
 }
 
 .glitch-title {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 2.8rem;
   font-weight: 900;
   color: #fff;
@@ -331,7 +331,7 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-muted);
   padding: 0.5rem 1.1rem;
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 0.65rem;
   font-weight: 700;
   border-radius: 20px;
@@ -399,7 +399,7 @@ main {
   position: absolute;
   top: 1.2rem;
   right: 1.2rem;
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 0.55rem;
   font-weight: 800;
   background: rgba(161, 0, 255, 0.2);
@@ -411,7 +411,7 @@ main {
 }
 
 .game-card h3 {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 1.15rem;
   font-weight: 800;
   color: var(--neon-cyan);
@@ -436,7 +436,7 @@ main {
 }
 
 .hs-tag {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 0.7rem;
   font-weight: 700;
   color: var(--neon-yellow);
@@ -473,7 +473,7 @@ main {
 }
 
 .game-title-container h2 {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   color: var(--neon-cyan);
   font-size: 1.3rem;
   font-weight: 800;
@@ -481,7 +481,7 @@ main {
 }
 
 .current-badge {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 0.6rem;
   background: rgba(0, 243, 255, 0.15);
   border: 1px solid var(--neon-cyan);
@@ -569,7 +569,7 @@ canvas {
 }
 
 .overlay-card h2 {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   color: var(--neon-pink);
   font-size: 1.6rem;
   letter-spacing: 2px;
@@ -579,7 +579,7 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
 }
 
 .final-score-box span {
@@ -722,7 +722,7 @@ body.in-game .cursor-orb { display: none; }
   position: absolute;
   top: 1.2rem;
   left: 1.2rem;
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 0.55rem;
   font-weight: 800;
   background: rgba(0, 255, 136, 0.2);
@@ -781,7 +781,7 @@ body.in-game .cursor-orb { display: none; }
     linear-gradient(135deg, #0b0b24, #1a0a30);
 }
 .thumb-icon { font-size: 2.8rem; filter: drop-shadow(0 0 12px var(--neon-cyan)); }
-.thumb-name { font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; }
+.thumb-name { font-family: 'Unbounded', sans-serif; font-size: 0.75rem; font-weight: 800; letter-spacing: 2px; color: rgba(255, 255, 255, 0.7); text-transform: uppercase; }
 
 .thumb-shade {
   position: absolute;
@@ -828,7 +828,7 @@ body.in-game .cursor-orb { display: none; }
 
 .card-meta { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.2rem; }
 .cat-chip, .record-chip {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Unbounded', sans-serif;
   font-size: 0.55rem;
   font-weight: 700;
   letter-spacing: 1px;
@@ -905,11 +905,11 @@ body.in-game .cursor-orb { display: none; }
 .boot-screen.out { opacity: 0; transform: scale(1.08); pointer-events: none; }
 .boot-inner { display: flex; flex-direction: column; align-items: center; gap: 1.2rem; padding: 1rem; text-align: center; }
 .boot-logo { max-height: 90px; max-width: 70vw; object-fit: contain; filter: drop-shadow(0 0 18px var(--neon-cyan)); animation: bootPop 0.7s cubic-bezier(.175,.885,.32,1.275) both; }
-.boot-title { font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: clamp(1.6rem, 6vw, 3rem); letter-spacing: 4px; color: #fff; text-shadow: 0 0 20px rgba(0,243,255,.6); animation: bootPop 0.7s 0.1s cubic-bezier(.175,.885,.32,1.275) both; }
+.boot-title { font-family: 'Unbounded', sans-serif; font-weight: 900; font-size: clamp(1.6rem, 6vw, 3rem); letter-spacing: 4px; color: #fff; text-shadow: 0 0 20px rgba(0,243,255,.6); animation: bootPop 0.7s 0.1s cubic-bezier(.175,.885,.32,1.275) both; }
 .boot-title span { color: var(--neon-pink); text-shadow: 0 0 20px var(--neon-pink); }
 .boot-bar { width: min(280px, 70vw); height: 6px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
 .boot-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink)); box-shadow: 0 0 14px var(--neon-cyan); animation: bootLoad 1.3s 0.2s ease-out forwards; }
-.boot-coin { font-family: 'Orbitron', sans-serif; font-size: 0.75rem; letter-spacing: 4px; color: var(--neon-yellow); text-shadow: 0 0 10px var(--neon-yellow); animation: coinBlink 0.8s steps(2) infinite; }
+.boot-coin { font-family: 'Unbounded', sans-serif; font-size: 0.75rem; letter-spacing: 4px; color: var(--neon-yellow); text-shadow: 0 0 10px var(--neon-yellow); animation: coinBlink 0.8s steps(2) infinite; }
 @keyframes bootLoad { to { width: 100%; } }
 @keyframes bootPop { from { opacity: 0; transform: scale(0.7) translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes coinBlink { 50% { opacity: 0.15; } }
@@ -952,7 +952,7 @@ body.in-game .fx-particles { display: none; }
   display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
   box-shadow: 0 0 18px rgba(0,243,255,.08);
 }
-.hero-stat strong { font-family: 'Orbitron', sans-serif; font-size: 1.6rem; font-weight: 900; color: var(--neon-cyan); text-shadow: 0 0 12px var(--neon-cyan); }
+.hero-stat strong { font-family: 'Unbounded', sans-serif; font-size: 1.6rem; font-weight: 900; color: var(--neon-cyan); text-shadow: 0 0 12px var(--neon-cyan); }
 .hero-stat span { font-size: 0.65rem; font-weight: 700; letter-spacing: 2px; color: var(--text-muted); }
 
 /* Bouton aléatoire */
@@ -989,7 +989,7 @@ body.rainbow-mode { animation: rainbowHue 3s linear infinite; }
   position: fixed; left: 50%; top: 90px; transform: translateX(-50%); z-index: 9999998;
   padding: 0.8rem 1.4rem; border-radius: 10px; border: 1px solid var(--neon-yellow);
   background: rgba(10,10,30,.95); color: var(--neon-yellow);
-  font-family: 'Orbitron', sans-serif; font-size: 0.8rem; font-weight: 800; letter-spacing: 2px;
+  font-family: 'Unbounded', sans-serif; font-size: 0.8rem; font-weight: 800; letter-spacing: 2px;
   box-shadow: 0 0 25px rgba(255,230,0,.4); animation: bootPop 0.5s both;
 }
 

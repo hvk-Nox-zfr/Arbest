@@ -168,6 +168,18 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.mi
 // REGISTRE DES JEUX ET CATÉGORIES
 // ============================================================
 const GAMES_REGISTRY = {
+  Giragame: {
+    title: 'Gira Game',
+    badge: '2D',
+    category: 'record',
+    desc: 'Va le plus loin possible avec la girafe !',
+    script: 'js/games/giragame.js',
+    initFn: 'startGirafe',
+    controls: 'Clic / Espace : sauter | Flèches : bouger',
+    needs3D: false,
+    disabled: false,
+    isNew: true
+  },
   Ferme: {
     title: 'Ferme tycoon',
     badge: '3D',
@@ -175,7 +187,7 @@ const GAMES_REGISTRY = {
     desc: 'Gère ta ferme et cultive tes récoltes !',
     script: 'js/games/ferme.js',
     initFn: 'startFermeTycoon',
-    controls: '💡 ZQSD : bouger | Souris : regarder | Maj : courir | E : interagir | Espace : utiliser un objet / sauter',
+    controls: 'ZQSD : bouger | Souris : regarder | Maj : courir | E : interagir | Espace : utiliser un objet / sauter',
     needs3D: false,
     disabled: false,
     isNew: true
@@ -187,7 +199,7 @@ const GAMES_REGISTRY = {
     desc: 'Range les balles par couleurs dans les tubes. Attention, tu ne peux déplacer qu\'une seule balle à la fois !',
     script: 'js/games/ballsort.js',
     initFn: 'startBallSort',
-    controls: '💡 Clic : déplacer une balle | R : recommencer',
+    controls: 'Clic : déplacer une balle | R : recommencer',
     needs3D: false,
     disabled: false,
     isNew: true
@@ -199,7 +211,7 @@ const GAMES_REGISTRY = {
     desc: 'Défiez un bot avec trois difficultés, un ami sur le même PC ou jouez en ligne avec un code.',
     script: 'js/games/morpion.js',
     initFn: 'startMorpionGame',
-    controls: '💡 Clic : placer votre symbole | En ligne : échangez les codes de connexion',
+    controls: 'Clic : placer votre symbole | En ligne : échangez les codes de connexion',
     needs3D: false,
     disabled: false,
     isNew: true
@@ -211,7 +223,7 @@ const GAMES_REGISTRY = {
   desc: 'Fait les quêtes sans te faire attraper sauras-tu t\'en sortir ?',
   script: 'js/games/horreur.js',
   initFn: 'startHorreurGame',
-  controls: '💡 ZQSD : bouger | Souris : regarder | Maj : courir | F : lampe | E : se cacher',
+  controls: 'ZQSD : bouger | Souris : regarder | Maj : courir | F : lampe | E : se cacher',
   needs3D: false,
   disabled: false,
   isNew: true
@@ -223,7 +235,7 @@ const GAMES_REGISTRY = {
   desc: 'Coupe les cheveux, rate-les si tu veux, gagne de l\'argent et améliore ton matériel !',
   script: 'js/games/barber.js',
   initFn: 'startBarber',
-  controls: '💡 Clic / doigt maintenu : couper | Boutique : acheter du matériel | 1-2-3 : outils',
+  controls: 'Clic / doigt maintenu : couper | Boutique : acheter du matériel | 1-2-3 : outils',
   needs3D: false,
   disabled: false,
   isNew: true
@@ -295,7 +307,7 @@ const GAMES_REGISTRY = {
     desc: "Piégé dans un asile abandonné, trouve 5 fusibles pour rouvrir la sortie… sans que ELLE ne t'entende.",
     script: 'js/games/horror.js',
     initFn: 'startHorrorGame',
-    controls: "💡 ZQSD : bouger | Souris : regarder | Maj : courir | F : lampe | E : se cacher",
+    controls: "ZQSD : bouger | Souris : regarder | Maj : courir | F : lampe | E : se cacher",
     needs3D: true
   },
   gta: {
@@ -305,7 +317,7 @@ const GAMES_REGISTRY = {
     desc: 'Ville ouverte : conduis, braque la banque, fuis la police et deviens le roi de la ville.',
     script: 'js/games/gta.js',
     initFn: 'startGTAGame',
-    controls: '💡 ZQSD : bouger/conduire | Souris : caméra | Clic : tirer | E : monter | Espace : sauter',
+    controls: 'ZQSD : bouger/conduire | Souris : caméra | Clic : tirer | E : monter | Espace : sauter',
     needs3D: true,
     disabled: false,
     isNew: true
@@ -317,7 +329,7 @@ const GAMES_REGISTRY = {
     desc: 'Cours au-dessus de la ville, esquive, vole en jetpack et traverse le jour et la nuit.',
     script: 'js/games/skyline.js',
     initFn: 'startSkylineGame',
-    controls: '💡 Glisse (ou flèches / ZQSD) : changer de voie, sauter, glisser',
+    controls: 'Glisse (ou flèches / ZQSD) : changer de voie, sauter, glisser',
     needs3D: true
   },
   snake: {
@@ -327,7 +339,7 @@ const GAMES_REGISTRY = {
     desc: "Dévorez les orbes d'énergie et survivez dans la matrice.",
     script: 'js/games/snake.js',
     initFn: 'startSnakeGame',
-    controls: '💡 Flèches : Déplacement'
+    controls: 'Flèches : Déplacement'
   },
   pong: {
     title: 'PLOUF PONG',
@@ -336,7 +348,7 @@ const GAMES_REGISTRY = {
     desc: 'Un duel laser à haute vitesse contre le processeur central.',
     script: 'js/games/pong.js',
     initFn: 'startPongGame',
-    controls: '💡 Flèches Haut/Bas : Déplacer raquette'
+    controls: 'Flèches Haut/Bas : Déplacer raquette'
   },
   memory: {
     title: 'MEMORY',
@@ -345,7 +357,7 @@ const GAMES_REGISTRY = {
     desc: 'Synchronisez votre mémoire quantique pour retrouver les paires.',
     script: 'js/games/memory.js',
     initFn: 'startMemoryGame',
-    controls: '💡 Clic : Retourner les cartes'
+    controls: 'Clic : Retourner les cartes'
   },
   tetris: {
     title: 'TETRIS DE LA HESS',
@@ -354,7 +366,7 @@ const GAMES_REGISTRY = {
     desc: 'Empilez les blocs d\'énergie avant la surchauffe.',
     script: 'js/games/tetris.js',
     initFn: 'startTetrisGame',
-    controls: '💡 Flèches : Déplacer / Bas : Accélérer / Haut : Tourner'
+    controls: 'Flèches : Déplacer / Bas : Accélérer / Haut : Tourner'
   },
   space: {
     title: 'STAR WOUARS',
@@ -363,7 +375,7 @@ const GAMES_REGISTRY = {
     desc: 'Repoussez l\'invasion extraterrestre du secteur binaire.',
     script: 'js/games/space-invaders.js',
     initFn: 'startSpaceGame',
-    controls: '💡 Flèches Gauche/Droite : Déplacer | Espace : Tirer'
+    controls: 'Flèches Gauche/Droite : Déplacer | Espace : Tirer'
   },
   runner: {
     title: 'BLOCK DOUSK',
@@ -372,7 +384,7 @@ const GAMES_REGISTRY = {
     desc: 'Fuyez la purge en esquivant les obstacles holographiques.',
     script: 'js/games/runner.js',
     initFn: 'startRunnerGame',
-    controls: '💡 Espace / Flèche Haut : Sauter'
+    controls: 'Espace / Flèche Haut : Sauter'
   },
   cybercraft: {
     title: 'MANECROUTE',
@@ -381,7 +393,7 @@ const GAMES_REGISTRY = {
     desc: 'Mine, construis et fabrique dans un monde 3D !',
     script: 'js/games/cybercraft.js',
     initFn: 'startCybercraftGame',
-    controls: '💡 ZQSD / joystick : bouger · Clic gauche : casser · Clic droit : poser · E : menu & crafts',
+    controls: 'ZQSD / joystick : bouger · Clic gauche : casser · Clic droit : poser · E : menu & crafts',
     disabled: false,
     needs3D: true,
     isNew: false
@@ -393,7 +405,7 @@ const GAMES_REGISTRY = {
     desc: 'Affrontez l\'IA de la matrice dans un duel d\'échecs tactique.',
     script: 'js/games/chess.js',
     initFn: 'startChessGame',
-    controls: '💡 Clic : Sélectionner et déplacer les pièces',
+    controls: 'Clic : Sélectionner et déplacer les pièces',
     isNew: true
   },
   worm: {
@@ -403,7 +415,7 @@ const GAMES_REGISTRY = {
     desc: 'Affrontez les autres joueurs dans une arène et ne vous faites pas manger.',
     script: 'js/games/worm.js',
     initFn: 'startWormGame',
-    controls: '💡 Souris : Déplacez-vous avec la souris'
+    controls: 'Souris : Déplacez-vous avec la souris'
   },
   moto: {
     title: 'MOTO X3M NEON',
@@ -412,7 +424,7 @@ const GAMES_REGISTRY = {
     desc: 'Domptez les rampes néon, réalisez des flips et franchissez l\'arrivée.',
     script: 'js/games/moto.js',
     initFn: 'startMotoGame',
-    controls: '💡 Z / ↑ : Gaz | S / ↓ : Frein | Q-D / ← → : Pencher | R : Recommencer'
+    controls: 'Z / ↑ : Gaz | S / ↓ : Frein | Q-D / ← → : Pencher | R : Recommencer'
   },
   flappy: {
     title: 'FLAPPY POULET',
@@ -421,7 +433,7 @@ const GAMES_REGISTRY = {
     desc: 'Guidez le poulet cosmique à travers les tuyaux sans heurter les obstacles !',
     script: 'js/games/flappy.js',
     initFn: 'startFlappyGame',
-    controls: '💡 Espace / Clic : Faire voler le poulet'
+    controls: 'Espace / Clic : Faire voler le poulet'
   },
   clicker: {
     title: 'SNICKERS',
@@ -430,7 +442,7 @@ const GAMES_REGISTRY = {
     desc: 'Minez, achetez des machines et revenez chaque jour : ta progression est sauvegardée.',
     script: 'js/games/clicker.js',
     initFn: 'startClickerGame',
-    controls: '💡 Clic / toucher : miner — achète des générateurs'
+    controls: 'Clic / toucher : miner — achète des générateurs'
   },
   game2048: {
     title: '2048',
@@ -439,7 +451,7 @@ const GAMES_REGISTRY = {
     desc: 'Fusionnez les tuiles pour atteindre 2048 et aller encore plus loin.',
     script: 'js/games/game2048.js',
     initFn: 'start2048Game',
-    controls: '💡 Flèches ou glisse le doigt : déplacer les tuiles'
+    controls: 'Flèches ou glisse le doigt : déplacer les tuiles'
   },
   survivors: {
     title: 'SURVIVORS',
@@ -448,7 +460,7 @@ const GAMES_REGISTRY = {
     desc: 'Survis à des vagues sans fin, monte de niveau et choisis tes améliorations.',
     script: 'js/games/survivors.js',
     initFn: 'startSurvivorGame',
-    controls: '💡 ZQSD / flèches : se déplacer — tir automatique'
+    controls: 'ZQSD / flèches : se déplacer — tir automatique'
   },
   quiz: {
     title: 'QUIZ BLOCUS',
@@ -457,7 +469,7 @@ const GAMES_REGISTRY = {
     desc: 'Testez vos connaissances sur la vie lycéenne et les mouvements de contestation.',
     script: 'js/games/quiz.js',
     initFn: 'startQuizGame',
-    controls: '💡 Clic : Sélectionner la bonne réponse'
+    controls: 'Clic : Sélectionner la bonne réponse'
   },
   dada: {
     title: 'JEU DES DADAS',
@@ -466,7 +478,7 @@ const GAMES_REGISTRY = {
     desc: 'Sortez vos petits chevaux, évitez l\'IA et grimpez l\'escalier en premier !',
     script: 'js/games/dada.js',
     initFn: 'startDadaGame',
-    controls: '💡 Clic sur le Dé pour lancer'
+    controls: 'Clic sur le Dé pour lancer'
   },
   mario: {
     title: 'MARIO C\'EST LE BOSS',
@@ -475,7 +487,7 @@ const GAMES_REGISTRY = {
     desc: 'Parcours les mondes classiques (1-1, souterrain) avec la physique NES.',
     script: 'js/games/mario2d.js',
     initFn: 'startMarioGame',
-    controls: '💡 Flèches / Q-D : Se déplacer | Espace : Sauter',
+    controls: 'Flèches / Q-D : Se déplacer | Espace : Sauter',
     needs3D: false
   },
   beamdrive: {
@@ -485,7 +497,7 @@ const GAMES_REGISTRY = {
     desc: 'Simulateur de conduite réaliste : testez la physique et les chocs.',
     script: 'js/games/beam.js',
     initFn: 'startBeamDrive',
-    controls: '💡 Flèches / ZQSD : Conduire | Choc en temps réel',
+    controls: 'Flèches / ZQSD : Conduire | Choc en temps réel',
     needs3D: true,
     disabled: true
   },
@@ -496,7 +508,7 @@ const GAMES_REGISTRY = {
     desc: 'Trace des lignes avec la souris pour guider la balle soumise à la gravité vers sa cible !',
     script: 'js/games/physics.js',
     initFn: 'startPhysicsGame',
-    controls: '💡 Clic GAUCHE : Tracer une ligne | ESPACE : Lancer la balle | R : Recommencer'
+    controls: 'Clic GAUCHE : Tracer une ligne | ESPACE : Lancer la balle | R : Recommencer'
   },
   horrorhopital: {
     title: 'HORROR HOPITAL',
@@ -505,7 +517,7 @@ const GAMES_REGISTRY = {
     desc: 'Survivez aux horreurs de l\'hôpital et échappez-vous avant qu\'il ne soit trop tard !',
     script: 'js/games/horrorhopital.js',
     initFn: 'startHorrorHopitalGame',
-    controls: '💡 Clic GAUCHE : Tracer une ligne | ESPACE : Lancer la balle | R : Recommencer',
+    controls: 'Clic GAUCHE : Tracer une ligne | ESPACE : Lancer la balle | R : Recommencer',
     disabled: true
   },
     ecoletycoon: {
@@ -515,7 +527,7 @@ const GAMES_REGISTRY = {
     desc: 'Explore une école en 3D, fais-toi des amis, joue au basket et vis ta vie scolaire avec des IA qui ont leur personnalité et leur mémoire !',
     script: 'js/games/ecole-tycoon.js',
     initFn: 'startEcoleTycoonGame',
-    controls: '💡 ZQSD/WASD : bouger | Souris droite : caméra | Maj : courir | E : interagir | Espace : utiliser un objet / sauter',
+    controls: 'ZQSD/WASD : bouger | Souris droite : caméra | Maj : courir | E : interagir | Espace : utiliser un objet / sauter',
     needs3D: true,
     disabled: false
   },
@@ -571,8 +583,8 @@ const CATEGORY_LABELS = {
   reflexion: 'RÉFLEXION', record: 'RECORD', horror: 'HORREUR', simulation: 'SIMULATION'
 };
 const CATEGORY_ICONS = {
-  '3d': '🧊', action: '💥', arcade: '🕹️', retro: '👾', reflexion: '🧠',
-  record: '🏆', horror: '👻', simulation: '🚗'
+  '3d': '', action: '', arcade: '', retro: '', reflexion: '',
+  record: '', horror: '', simulation: ''
 };
 
 function thumbCandidates(id, game) {
@@ -612,7 +624,7 @@ function renderHubGrid() {
     .sort((a, b) => ((b[1].isNew ? 1 : 0) - (a[1].isNew ? 1 : 0)) || ((a[1].disabled ? 1 : 0) - (b[1].disabled ? 1 : 0)));
 
   if (!entries.length) {
-    grid.innerHTML = '<div class="empty-state">😕 Aucun jeu trouvé… essaie un autre mot !</div>';
+    grid.innerHTML = '<div class="empty-state">Aucun jeu trouvé… essaie un autre mot !</div>';
     return;
   }
 
@@ -624,7 +636,7 @@ function renderHubGrid() {
     const clickHandler = isDisabled ? '' : `onclick="openGame('${id}')"`;
     const newBadgeHTML = game.isNew ? '<div class="card-new-badge">NOUVEAU</div>' : '';
     const catLabel = CATEGORY_LABELS[game.category] || String(game.category || '').toUpperCase();
-    const icon = CATEGORY_ICONS[game.category] || '🎮';
+    const icon = CATEGORY_ICONS[game.category] || '';
     const srcs = thumbCandidates(id, game);
     const hasRecord = hs > 0;
 
@@ -636,10 +648,10 @@ function renderHubGrid() {
           <div class="thumb-shade"></div>
           ${newBadgeHTML}
           <div class="card-badge">${escapeHTML(game.badge)}</div>
-          <div class="thumb-play"><span>${isDisabled ? '🔒' : '▶'}</span></div>
+          <div class="thumb-play"><span>${isDisabled ? '' : '▶'}</span></div>
         </div>
         <div class="card-body">
-          <div class="card-meta"><span class="cat-chip">${escapeHTML(catLabel)}</span>${hasRecord ? '<span class="record-chip">🏆 RECORD</span>' : ''}</div>
+          <div class="card-meta"><span class="cat-chip">${escapeHTML(catLabel)}</span>${hasRecord ? '<span class="record-chip">RECORD</span>' : ''}</div>
           <h3>${escapeHTML(game.title)}</h3>
           <p>${game.desc}</p>
           <div class="card-footer">
@@ -839,7 +851,7 @@ document.getElementById('sound-toggle')?.addEventListener('click', () => {
   window.soundEnabled = !window.soundEnabled;
   soundEnabled = window.soundEnabled;
   document.getElementById('sound-toggle').innerHTML =
-    `<span id="sound-icon">${soundEnabled ? '🔊' : '🔇'}</span> SON: ${soundEnabled ? 'ON' : 'OFF'}`;
+    `<span id="sound-icon">${soundEnabled ? '' : ''}</span> ${soundEnabled ? 'Son activé' : 'Son coupé'}`;
 });
 
 document.getElementById('btn-restart')?.addEventListener('click', () => {
@@ -891,15 +903,40 @@ window.onload = () => {
 // ============================================================
 (function initStealthSystem() {
   const ORIGINAL_TITLE = 'Arbest';
+  const FAKE_TITLE = 'Google Docs — Document sans titre';
+  const USE_DOCS_ICON = true;   // true = icône Google Docs bleue ; false = aucune icône
+  const DOCS_ICON = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="#4285f4" d="M6 2h8l6 6v14H6z"/><path fill="#a1c2fa" d="M14 2l6 6h-6z"/><path fill="#fff" d="M9 12h8v1.5H9zm0 3h8v1.5H9zm0 3h5v1.5H9z"/></svg>');
+  let saved = null, hidden = false;
+
+  function cloak() {
+    if (hidden) return; hidden = true;
+    document.title = FAKE_TITLE;
+    const links = Array.from(document.querySelectorAll('link[rel*="icon"]'));
+    saved = links.map(l => l.cloneNode(true));
+    links.forEach(l => l.remove());              // on retire VRAIMENT les icônes (changer le href ne suffit pas toujours)
+    if (USE_DOCS_ICON) {
+      const n = document.createElement('link');
+      n.rel = 'icon'; n.id = 'stealth-icon'; n.href = DOCS_ICON;
+      document.head.appendChild(n);
+    }
+  }
+  function uncloak() {
+    if (!hidden) return; hidden = false;
+    document.title = ORIGINAL_TITLE;
+    const f = document.getElementById('stealth-icon'); if (f) f.remove();
+    (saved || []).forEach(l => document.head.appendChild(l));
+    saved = null;
+  }
 
   document.addEventListener('keydown', (e) => {
     if ((e.shiftKey && e.key === 'Escape') || (e.altKey && (e.key === 'q' || e.key === 'Q'))) {
       window.location.href = 'https://docs.google.com';
     }
   });
-
-  window.addEventListener('blur', () => { document.title = 'Google Docs — Document sans titre'; });
-  window.addEventListener('focus', () => { document.title = ORIGINAL_TITLE; });
+  window.addEventListener('blur', cloak);
+  window.addEventListener('focus', uncloak);
+  document.addEventListener('visibilitychange', () => { document.hidden ? cloak() : uncloak(); });
 })();
 
 // ============================================================
